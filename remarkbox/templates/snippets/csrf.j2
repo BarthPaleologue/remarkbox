@@ -1,0 +1,3 @@
+{% if request.csrf_token %}
+<input type="hidden" name="csrf_token" value="{{ request.csrf_token }}">
+{% endif %}

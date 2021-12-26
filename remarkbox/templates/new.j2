@@ -1,0 +1,14 @@
+{% extends request.base_template -%}
+
+{% block title %}new thread | {{ request.domain }}{%- endblock -%}
+
+{% block content %}
+
+<div id='create'>
+{% include 'snippets/create.j2' %}
+</div>
+
+<br>
+<br>
+
+{% endblock %}

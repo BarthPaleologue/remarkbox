@@ -1,0 +1,75 @@
+{% extends request.base_template -%}
+
+{% block content -%}
+
+<form method="post" action="/update-watching" onsubmit="submit.disabled = true; return true;">
+
+<div class="user-watching">
+
+  <div>
+  <h5>Namespaces</h5>
+  {% for namespace_watcher in request.user.namespace_watchers %}
+    <div>
+    <b>{{ namespace_watcher.namespace.name }}</b>
+    <br>
+
+    Notify
+    <select name="watcher-{{ namespace_watcher.id }}" id="watcher-{{ namespace_watcher.id }}">
+      <option value="never" {% if namespace_watcher.notification_frequency == "never" %}selected{% endif %}>never</option>
+      <option value="immediately" {% if namespace_watcher.notification_frequency== "immediately" %}selected{% endif %}>immediately</option>
+      <option value="daily" {% if namespace_watcher.notification_frequency == "daily" %}selected{% endif %}>daily</option>
+      <option value="weekly" {% if namespace_watcher.notification_frequency == "weekly" %}selected{% endif %}>weekly</option>
+    </select>
+    via {{ namespace_watcher.notification_method }}
+
+    </div>
+    <br>
+  {% endfor %}
+
+  <br>
+
+  {% include 'snippets/csrf.j2' %}
+  {% set submit_button_value = 'save changes' %}
+  {% include 'snippets/submit.j2' %}
+
+  </div>
+
+  <div>
+  <h5>Threads</h5>
+  {% for node_watcher in request.user.node_watchers %}
+    <div>
+    <b>
+    {% if node_watcher.node.title %}
+    {{ node_watcher.node.title }}
+    {% elif node_watcher.node %}
+    {{ node_watcher.node.uri.data }}
+    {% endif %}
+    </b>
+
+    <br>
+    Notify
+    <select name="watcher-{{ node_watcher.id }}" id="watcher-{{ node_watcher.id }}">
+      <option value="never" {% if node_watcher.notification_frequency == "never" %}selected{% endif %}>never</option>
+      <option value="immediately" {% if node_watcher.notification_frequency== "immediately" %}selected{% endif %}>immediately</option>
+      <option value="daily" {% if node_watcher.notification_frequency == "daily" %}selected{% endif %}>daily</option>
+      <option value="weekly" {% if node_watcher.notification_frequency == "weekly" %}selected{% endif %}>weekly</option>
+    </select>
+    via {{ node_watcher.notification_method }}
+    </div>
+    <br/>
+  {% endfor %} 
+
+  <br>
+
+  {% include 'snippets/csrf.j2' %}
+  {% set submit_button_value = 'save changes' %}
+  {% include 'snippets/submit.j2' %}
+
+  </div>
+
+</div>
+
+
+</form>
+
+{% endblock %}

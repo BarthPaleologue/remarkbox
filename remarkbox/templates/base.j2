@@ -1,0 +1,85 @@
+{%- import 'snippets/snippets.j2' as snippets with context -%}
+{% include 'snippets/owner-key-comment.j2' %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>{% block title %}{{ request.app_domain }}{% endblock %}</title>
+  <meta charset="utf-8" />
+
+  <!-- this makes mobile pretty...  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#D40000">
+
+{% include 'snippets/stylesheet-includes.j2' %}
+
+{% include 'snippets/javascript-includes.j2' %}
+
+</head>
+
+<body>
+
+<noscript>
+  <style>
+  .js-only {display: none;}
+  </style>
+</noscript>
+
+{% include 'snippets/flash-alerts.j2' %}
+
+<div class="main">
+
+<nav class="remarkbox-menu">
+  
+  <div class="home">
+
+    {{ snippets.namespace_home_uri(request.namespace) }} &nbsp;
+
+    {%- if request.user.authenticated and request.user.namespaces %}
+    <a href="{{ domain_app }}/u/namespaces" onclick="toggle('my-namespaces-div', 'my-namespaces-link', '(switch)', '(switch)'); return false;" id="my-namespaces-link">(switch)</a>
+
+    <div id="my-namespaces-div" class="my-namespaces-div">
+
+    {% for namespace in request.user.namespaces %}
+      {% if namespace != request.namespace %}
+      {{ snippets.namespace_home_uri(namespace) }}
+      <br/>
+      {% endif %}
+    {% endfor %}
+
+      <br/>
+      <center>
+      <a href="{{ domain_app }}/setup" class="button">setup</a>
+      </center>
+    </div>
+    &nbsp;
+    {%- endif %}
+
+  </div> <!-- end home -->
+
+  <div class="search">
+  {% if request.mode != 'embed' %}
+    {% include 'snippets/search.j2' %}
+  {% endif %}
+  </div>
+
+  <div class="call-to-action">
+  {% block call_to_action %}
+  {% endblock %}
+  </div>
+
+</nav>
+
+{% block content %}
+{% endblock %}
+</div>
+
+{% if request.mode != 'embed' %}
+{% include 'snippets/phone-menu.j2' %}
+{% endif %}
+
+<div id="remarkbox-footer">
+{% include 'snippets/powered-by.j2' %}
+</div>
+
+</body>
+</html>

@@ -1,0 +1,59 @@
+{% extends request.base_template -%}
+
+{% import 'snippets/forms.j2' as forms with context %}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+{% if 'namespace' in request.matchdict %}
+
+{{ snippets.namespace_actions(request.namespace) }}
+
+{% elif request.user and request.user.name == request.matchdict.get('user_name') %}
+
+<div class="remarkbox-sub-menu hidden-on-phone">
+{{ snippets.node_list_sub_menu(request.user) }}
+</div>
+
+<br>
+
+{% endif %}
+
+{% if request.page_number != 1 %}
+<br>
+page: {{ request.page_number }}
+</div>
+
+{% endif %}
+
+<h3>{{ the_title }}</h3>
+
+{%- for node in nodes %}
+
+<br>
+
+<a class="anchor" id="{{ node.id }}"></a>
+<div id="node-{{ node.id }}" class="node">
+  {{ snippets.node_avatar(node) }}
+  {{ snippets.author_and_date(node) }}
+  {{ snippets.status(node) }}
+
+  <div id="node-data-{{ node.id }}">
+  {{ node.data_html | safe }}
+  </div>
+
+  {{ snippets.permalinks(node) }}
+  {{ snippets.actions(node) }}
+</div>
+
+<div id="edit-box-{{ node.id }}" class="edit-box-div">
+   {{ forms.edit(node) }}
+</div>
+
+<div id="remark-box-{{ node.id }}" class="remark-box-div">
+   {{ forms.reply(node, node) }}
+</div>
+
+{% endfor -%}
+
+{%- endblock -%}

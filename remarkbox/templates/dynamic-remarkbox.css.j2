@@ -1,0 +1,29 @@
+/***
+Dynamic Remarkbox Stylesheet
+
+This stylesheet controls how comments (nodes) look when nested.
+***/
+
+.root-node {
+  padding-left: 12px;
+}
+
+{% for i in range(30) %}
+.node-depth-{{ i }} {
+  padding-left: {{ i * 12 }}px;
+}
+{% endfor %}
+
+.node {
+  padding-top: 20px;
+}
+
+.nested-avatar {
+  margin-left: -{{ request.avatar_size + 12 }}px;
+}
+
+@media screen and (min-width:568px) {
+    .node {
+      padding-left: {{ request.avatar_size + 12 }}px;
+    }
+}

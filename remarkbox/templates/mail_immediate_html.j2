@@ -1,0 +1,27 @@
+{%- import 'mail_snippet_html.j2' as mail_snippet with context -%}
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>Activity Notification | {{ request.app_domain }}</title>
+  </head>
+  <body>
+    <h1>Hey there, {{ notification.user.name }}!</h1>
+
+    <p>
+    Just notifying you of new activity:
+    </p>
+
+      <p style="margin-left: 20px;">
+      <b>{% if root.title_ascii %}{{ root.title_ascii }}{% else %}{{ root.uri.data_acsii }}{% endif %}</b>
+      <p>
+
+
+      <ul>
+          <li>
+              {{ mail_snippet.human_action(notification) }}
+          </li>
+      </ul>
+    
+    {{ mail_snippet.email_footer(notification) }}
+  </body>
+</html>

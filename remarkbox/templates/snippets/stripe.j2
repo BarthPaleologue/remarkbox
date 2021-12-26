@@ -1,0 +1,133 @@
+{% macro display_card(card, actions=True, change_card=False) %}
+  {%
+  set brand_logos = {
+    "Visa" : "https://js.stripe.com/v3/fingerprinted/img/visa-d6c6e0a636f7373e06d5fb896ad49475.svg",
+    "MasterCard" : "https://js.stripe.com/v3/fingerprinted/img/mastercard-a96ee3841a5e1e28d05ed3f0f4da62b8.svg",
+    "American Express" : "https://js.stripe.com/v3/fingerprinted/img/amex-edf6011de255d8a4c22904795c9d8770.svg",
+    "Discover" : "https://js.stripe.com/v3/fingerprinted/img/discover-8f3d8fc6ef836da1fcac12c095ee6fb8.svg",
+    "Diners Club" : "https://js.stripe.com/v3/fingerprinted/img/diners-fced9e136fd8c25f40a3e7b37a51dc1d.svg",
+    "JCB" : "https://js.stripe.com/v3/fingerprinted/img/jcb-1b12d588a1e9465d4d9fb84a610f9136.svg",
+    "UnionPay" : "https://js.stripe.com/v3/fingerprinted/img/unionpay-en-099cb6671310a54f640ac16d5f2a825c.svg",
+  }
+  %}
+
+  <section class="payment-card">
+    <img src="{{ brand_logos[card.brand] }}" style="width: 66px; float: left; margin-right: 20px;">
+    <b>{{ card.brand }}</b>
+    ending in
+    <b>{{ card.last4 }}</b>
+    <br/>
+    <span class="opacity-60">
+    expiring {{ card.exp_month }}/{{ card.exp_year }}
+    </span>
+    <br/>
+    <br/>
+    <div style="margin-top: -12px;">
+    {% if actions %}
+      <a href="/billing/confirm-update-card/delete-card/{{ card.id }}"><button type="button">delete</button></a>
+      <a href="/billing/confirm-update-card/make-card-active/{{ card.id }}" class="button button-small button-white"><button type="button">make active</button></a>
+    {% endif %}
+    {% if change_card %}
+      <a href="/billing"><button type="button">change card</button></a>
+    {% endif %}
+    </div>
+  </section>
+{% endmacro %}
+
+{% macro active_card(change_card=False) %}
+  {% if request.stripe_active_card %}
+    {{ display_card(request.stripe_active_card, actions=False, change_card=change_card) }}
+  {% endif %}
+{% endmacro %}
+
+{% macro saved_cards() %}
+  {% if request.stripe_saved_cards|length > 1 %}
+    <label>Saved Cards</label>
+    {% for card in request.stripe_saved_cards %}
+      {% if card != request.stripe_active_card %}
+        {{ display_card(card) }}
+        <br/>
+      {% endif %}
+    {% endfor %}
+    <br/>
+  {% endif %}
+{% endmacro %}
+
+{% macro new_card() %}
+<script src="https://js.stripe.com/v3/"></script>
+<form action="/billing/add-card" method="post" id="payment-form">
+  {% include 'snippets/csrf.j2' %}
+  <input type="hidden" name="return-to" value="{{ request.path_url }}">
+  <div class="form-row">
+
+    <center>
+    <div id="card-element">
+      <!-- A Stripe Element will be inserted here. -->
+    </div>
+    </center>
+
+
+    <center>
+    <button class="green-button button-max-width" style="margin-bottom: 0px; margin-top: 8px;">&#128274; Save Card</button>
+    <br>
+    <br>
+    <a href="https://stripe.com/docs/security/stripe" target="_blank"><img src="https://stripe.com/img/about/logos/badge/outline-dark.svg" style="margin-top: 8px;"></a>
+
+    <!-- Used to display Element errors. -->
+    <div id="card-errors" role="alert"></div>
+    </center>
+
+  </div>
+</form>
+
+<script>
+function stripeTokenHandler(token) {
+  // Insert the token ID into the form so it gets submitted to the server
+  var form = document.getElementById('payment-form');
+  var hiddenInput = document.createElement('input');
+  hiddenInput.setAttribute('type', 'hidden');
+  hiddenInput.setAttribute('name', 'stripeToken');
+  hiddenInput.setAttribute('value', token.id);
+  form.appendChild(hiddenInput);
+  
+  // Submit the form
+  form.submit();
+}
+
+var stripe;
+var elements;
+
+$(function () {
+  stripe = Stripe("{{ request.app.get("stripe.public") }}");
+  elements = stripe.elements();
+
+  var card = elements.create('card');
+  card.mount('#card-element');
+
+  card.addEventListener('change', function(event) {
+    var displayError = document.getElementById('card-errors');
+    if (event.error) {
+      displayError.textContent = event.error.message;
+    } else {
+      displayError.textContent = '';
+    }
+  });
+
+  var form = document.getElementById('payment-form');
+  form.addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    stripe.createToken(card).then(function(result) {
+      if (result.error) {
+        // Inform the customer that there was an error.
+        var errorElement = document.getElementById('card-errors');
+        errorElement.textContent = result.error.message;
+      } else {
+        // Send the token to your server.
+        stripeTokenHandler(result.token);
+      }
+    });
+  });
+});
+</script>
+{% endmacro %}

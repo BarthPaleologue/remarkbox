@@ -1,0 +1,272 @@
+{% macro node_avatar(node, size=request.avatar_size, align='left') %}
+<img
+  src   = "{{ node.avatar_uri(size=size) }}"
+  class = "avatar nested-avatar"
+  align = "{{ align }}"
+/>
+{% endmacro %}
+
+{% macro user_avatar(user, size) %}
+<img
+  src   = "{{ user.avatar_uri(size=size) }}"
+  class = "avatar"
+  align = "top"
+/>
+{% endmacro %}
+
+{% macro node_avatar_link(node, size=request.avatar_size, anchor='', class='') %}
+    {% if node.user == request.user %}
+    <a href="{{ request.link_prefix }}/u/settings" {% if class %}class="{{ class }}"{% endif %}>{{ node_avatar(node, size) }}</a>
+    {% elif node.user and node.verified %}
+    <a href="{{ request.link_prefix }}/u/{{ node.user.name }}{% if anchor %}#{{ anchor }}{% endif %}" {% if class %}class="{{ class }}"{% endif %}>{{ node_avatar(node, size) }}</a>
+    {% else %}
+    {{ node_avatar(node, size) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro user_avatar_link(user, size, anchor='', class='') %}
+    {% if user == request.user %}
+    <a href="{{ request.link_prefix }}/u/settings" {% if class %}class="{{ class }}"{% endif %}>{{ user_avatar(user, size) }}</a>
+    {% else %}
+    <a href="{{ request.link_prefix }}/u/{{ user.name }}{% if anchor %}#{{ anchor }}{% endif %}" {% if class %}class="{{ class }}"{% endif %}>{{ user_avatar(user, size) }}</a>
+    {% endif %}
+{% endmacro %}
+
+{% macro user_link(user, anchor='', class='') %}
+    {% if user == request.user %}
+    <a href="{{ request.link_prefix }}/u/settings" {% if class %}class="{{ class }}"{% endif %}>{{ user.name }}</a>
+    {% else %}
+    <a href="{{ request.link_prefix }}/u/{{ user.name }}{% if anchor %}#{{ anchor }}{% endif %}" {% if class %}class="{{ class }}"{% endif %}>{{ user.name }}</a>
+    {% endif %}
+{% endmacro %}
+
+{% macro author_link(node) %}
+    {% if node.user %}
+    {% set class = '' %}
+    {% if node.user in request.namespace.moderators %}{% set class = 'mod' %}{% endif %}
+    {{ user_link(node.user, anchor=node.id, class=class ) }}
+    {% else %}
+    {{ node.user_surrogate.name }}
+    {% endif %}
+{% endmacro %}
+
+{% macro author_and_date(node) %}
+    <span class="author-and-date">
+      {% if node.disabled %}
+        node was disabled
+      {% else %}
+        {% if node.verified %}
+        {{ author_link(node) }}
+        {% else %}
+        <span title="The owner of this comment needs to verify their email address.&#010;&#010;Is this your comment?&#010;&#010;Check your email to log in and verify, edit, or delete this comment!"><a href="https://faq.remarkbox.com/350c1c2e-a061-11e9-9ef7-040140774501/why-is-my-comment-unverified" target="_blank" rel="nofollow">unverified</a></span>
+        {% endif %}
+        <span class="date" title="created on {{ node.changed_date }} | {{ node.human_created_timestamp }}">
+          {{ node.human_created_timestamp }}
+        </span>
+        {% if node.was_edited %}
+        <span class="date" title="last edited on {{ node.changed_date }} | {{ node.human_changed_timestamp }}">
+        [edited]
+        </span>
+        {% endif %}
+      {% endif %}
+    </span>
+{% endmacro %}
+
+{% macro status(node) %}
+<span class="status">
+{% if node.disabled %}
+<span>(waiting for deletion)</span>
+{% elif request.namespace.hide_unless_approved and not node.approved %}
+<span title="Only you can see a hidden node.">(hidden: waiting for approval)</span>
+{% endif %}
+</span>
+{% endmacro %}
+
+{% macro button_remark(node, root_node) %}
+    {% if root_node and not root_node.locked %}
+    <a href="{{ request.link_prefix }}/{{ node.id }}"
+       onclick="toggle('remark-box-{{ node.id }}', 'remark-link-{{ node.id }}', 'remark', 'hide'); document.getElementById('textarea-{{ node.id }}').focus(); return false;"
+       id="remark-link-{{ node.id }}" class="remark">remark</a>
+    {% endif %}
+{% endmacro %}
+
+{% macro button_permalink(node, link_text='link', link_title='move to the permalink of this node') %}
+    {% set share_link_target = '_self' %}
+    {% if request.mode == 'embed' %}
+        {% set share_link_target = '_top' %}
+    {% endif %}
+    <a href="/r/{{ node.id }}" title="{{ link_title }} ({{ node.id }})" id="share-link-{{ node.id }}" class="action" target="{{ share_link_target }}">{{ link_text }}</a>
+{% endmacro %}
+
+{% macro button_collapse(node) %}
+    <button
+       onclick="toggle('node-children-{{ node.id }}', 'collapse-link-{{ node.id }}', 'expand [+]', 'collapse [-]');"
+       id="collapse-link-{{ node.id }}" class="action link js-only">collapse [-]</button>
+{% endmacro %}
+
+{% macro permalinks(node, parent_node=None, root_node=None) %}
+  {% if not node.disabled and node != request.node %}
+    {{ button_remark(node, root_node) }}
+    {{ button_permalink(node) }}
+    {% if parent_node != request.node %}
+    {{ button_permalink(parent_node, link_text='parent', link_title='move to the permalink of the parent node') }}
+    {% endif %}
+  {% endif %}
+{% endmacro %}
+
+{% macro namespace_home_uri(namespace) %}
+    {% if namespace.name == request.domain %}
+    <a href="/">{{ request.domain }}</a>
+    {% else %}
+    <a href="{{ domain_app }}/ns/{{ namespace.name }}">{{ namespace.name }}</a>
+    {% endif %}
+{% endmacro %}
+
+{% macro node_list_sub_menu(user, divider="|") %}
+{% set user_unverified_node_count = user.unverified_nodes.count() %}
+{% set user_disabled_node_count = user.disabled_nodes.count() %}
+<a href="{{ request.link_prefix }}/u/{{ user.name }}?verified">my nodes</a>
+{{ divider }}
+<a href="{{ request.link_prefix }}/u/{{ user.name }}?pending">my unverified nodes ({{ user_unverified_node_count }})</a>
+{{ divider }}
+<a href="{{ request.link_prefix }}/u/{{ user.name }}?disabled">my disabled nodes ({{ user_disabled_node_count }})</a>
+{{ divider }}
+<a href="{{ request.link_prefix }}/u/notifications">notifications ({{ user.unsent_node_notifications.count() }})</a>
+{% endmacro %}
+
+{% macro watch_node(node_id) %}
+<form action="/watch" id="watch" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+  {% include 'csrf.j2' %}
+  <input type="hidden" name="root-id" value="{{ node_id }}">
+  <input type="submit" name="watch" id="submit" class="watch button-small" value="&#128065; watch" />
+</form>
+{% endmacro %}
+
+{% macro unwatch_node(node_id="", watcher_id="") %}
+<form action="/unwatch" id="unwatch" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+  {% include 'csrf.j2' %}
+  <input type="hidden" name="root-id" value="{{ node_id }}">
+  <input type="hidden" name="watcher-id" value="{{ watcher_id }}">
+  <input type="submit" name="unwatch" id="submit" class="unwatch button-small" value="unwatch" />
+</form>
+{% endmacro %}
+
+{% macro lock_node(node_id) %}
+<form action="/lock" id="lock" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+  {% include 'csrf.j2' %}
+  <input type="hidden" name="root-id" value="{{ node_id }}">
+  <input type="submit" name="lock" id="submit" class="lock button-small" value="&#128274; lock" />
+</form>
+{% endmacro %}
+
+{% macro unlock_node(node_id) %}
+<form action="/unlock" id="unlock" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+  {% include 'csrf.j2' %}
+  <input type="hidden" name="root-id" value="{{ node_id }}">
+  <input type="submit" name="unlock" id="submit" class="unlock button-small" value="unlock" />
+</form>
+{% endmacro %}
+
+
+{% macro disable_node(node) %}
+<form action="{{ request.link_prefix }}/{{ node.id }}/disable" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  <button type="submit" name="disable" id="submit" class="action link" value="disable">disable</button>
+</form>
+{% endmacro %}
+
+{% macro enable_node(node) %}
+<form action="{{ request.link_prefix }}/{{ node.id }}/enable" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  <button type="submit" name="enable" id="submit" class="action link" value="enable">enable</button>
+</form>
+{% endmacro %}
+
+{% macro verify_node(node) %}
+<form action="{{ request.link_prefix }}/{{ node.id }}/verify" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  <button type="submit" name="verify" id="submit" class="action link" value="verify">verify</button>
+</form>
+{% endmacro %}
+
+{% macro approve_node(node) %}
+<form action="{{ request.link_prefix }}/{{ node.id }}/approve" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  <button type="submit" name="approve" id="submit" class="action link" value="approve">approve</button>
+</form>
+{% endmacro %}
+
+{% macro deny_node(node) %}
+<form action="{{ request.link_prefix }}/{{ node.id }}/deny" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  <button type="submit" name="deny" id="submit" class="action link" value="deny">deny</button>
+</form>
+{% endmacro %}
+
+{% macro actions(node) %}
+
+  {% if request.namespace.can_alter_node(node, request.user) %}
+
+    {% if node.disabled %}
+      {{ enable_node(node=node) }} &nbsp;
+    {% else %}
+      <a href="{{ request.link_prefix }}/{{ node.id }}/edit"
+          onclick="toggle('edit-box-{{ node.id }}', 'edit-link-{{ node.id }}', 'edit', 'hide'); document.getElementById('edit-textarea-{{ node.id }}').focus(); return false;"
+          id="edit-link-{{ node.id }}" class="action">edit</a>
+
+      {{ disable_node(node=node) }} &nbsp;
+
+    {% endif %}
+  {% endif %}
+
+  {% if node.verified == False and node.user == request.user %}
+    {{ verify_node(node=node) }} &nbsp;
+  {% endif %}
+
+  {% if node.enabled and request.namespace.hide_unless_approved and request.namespace.is_moderator(request.user) %}
+
+    {% if node.approved is none %}
+      {{ approve_node(node=node) }} &nbsp;
+      {{ deny_node(node=node) }} &nbsp;
+    {% elif node.approved %}
+      {{ deny_node(node=node) }} &nbsp;
+    {% else %}
+      {{ approve_node(node=node) }} &nbsp;
+    {% endif %}
+
+  {% endif %}
+{% endmacro %}
+
+{% macro namespace_actions(namespace) %}
+    {% if request.mode != "embed" %}
+
+    {% set namespace_thread_count = namespace.visible_roots.count() %}
+    {% set namespace_all_node_count = namespace.nodes.count() %}
+    {% set namespace_unapproved_node_count = namespace.unapproved_nodes.count() %}
+    {% set namespace_approved_node_count = namespace.approved_nodes.count() %}
+    {% set namespace_disabled_node_count = namespace.disabled_nodes.count() %}
+
+    <div class="remarkbox-sub-menu hidden-on-phone">
+
+    {% if request.namespace.name == request.domain %}
+    <a href="/">threads ({{ namespace_thread_count }})</a>
+    {% else %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}">threads ({{ namespace_thread_count }})</a>
+    {% endif %} |
+
+    {% if namespace.hide_unless_approved %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?pending">pending nodes ({{ namespace_unapproved_node_count }})</a> |
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?approved">approved nodes ({{ namespace_approved_node_count }})</a> |
+    {% else %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes">nodes ({{ namespace_all_node_count }})</a> |
+    {% endif %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?disabled">disabled nodes ({{ namespace_disabled_node_count }})</a>
+
+    {% if request.user in namespace.owners %}
+    | <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/settings">namespace settings</a>
+    {% endif %}
+
+    </div>
+
+    {% endif %}
+{% endmacro %}

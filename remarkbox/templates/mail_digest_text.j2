@@ -1,0 +1,15 @@
+{%- import 'mail_snippet_text.j2' as mail_snippet with context -%}
+Hey there, {{ user.name }}!
+
+You received {{ subject }}!
+
+{% for node, notifications in grouped_notifications.items() %}
+
+  {% if node.title_ascii %}{{ node.title_ascii }}{% else %}{{ node.uri.data_ascii }}{% endif %}
+  -------------------------------------------------------------------------
+    {% for notification in notifications %}
+    * {{ mail_snippet.human_action(notification) }}
+    {% endfor %}
+{% endfor %}
+
+{{ mail_snippet.email_footer() }}

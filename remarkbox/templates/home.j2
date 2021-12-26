@@ -1,0 +1,121 @@
+{% extends request.base_template -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+
+{% block call_to_action %}
+{% if request.saas_home %}
+<!-- don't show new thread on SaaS homepage. -->
+{% elif request.faq_home %}
+<a href="/new" class="button button-small">new thread</a>
+{% endif %}
+{% endblock %}
+
+{% block content -%}
+
+{% if request.user in request.namespace.users %}
+{{ snippets.namespace_actions(request.namespace) }}
+{% endif %}
+
+{% if not request.saas_home %}
+
+<h3 class="hidden-on-phone">{{ the_title}}</h3>
+{% if request.namespace.description %}
+<div class="namespace-description">{{ request.namespace.description }}</div>
+{% endif %}
+
+{%- for node in nodes %}
+<div class="summary">
+  <span class="author-and-date">
+    {% if node.user %}
+    {{ snippets.user_link(node.user) }}
+    {% else %}
+    <a href="{{ request.link_prefix }}/{{ node.id }}">thread</a>
+    {% endif %}
+    <span id="{{ node.id }}" class="date" title="{{ node.created_date }}">
+      {{ node.human_changed_timestamp }}
+    </span>
+  </span>
+  <br>
+  {% if node.has_uri -%}
+  <a href="{{ node.uri.data }}" target="_blank" rel="nofollow">{{ node.uri.data }}</a>
+  {% else -%}
+  <a href="{{ node.path }}">{{ node.title }}</a>
+  {% endif -%}
+  <br>
+  <a href="{{ request.link_prefix }}/{{ node.id }}">
+  <span class="remark-count">{{ node.stats["root"]["visible_count"] }} remarks</span>
+  </a>
+</div>
+{% endfor -%}
+
+{% elif request.saas_home %}
+
+{%- if request.user.authenticated %}
+
+{%- if request.user.unverified_nodes.count() > 0 %}
+
+<br>
+<section class="well">
+<br>
+<p>
+<b>You have <a href="{{ request.link_prefix }}/u/{{ request.user.name }}?pending">unverified comments ({{ request.user.unverified_nodes.count() }})</a> pending review.</b>
+</p>
+
+<p>
+You should verify that they belong to you because only verified comments will receive reply notifications.
+</p>
+</section>
+
+{%- endif %}
+
+{% if request.user.unverified_namespace_owner_requests %}
+<br>
+<section class="well">
+<br>
+<b>You should complete the <a href="{{ request.link_prefix }}/setup">setup</a> on your pending Namespace.</b>
+<p>
+For help, go to our <a href="https://faq.remarkbox.com">frequently asked questions</a> site!
+</p>
+</section>
+<br>
+{% endif %}
+
+<br/>
+<div>
+{% if request.user.namespaces %}
+
+<ul>
+{% for namespace in request.user.namespaces %}
+  <li>{{ snippets.namespace_home_uri(namespace) }}
+  {% if namespace.is_owner(request.user) %}
+  <a href="/ns/{{ namespace.name }}/settings">[settings]</a>
+  {% else%}
+  <a href="/setup">[unlock settings]</a></li>
+  {% endif %}
+  </li>
+{% endfor %}
+</ul>
+
+{% elif not request.user.unverified_namespace_owner_requests %}
+
+<section class="well">
+<br>
+<b>You should <a href="{{ request.link_prefix }}/setup">setup</a> a Namespace to put comments on your site!</b>
+<br>
+<br>
+</section>
+<br>
+{% endif %}
+
+{% else %}
+<section class="well">
+<br>
+<b>You should <a href="{{ request.link_prefix }}/join-or-log-in">log in</a> to use this dashboard.</b>
+<br>
+<br>
+</section>
+<br>
+{% endif %}
+
+{% endif %}
+
+{%- endblock -%}

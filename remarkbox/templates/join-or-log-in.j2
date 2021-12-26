@@ -1,0 +1,34 @@
+{% extends request.base_funnel_template -%}
+{% block title %}join or log in | {{ request.domain }}{% endblock -%}
+{% block content %}
+<style>
+input#email_input {
+  margin-bottom: 10px;
+  text-align: center;
+}
+input.rb-submit {
+  text-align: center;
+}
+</style>
+<br/>
+  <p class="whats-next"><b>What's next?</b> check your email to log in!</p>
+<section class="join-or-log-in">
+ <form method="post" action="{{ request.link_prefix }}/join-or-log-in" onsubmit="submit.disabled = true; return true;">
+  {% include 'snippets/csrf.j2' %}
+  {% include 'snippets/email.j2' %}
+  {% set submit_button_classes = 'red-button button-max-width' %}
+  {% set submit_button_value = 'send log in email' %}
+  {% include 'snippets/submit.j2' %}
+  {% if return_to %}
+  <input type="hidden" name="return-to" value="{{ return_to }}" >
+  {% endif %}
+  {% if thread_uri %}
+  <input type="hidden" name="thread_uri" value="{{ thread_uri }}" >
+  {% endif %}
+ </form>
+  <span class="whats-next">
+  <b>No account?</b>
+  <span class="avoidwrap">Use this form to create one!</span>
+  </span>
+</section>
+{% endblock %}

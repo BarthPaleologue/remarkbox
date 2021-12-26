@@ -1,0 +1,269 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+{% set submit_button_classes = 'button-right' %}
+{% set submit_button_value = 'save changes' %}
+
+<h3>{{ the_title }}</h3>
+
+{% if request.namespace.subscription_type == "development" %}
+<section class="well" style="text-align: left;">
+<br>
+<b>Development Plan</b>
+<br><br>
+<b>Note:</b> The options below only work for the Production plan.<br> You should <a style="color: rgb(var(--red-darker));" href="https://russell.ballestrini.net/contact/" target="_blank">contact me</a> (russell.ballestrini@gmail.com) to upgrade.
+<br>
+<br>
+</section>
+{% endif %}
+
+<br>
+<form method="post" action="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/settings" onsubmit="submit.disabled = true; return true;">
+
+<label>Namespace description:</label>
+<input type="text" name="description" id="description" value="{% if request.namespace.description %}{{ request.namespace.description }}{% endif %}" class="common-text-input" placeholder="The description shown when visiting: https://my.remarkbox.com/ns/{{ request.namespace.name }}"></input>
+<br>
+<br>
+<label>Placeholder for new comment textareas:</label>
+<input type="text" name="placeholder-text" id="placeholder-text" value="{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% endif %}" class="common-text-input" placeholder="default: 'What do you want to say? markdown'"></input>
+<br>
+<br>
+<label>Placeholder for an empty thread:</label>
+<input type="text" name="no-nodes-text" id="no-nodes-text" value="{% if request.namespace.no_nodes_text %}{{ request.namespace.no_nodes_text }}{% endif %}" class="common-text-input" placeholder="default: 'Leave the first comment and get the conversation going!'"></input>
+<br>
+<br>
+<label>Enable Moderation:</label>
+<input type="checkbox" name="hide-unless-approved-checkbox" id="hide-unless-approved-checkbox" {% if request.namespace.hide_unless_approved %}checked{% endif %}></input>
+If checked, hide new comments until approved by a moderator.
+<br>
+<br>
+<label>Enable Link Protection:</label>
+<input type="checkbox" name="link-protection-checkbox" id="link-protection-checkbox" {% if request.namespace.link_protection %}checked{% endif %}></input>
+If checked, replace all links in comments with <code>[link removed]</code>.
+<br>
+<br>
+<label>Newest comments first:</label>
+<input type="checkbox" name="reverse-order-checkbox" id="reverse-order-checkbox" {% if request.namespace.reverse_order %}checked{% endif %}></input>
+If checked, reverse the comment order so that newest comments appear first. Newest comments on top, oldest comments on bottom.
+<br>
+<br>
+<label>Group Conversations:</label>
+<input type="checkbox" name="group-conversations-checkbox" id="group-conversations-checkbox" {% if request.namespace.group_conversations %}checked{% endif %}></input>
+If checked, disable infinite nesting and limit to only a depth of 2.
+<br>
+<br>
+<label>Disable query strings as thread identifiers:</label>
+<input type="checkbox" name="ignore-query-string-checkbox" id="ignore-query-string-checkbox" {% if request.namespace.ignore_query_string %}checked{% endif %}></input>
+If checked, both <code>example.com/1</code> and <code>example.com/1?a=2</code> will load the same thread because <code>a=2</code> is ignored.
+<br>
+<br>
+<label>Enable MathJax:</label>
+<input type="checkbox" name="mathjax-checkbox" id="mathjax-checkbox" {% if request.namespace.mathjax %}checked{% endif %}></input>
+If checked, allow beautiful math equations with <a href="https://www.mathjax.org/" target="_blank" rel="nofollow">MathJax</a> <span class="status">(could introduce slowness)</span>
+<br>
+<code>$$E = mc^2$$</code>
+<br>
+<br>
+<label>Disable Powered By Remarkbox:</label>
+<input type="checkbox" name="hide-powered-by-checkbox" id="hide-powered-by-checkbox" {% if request.namespace.hide_powered_by %}checked{% endif %}></input>
+If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_powered_by %}.. <b>bummer.</b>{% endif %}
+
+{% include 'snippets/submit.j2' %}
+
+<br>
+<br>
+
+<hr>
+
+<h4>Embed Mode Settings</h4>
+
+<label>Custom stylesheet URL:</label>
+You can host your own CSS file and link it here.
+<input list="css-themes" type="text" name="stylesheet-embed-uri" id="stylesheet-embed-uri" value="{% if request.namespace.stylesheet_embed_uri %}{{ request.namespace.stylesheet_embed_uri }}{% endif %}" class="common-text-input" placeholder="CSS URL"></input>
+
+<datalist id="css-themes">
+    <option value="https://russell.ballestrini.net/theme/css/remarkbox-theme-russell.css">Russell's Theme</option>
+</datalist>
+
+<br>
+<br>
+
+<label>Custom stylesheet:</label>
+<textarea name="stylesheet-embed" id="stylesheet-embed" class="common-textarea monospace" placeholder="CSS (optional)">{% if request.namespace.stylesheet_embed %}{{ request.namespace.stylesheet_embed }}{% endif %}</textarea>
+
+<br>
+<br>
+
+{% include 'snippets/submit.j2' %}
+
+<br>
+<br>
+
+<hr>
+
+<div id="notifications"></div>
+
+<h4>Stand-alone Mode Settings</h4>
+
+<label>Google Analytics ID:</label>
+<input type="text" name="google-analytics-id" id="google-analytics-id" value="{% if request.namespace.google_analytics_id %}{{ request.namespace.google_analytics_id }}{% endif %}" class="common-text-input" placeholder="Google Analytics ID for Stand-alone Mode"></input>
+
+<br>
+<br>
+
+{% include 'snippets/submit.j2' %}
+{% include 'snippets/csrf.j2' %}
+</form>
+
+
+<br>
+
+<hr>
+
+<h4>Notifications</h4>
+
+<label>Email:</label>
+
+
+Adjust Email Notifications in the user <a href="{{ request.link_prefix }}/u/settings">settings</a> and
+<a href="{{ request.link_prefix }}/u/watching">watching</a> pages.
+
+<br>
+<br>
+
+<label>RSS:</label>
+
+Use any of these feeds with your RSS reader to get notified about new comments.
+<br>
+<br>
+<a href="/ns/{{ request.namespace.name }}.threads.xml" target="_blank" class="button">RSS threads</a>
+&nbsp;
+&nbsp;
+<a href="/ns/{{ request.namespace.name }}.nodes.xml" target="_blank" class="button">RSS comments</a>
+&nbsp;
+&nbsp;
+<a href="/ns/{{ request.namespace.name }}/all.sitemap.xml" target="_blank" class="button" title="This Namespace's Atom Sitemap Feed.&#010;&#010;Provide this to search engines for better index coverage.">Atom Feed</a>
+<!-- <a href="/ns/{{ request.namespace.name }}.pending.asdf.xml" target="_blank" class="button">RSS pending</a> -->
+
+<br>
+<br>
+
+<label>Slack:</label>
+
+Create the <code>#remarks</code> channel before adding Remarkbox to Slack.
+
+<br>
+<br>
+
+{% include 'snippets/add-to-slack.j2' %}
+
+<br>
+<br>
+
+{% if request.namespace.slack_oauth_records %}
+<b>Integrated Slack Teams and Channels:</b>
+
+<br>
+<br>
+
+<ul>
+{% for oauth in request.namespace.slack_oauth_records %}
+<li><b>{{ oauth.user.name }}</b> integrated this Namespace with the Slack Team <b>{{ oauth.data["team_name"] }}</b> <i>#remarks</i></li>
+  <form class="inline" method="post" action="{{ request.link_prefix }}/oauth/slack/delete" onsubmit="submit.disabled = true; return true;">
+    <input type="hidden" name="oauth-id" value="{{ oauth.id }}">
+    <input type="hidden" name="namespace" value="{{ request.namespace.name }}">
+    {% include 'snippets/csrf.j2' %}
+    {% set submit_button_classes = 'button-small' %}
+    {% set submit_button_value = 'delete' %}
+    {% include 'snippets/submit.j2' %}
+  </form>
+  <br>
+  <br>
+{% endfor %}
+</ul>
+{% endif %}
+
+<br>
+
+<hr id="snippet">
+
+<br>
+
+<h4>API and Integrations</h4>
+
+<label>Comment Snippet</label>
+
+Embed this snippet into your web page to enable comments:
+
+<br>
+<br>
+
+<ul>
+{% for namespace_request in request.namespace.namespace_owner_requests %}
+{% if namespace_request.user in request.namespace.users %}
+<li>
+  {{ namespace_request.user.name }}'s <a href="/embed-iframe.txt?rb_owner_key={{ namespace_request.id }}" target="_blank">snippet</a>
+</li>
+{% endif %}
+
+{% endfor %}
+</ul>
+
+
+<label>Statistics</a></label>
+This <a href="/ns/{{ request.namespace.name }}/stats.json" target="_blank">stats.json</a> endpoint
+returns various statistics about the threads in this Namespace.
+<br>
+Useful for displaying comment counts on summary pages.
+<br>
+<br>
+
+<label>Export Data</a></label>
+This <a href="/ns/{{ request.namespace.name }}/dump.json" target="_blank">dump.json</a> endpoint
+returns all threads and comments for this Namespace.
+<br>
+Useful for backing up your data.
+<br>
+<br>
+
+<br>
+
+<hr>
+
+<br>
+
+<h4>Very Important People</h4>
+
+<label>Moderators:</label>
+These people may approve, deny, edit, or delete any comment in this Namespace.
+<ul>
+{% for user in request.namespace.moderators %}
+<li>{{ snippets.user_link(user) }}</li>
+{% endfor %}
+</ul>
+
+<label>Owners:</label>
+These people may modify Namespace settings (this page).
+<ul>
+{% for user in request.namespace.owners %}
+<li>{{ snippets.user_link(user) }}</li>
+{% endfor %}
+</ul>
+
+<br>
+
+<hr>
+
+<br>
+
+<h4>Payment Preferences</h4>
+
+<ul>
+<li>
+<a href="/billing">{{ request.user.name }}'s payment preferences</a>
+</li>
+</ul>
+
+{%- endblock -%}

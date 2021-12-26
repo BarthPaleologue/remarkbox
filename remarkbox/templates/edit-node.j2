@@ -1,0 +1,29 @@
+{% extends request.base_template -%}
+
+{% import 'snippets/forms.j2' as forms with context %}
+
+{% block title %}{% if request.node.title is not none %}{{ request.node.title }} {% else %} {{ request.node.data[:30] }} {% endif %} | edit | {{ request.domain }}{% endblock -%}
+
+{% block content -%}
+
+{% if request.node.has_uri == false %}
+
+{% if request.node.title is not none %}
+<h2 class="title"><a href="{{ request.node.path }}">{{ request.node.title }}</a></h2>
+{% endif %}
+<a class="anchor" id="{{ request.node.id }}"></a>
+<div id="node-{{ request.node.id }}" class="node">
+  {{ snippets.author_and_date(request.node) }}
+  {{ snippets.node_avatar(request.node) }}
+  <div id="node-data-{{ request.node.id }}">
+  {{ request.node.data_html | safe }}
+  </div>
+  {{ snippets.actions(request.node) }}
+</div>
+{% endif %}
+
+<div id='edit'>
+   {{ forms.edit(request.node) }}
+</div>
+
+{% endblock -%}

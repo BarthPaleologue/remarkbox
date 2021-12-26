@@ -1,0 +1,32 @@
+{%- import 'mail_snippet_html.j2' as mail_snippet with context -%}
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>{{ subject }} | {{ request.app_domain }}</title>
+  </head>
+  <body>
+    <h1>Hey there, {{ user.name }}!</h1>
+
+    <p>
+    You received {{ subject }}!
+    </p>
+
+      {% for root, notifications in grouped_notifications.items() %}
+
+      <p style="margin-left: 20px;">
+      <b>{% if root.title_ascii %}{{ root.title_ascii }}{% else %}{{ root.uri.data_acsii }}{% endif %}</b>
+      <p>
+
+      <ul>
+      {% for notification in notifications %}
+          <li>
+              {{ mail_snippet.human_action(notification) }}
+          </li>
+      {% endfor %}
+      </ul>
+
+      {% endfor %}
+
+    {{ mail_snippet.email_footer() }}
+  </body>
+</html>

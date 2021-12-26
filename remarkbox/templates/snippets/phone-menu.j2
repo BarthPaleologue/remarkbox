@@ -1,0 +1,41 @@
+{% if request.user and request.user.authenticated %}
+   <input id="burger" type="checkbox" class="burger-checkbox shown-on-phone" />
+
+   <label for="burger" class="burger-label shown-on-phone">
+       <span></span>
+       <span></span>
+       <span></span>
+   </label>
+
+   <nav class="phone-menu shown-on-phone">
+
+     <h5>Settings</h5>
+     <ul>
+     {%- if request.user.authenticated %}
+       <span class="avoidwrap"><li>{{ snippets.user_link(request.user) }} <a href="/log-out">[log out]</a></li></span>
+       <li><a href="{{ request.link_prefix }}/u/settings">account settings</a></li>
+       {% if request.user.stripe_id %}
+       <li><a href="{{ request.link_prefix }}/billing">payment preferences</a></li>
+       {% endif %}
+     {% else %}
+     <li><a href="{{ request.app_url }}/join-or-log-in?return-to={{ request.path_url }}">join-or-log-in</a></li>
+     {% endif %}
+     </ul>
+
+     <h5>My Namespaces</h5>
+     <ul>
+     {%- if request.user.namespaces %}
+     {% for namespace in request.user.namespaces %}
+       <li>{{ snippets.namespace_home_uri(namespace) }}</li>
+     {% endfor %}
+     {% endif %}
+       <li><a href="{{ request.link_prefix }}/setup">[+ setup]</a></li>
+     </ul>
+
+     <h5>My Nodes</h5>
+     <ul>
+       <li>{{ snippets.node_list_sub_menu(request.user, divider="") }}</li>
+     </ul>
+
+   </nav>
+{% endif %}

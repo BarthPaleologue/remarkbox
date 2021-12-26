@@ -1,0 +1,74 @@
+# python 2 -> 3 compat.
+six
+
+# Pyramid.
+plaster_pastedeploy
+pyramid
+pyramid_jinja2
+pyramid_debugtoolbar
+pyramid_retry
+pyramid_tm
+
+# Model.
+SQLAlchemy
+SQLAlchemy-Utils
+transaction
+zope.sqlalchemy
+alembic
+
+# PostgreSQL database connections.
+# requires postgresql-devel on Fedora for `pg_config` binary.
+psycopg2-binary
+
+# Template renderer.
+#jinja2
+jinja2==2.11.1
+
+# MarkDown is a popular and familair WYSIWYM markup language.
+markdown
+python-markdown-math
+html5lib
+BeautifulSoup4
+
+# Bleach sanitizes MarkDown (removes HTML/Javascript) to prevent XSS.
+bleach>=2.1.4
+bleach-allowlist
+
+# codehilite.
+pygments
+
+# Human readable time deltas.
+ago
+
+# light weight URI attribute parser.
+miniuri
+
+# my miscutils checked out via git as an editable package.
+#-e git+git@github.com:russellballestrini/miscutils.git#egg=miscutils
+git+https://github.com/russellballestrini/miscutils.git#egg=miscutils
+
+# the official Remarkbox "meta" theme.
+git+https://github.com/russellballestrini/remarkbox-theme-meta.git#egg-remarkbox-theme-meta
+
+# another example theme.
+git+https://github.com/russellballestrini/remarkbox-westworld.git#egg-remarkbox-westworld
+
+# Create URI slugs from titles.
+python-slugify
+
+# Future proof, computationally complex password hashes.
+bcrypt
+
+# reach out to verify public rb_owner_key.
+requests[security]
+# request library pins this dependency too low.
+# idna==2.6
+
+# credit card storage and processing.
+stripe
+
+# slack: bot notifications.
+slacker
+
+# DKIM Signed Email from Python.
+dkimpy

@@ -1,0 +1,8 @@
+{% import 'mail_snippet_text.j2' as mail_snippet with context %}
+Hey there, {{ notification.user.name }}!
+
+Just notifying you of new activity:
+
+ * {{ mail_snippet.human_action(notification) }}
+
+{{ mail_snippet.email_footer(notification) }}

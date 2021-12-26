@@ -1,0 +1,7 @@
+<form action="/search" id="search" onsubmit="submit.disabled = true; return true;">
+  {% include 'csrf.j2' %}
+  {% if request.namespace %}
+  <input type="hidden" name="namespace" value="{{ request.namespace.name }}">
+  {% endif %}
+  <input type="input" name="keywords" id="keywords" placeholder="keyword search on {{ request.namespace.name}}" required/>
+</form>

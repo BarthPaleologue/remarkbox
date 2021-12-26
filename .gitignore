@@ -1,0 +1,33 @@
+*.xml
+*.json
+
+*.pyc
+*.swp
+*.egg
+*.egg-info
+*.sqlite
+*.sqlite.*
+*.sqlite-journal
+__pycache__
+.coverage
+.cache
+.env
+.pytest_cache
+env/*
+build/*
+
+# ignore iframe-resizer repo
+iframe-resizer/iframe-resizer/*
+
+# this is a place to put private vars for stripe or whatever.
+vars.fish
+vars.sh
+
+venv/
+
+index3.html
+index4.html
+index5.html
+
+remarkbox-theme-meta/
+env.vanilla/

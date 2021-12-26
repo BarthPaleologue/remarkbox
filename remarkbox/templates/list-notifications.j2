@@ -1,0 +1,45 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<b>{{ the_title }}</b>
+
+<br>
+<br>
+
+{% for s in ["unsent", "sent", "all"] %}
+  <a href="?{{ s }}&page={{ request.page_number }}">
+  {% if s == state %}
+  <b>{{ s }}: {{ counts[s] }}</b>
+  {% else %}
+  {{ s }}: {{ counts[s] }}
+  {% endif %}
+  </a>
+  <br>
+{% endfor %}
+
+<br>
+
+{% for notification in notifications %}
+
+<div style="font-size: 18px; font-weight: bold;">{% if notification.sent %}<b style="color: green;" title="sent">&#9745;</b>{% else %}<b title="unsent">&#9744;</b>{% endif %}</span>
+{{ notification.node_event.user.name }}
+{{ notification.node_event.action }}
+(<a href="{{ request.host_url }}/r/{{ notification.node_event.node.id }}" target="_blank">link</a>)
+| <i title="{{ notification.created_datetime }}">{{ notification.human_created_timestamp }}</i>
+
+<br />
+{% if topsecret %}
+{{ notification.user.name }} |
+{{ notification.user.email }} |
+{{ notification.watcher.type }} |
+{{ notification.method }} |
+{{ notification.frequency }}
+{% endif %}
+
+<br />
+
+{% endfor %}
+
+{%- endblock -%}

@@ -1,0 +1,5 @@
+# prod web application server.
+uwsgi
+
+# prod db is PostgreSQL, psycopg2 is a database driver. 
+psycopg2

@@ -1,0 +1,15 @@
+{% set number = request.node.stats["root"]["visible_count"] %}
+
+{% if number == 0 %}
+{% set msg = "No remarks" %}
+{% elif number == 1 %}
+{% set msg = "1 remark" %}
+{% else %}
+{% set msg = number ~ " remarks" %}
+{% endif %}
+
+{% if request.node.uri %}
+<a href="{{ request.node.uri.data }}">{{ msg }}</a>
+{% else %}
+<a href="{{ request.node.path }}">{{ msg }}</a>
+{% endif %}

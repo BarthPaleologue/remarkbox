@@ -1,0 +1,92 @@
+{% extends request.base_template -%}
+{%- import 'snippets/stripe.j2' as stripe with context -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+{% if request.mode != "embed" %}
+<div class="remarkbox-sub-menu hidden-on-phone">
+{{ snippets.node_list_sub_menu(request.user) }}
+</div>
+<br/>
+{% endif %}
+
+
+<a href="{{ request.link_prefix }}/log-out" class="button button-right button-small">log out</a>
+
+<h4>User Settings</h4>
+
+<form method="post" action="{{ request.link_prefix }}/u/settings" onsubmit="submit.disabled = true; return true;">
+
+<input type="text" name="display-name" id="display-name" class="common-text-input" value="{{ request.user.name }}" required></input>
+<br>
+<br>
+
+{{ snippets.user_avatar_link(request.user, 130, class="user-settings-profile-pic") }}
+<br>
+<br>
+
+<input type="checkbox" name="gravatar-checkbox" id="gravatar-checkbox" {% if request.user.gravatar %}checked{% endif %}></input> enable <a href="https://en.gravatar.com/support/what-is-gravatar/" target="_blank">gravatar</a>?
+
+<br/>
+<br/>
+<br/>
+
+<!--
+
+<label>Automatic Watching</label>
+
+<input type="checkbox" name="auto-watch-threads-i-create-checkbox" id="auto-watch-threads-i-create-checkbox" {% if request.user.auto_watch_threads_i_create %}checked{% endif %} disabled></input>
+automatically watch any threads I create.
+<br/>
+<input type="checkbox" name="auto-watch-threads-i-participate-checkbox" id="auto-watch-threads-i-participate-checkbox" {% if request.user.auto_watch_threads_i_participate %}checked{% endif %} disabled></input>
+automatically watch any threads I participate in.
+
+<br/>
+<br/>
+
+-->
+
+<label>Reply Notifications</label>
+
+When my comments get a reply, notify me
+<select name="reply-watcher-frequency">
+  <option value="never" {% if request.user.reply_watcher.notification_frequency == "never" %}selected{% endif %}>never</option>
+  <option value="immediately" {% if request.user.reply_watcher.notification_frequency== "immediately" %}selected{% endif %}>immediately</option>
+  <option value="daily" {% if request.user.reply_watcher.notification_frequency == "daily" %}selected{% endif %}>daily</option>
+  <option value="weekly" {% if request.user.reply_watcher.notification_frequency == "weekly" %}selected{% endif %}>weekly</option>
+</select>
+via
+<b>{{ request.user.reply_watcher.notification_method }}</b>.
+
+<br/>
+<br/>
+
+<label>Thread Notifications</label>
+
+View and adjust your <a href="{{ request.link_prefix }}/u/watching">watched thread</a> settings.
+<br/>
+
+By default, when I watch a thread, notify me
+<select name="default-node-watcher-frequency">
+  <option value="immediately" {% if request.user.default_node_watcher_frequency == "immediately" %}selected{% endif %}>immediately</option>
+  <option value="daily" {% if request.user.default_node_watcher_frequency == "daily" %}selected{% endif %}>daily</option>
+  <option value="weekly" {% if request.user.default_node_watcher_frequency == "weekly" %}selected{% endif %}>weekly</option>
+</select> of changes.
+
+
+<br/>
+<br/>
+
+<label>Namespace Notifications</label>
+
+View and adjust your <a href="{{ request.link_prefix }}/u/watching">Namespace notification</a> settings.
+<br/>
+
+{% include 'snippets/csrf.j2' %}
+{% set submit_button_value = 'save changes' %}
+{% set submit_button_classes = 'button-right' %}
+{% include 'snippets/submit.j2' %}
+
+</form>
+
+{%- endblock -%}

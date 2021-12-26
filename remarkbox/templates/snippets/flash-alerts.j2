@@ -1,0 +1,11 @@
+<div id="alerts">
+{%- if request.session.peek_flash() -%}
+{%- for message, level in request.session.pop_flash() %}
+<div class="alert alert-{{level}}" onclick="this.style.display='none'" name="alert">
+    <p class="alert-message">{{message|safe}}</p>
+    <label class="close js-only" alt="dismiss" title="Mark as read">X</label>
+</div>
+{%- endfor %}
+{%- endif %}
+</div>
+

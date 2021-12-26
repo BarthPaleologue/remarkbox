@@ -1,0 +1,6 @@
+# bpython shell and teach pyramid about it.
+bpython
+pyramid_bpython
+
+# dev web application server.
+waitress

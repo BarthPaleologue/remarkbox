@@ -1,0 +1,31 @@
+{% if not request.user.authenticated %}
+    <input
+        name        = "email2"
+        type        = "email"
+        id          = "email2_input"
+        class       = "common-text-input"
+        value       = ""
+        placeholder = "Email - never shown" />
+    <input
+        name        = "email"
+        type        = "email"
+        id          = "email_input"
+        class       = "common-text-input"
+        value       = "{% if request.email %}{{ request.email }}{% endif %}"
+        placeholder = "Email - never shown"
+        {% if request.email %}style="display: none;"{% endif %}
+        required />
+
+  {% if show_whats_next %}
+    <center>
+    <p class="whats-next"><b>What's next?</b> check your email to log in!</p>
+    </center>
+  {% endif %}
+
+  {% if show_whats_next_notifications %}
+    <center>
+    <p class="whats-next"><b>What's next?</b> verify your email address for reply notifications!</p>
+    </center>
+  {% endif %}
+
+{% endif %}

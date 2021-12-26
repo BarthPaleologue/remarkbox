@@ -1,0 +1,189 @@
+{% extends request.base_template -%}
+
+{% import 'snippets/forms.j2' as forms with context %}
+
+{% block title %}{% if request.node.title is not none %}{{ request.node.title }} | {% endif %}{{ request.domain }}{% endblock -%}
+
+{% block call_to_action %}
+{% if request.node.is_root and request.user.authenticated %}
+  {% if request.user.get_watcher_by_node_id(request.node.id) %}
+  {{ snippets.unwatch_node(node_id = request.node.id) }}
+  {% else%}
+  {{ snippets.watch_node(node_id = request.node.id) }}
+  {% endif %}
+
+  {% if request.node.root.namespace.is_moderator(request.user) %}
+    {% if request.node.locked %}
+    {{ snippets.unlock_node(node_id = request.node.id) }}
+    {% else%}
+    {{ snippets.lock_node(node_id = request.node.id) }}
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+{%- if request.user.authenticated and request.mode == "embed" %}
+  <span class="avoidwrap">
+  {{ snippets.user_avatar_link(request.user, 35, class="avatar-nav") }}
+  </span>
+{% else %}
+  <a href="{{ domain_app }}{% if request.mode == "embed" %}{{ request.link_prefix }}{% endif %}/join-or-log-in{% if request.mode == "basic" %}?return-to={{ request.path_url }}{% elif request.node and request.mode == "embed" %}?thread_uri={{ request.node.root.uri.data }}{% endif %}" style="display: none;">join-or-log-in</a>
+{%- endif %}
+
+
+{% endblock %}
+
+{% block content -%}
+
+
+{% if request.mode != "embed" and request.node.root.uri %}
+<span class="topic">Topic: <a href="{{ request.node.root.uri.data }}" target="_blank" rel="nofollow">{{ request.node.root.uri.data }}</a></span>
+{% endif %}
+
+
+{% if request.node.has_uri == false %}
+
+{% if request.node.title is not none %}
+<h2 class="title"><a href="{{ request.node.path }}">{{ request.node.title }}</a></h2>
+{% endif %}
+
+<a class="anchor" id="{{ request.node.id }}"></a>
+<div id="node-{{ request.node.id }}" class="node root-node">
+  {{ snippets.node_avatar_link(request.node) }}
+  {{ snippets.author_and_date(request.node) }}
+  {{ snippets.status(request.node) }}
+
+  <div id="node-data-{{ request.node.id }}" class="node-data">
+  {% if not request.namespace.can_see_node(request.node, request.user) %}
+  <p>{{ snippets.status(request.node) }}</p>
+  {% else %}
+  {{ request.node.data_html | safe }}
+  {% endif %}
+  </div>
+
+  {% if not request.node.is_root %}
+
+    <a href="{{ request.link_prefix }}{{ request.node.root.path }}" class="action">root</a>
+
+  {% endif %}
+
+  <div class="node-actions">
+  {{ snippets.actions(request.node) }}
+  </div>
+
+</div>
+{% endif %}
+
+<div id="edit-box-{{ request.node.id }}" class="edit-box-div">
+   {{ forms.edit(request.node) }}
+</div>
+
+<div id="remark-box-{{ request.node.id }}" class="remark-box-div-main not-hidden-remark-box-div">
+   {{ forms.reply(request.node, request.root_node) }}
+</div>
+
+
+{%- if request.node.id and request.node_graph[request.node.id] -%}
+
+<!-- thread start -->
+<div class="thread">
+
+{#- prevent DetachedInstanceError from iterating over node not in database. #}
+{%- set parent_ids = request.node_graph[request.node.id] -%}
+
+{%- for parent_id in parent_ids recursive -%}
+
+  {%- set parent = request.node_id_map[parent_id] -%}
+  {%- set prev_parent = request.node_id_map[parent.parent_id] -%}
+
+  {%- if request.namespace.group_conversations -%}
+  {%- set children_ids = request.conversation_graph[parent.id] -%}
+  {%- else -%}
+  {%- set children_ids = request.node_graph[parent.id] -%}
+  {%- endif -%}
+
+  {%- set display_class = '' -%}
+  {%- if loop.depth > 4 -%}
+    {%- set display_class = 'hidden-on-tablet' -%}
+  {%- endif -%}
+
+  {%- if request.namespace.can_see_node(parent, request.user) or (request.namespace.hide_unless_approved and parent.approved) %}
+
+    {%- if loop.depth == 1 %}
+    <section class="conversation">
+    {%- endif -%}
+
+    {%- if loop.depth > 1 -%}
+    {%- set avatar_size = request.avatar_size * 0.75 -%}
+    {%- else -%}
+    {%- set avatar_size = request.avatar_size -%}
+    {%- endif -%}
+
+    <a class="anchor" id="{{ parent.id }}"></a>
+    <div id="node-{{ parent.id }}" class="node {{ display_class }} node-depth-{{ loop.depth }}">
+
+    {{ snippets.node_avatar_link(parent, size=avatar_size) }}
+    {{ snippets.author_and_date(parent) }}
+    {{ snippets.status(parent) }}
+
+    <div id="node-data-{{ parent.id }}" class="node-data">
+    {%- if not request.namespace.can_see_node(parent, request.user) %}
+    <p>{{ snippets.status(parent) }}</p>
+    {%- else %}
+    {{ parent.data_html | safe }}
+    {%- endif %}
+    </div>
+
+    <div class="node-actions">
+    {{ snippets.permalinks(parent, prev_parent, request.root_node) }}
+    {{ snippets.actions(parent) }}
+    {%- if children_ids %}
+    {{ snippets.button_collapse(parent) }}
+    {% endif -%}
+    </div>
+
+    {%- if loop.depth == 4 and children_ids -%}
+    <br>
+    <a href="{{ request.link_prefix }}/{{ parent.id }}#{{ parent.id }}" class="load-more shown-on-tablet">load more <span style="color: #292929; font-weight: normal;">({{children_ids | length}} remarks)</span></a>
+    {% endif %}
+
+    <div id="edit-box-{{ parent.id }}" class="edit-box-div">
+       {{ forms.edit(parent) }}
+    </div>
+
+    <div id="remark-box-{{ parent.id }}" class="remark-box-div">
+       {{ forms.reply(parent, request.root_node) }}
+    </div>
+    
+    {#- nest children in this node's div for convo collapsing. -#}
+    <div id="node-children-{{ parent.id }}">
+    {%- if children_ids %}
+    {{ loop(children_ids) }}
+    {% endif -%}
+    </div>
+
+    {# close the class="node" div #}
+    </div>
+
+    {%- if loop.depth == 1 %}
+    </section>
+    {%- endif -%}
+
+  {%- endif -%}
+{%- endfor -%}
+
+<!-- thread end -->
+</div>
+
+{%- else -%}
+<center>
+<br/>
+<br/>
+{% if request.namespace.no_nodes_text %}
+<strong class="no-nodes-text">{{ request.namespace.no_nodes_text }}</span></strong>
+{% else %}
+<strong class="no-nodes-text">Leave a comment to <span class="avoidwrap">get the conversation going!</span></strong>
+{% endif %}
+</center>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,40 @@
+{% macro notification_link(notification, text) %}
+  <a href="{{ request.app_url }}/r/{{ notification.node_event.node.id }}">{{ text }}</a>
+{% endmacro %}
+
+
+{% macro human_action(notification) %}
+  {% if notification.node_event.node.verified %}{{ notification.node_event.user.name }} {% else %}an unverified user {% endif %}
+  {%- if notification.node_event.action == "created" -%}
+  created a new {{ notification_link(notification, "thread") }}
+  {%- elif notification.node_event.action == "commented" -%}
+  left a {{ notification_link(notification, "comment") }}
+  {%- elif notification.node_event.action == "edited" -%}
+  edited a {{ notification_link(notification, "comment") }}
+  {%- endif -%}
+{% endmacro %}
+
+
+{%- macro email_footer(notification=None) -%}
+
+    {% if notification %}
+    <p>
+    We sent this notification because you
+
+    {%- if notification.watcher.type in ['node', 'namespace'] %} watch this {% if notification.watcher.type == 'node' %}thread{% else %}Namespace{% endif %}.
+    {%- else %}
+    subscribe to reply notifications.
+    {% endif -%}
+    </p>
+
+    {% else %}
+    <p>
+    We sent this message because you currently subscribe to Email notifications.
+    </p>
+    {% endif %}
+
+    <p>
+    To adjust your notification settings, go to <a href="{{ request.app_url }}/u/watching">{{ request.app_url }}/u/watching</a>
+    </p>
+
+{%- endmacro -%}

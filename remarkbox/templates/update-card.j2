@@ -1,0 +1,23 @@
+{% extends request.base_funnel_template -%}
+{%- import 'snippets/stripe.j2' as stripe with context -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+<h3>{{ the_title }}</h3>
+
+<label>Confirmation: <span style="font-weight: normal;">are you sure?</span></label>
+
+{{ stripe.display_card(card, actions=False) }}
+
+<br/>
+
+<div>
+<form action="/billing/update-card" method="post">
+  {% include 'snippets/csrf.j2' %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="card_id" value="{{ card_id }}">
+  <a href="/billing"><button type="button">Cancel</button></a>
+  <button type="submit" class="{{ button_class }}">Yes, {{ action_human }}</button>
+</form>
+</div>
+
+{%- endblock -%}

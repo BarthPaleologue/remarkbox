@@ -1,0 +1,27 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h3>{{ the_title }}</h3>
+
+<ul>
+{% for namespace in namespaces %}
+
+{% if namespace.owners %}
+<li>
+
+<a href="{{ request.link_prefix }}/ns/{{ namespace.name }}">{{ namespace.name }}</a>
+
+{% for user in namespace.owners %}
+<br />
+<a href="{{ request.link_prefix }}/u/{{ user.name }}">{{ user.name }}</a> | {{ user.email }}
+{% endfor %}
+
+</li>
+{% endif %}
+
+{% endfor -%}
+</ul>
+
+{%- endblock -%}

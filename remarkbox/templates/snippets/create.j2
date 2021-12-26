@@ -1,0 +1,29 @@
+ <form method="post" action="" onsubmit="submit.disabled = true; return true;">
+    <input
+        name        = "thread_title"
+        id          = "thread_title_input"
+        class       = "common-text-input"
+        value       = "{{thread_title}}"
+        placeholder = "Descriptive title"
+        required />
+
+    <textarea
+        name        = "thread_data"
+        id          = "thread_data_textarea"
+        class       = "common-textarea"
+        onkeyup     = "previewAjax( 'thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }} )"
+        placeholder = "What do you want to say? markdown"
+        required></textarea>
+
+  <div id='preview' name='preview' class="preview"></div>
+
+{% include 'csrf.j2' %}
+
+{% set show_whats_next = true %}
+{% include 'email.j2' %}
+
+{% set submit_button_classes = 'button-right' %}
+{% set submit_button_value = 'create thread' %}
+{% include 'submit.j2' %}
+
+ </form>

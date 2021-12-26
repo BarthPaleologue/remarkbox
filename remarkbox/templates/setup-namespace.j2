@@ -1,0 +1,165 @@
+{% extends request.base_funnel_template -%}
+{%- import 'snippets/stripe.j2' as stripe with context -%}
+{% import 'snippets/forms.j2' as forms with context %}
+
+{% block title %}Let's Rock | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<section class="center">
+
+<h4>Awesome, Let's Rock!</h4>
+
+<span class="avoidwrap"><p>Follow <b>3 steps</b> to put</span> <span class="avoidwrap">comments on your site.</span></p>
+
+
+</section>
+
+<br>
+
+<section class="step-1">
+
+<form method="post" class="namespace-request" action="{{ request.link_prefix }}/setup" onsubmit="submit.disabled = true; return true;">
+
+<label>Step 1: <span style="font-weight: normal">Enter your web domain
+<a class="question-mark-circle"
+   href="#"
+   title="The domain used to access your web site.
+
+Also submit your test or development domain if you have one.
+
+Each domain will get a separate snippet."
+
+   alt="The domain used to access your web site.
+
+Also submit your test or development domain if you have one.
+
+Each domain will get a separate snippet.">
+</a></span></label>
+
+<input type="text" name="namespace-domain" id="namespace-domain" class="common-text-input" placeholder="www.example.com" required></input>
+
+{% include 'snippets/csrf.j2' %}
+
+{% set submit_button_classes = 'red-button button-max-width' %}
+{% set submit_button_value = 'submit domain' %}
+{% include 'snippets/submit.j2' %}
+
+</form>
+
+</section>
+
+<center>
+<br>
+<br>
+<a href="{{ request.app_url }}" style="color: rgb(var(--red-darker));">&#10096; back</a>
+</center>
+
+
+{% if namespace_requests %}
+
+{% if unverified_namespace_requests %}
+<br>
+<br>
+
+<section class="step-2">
+
+<label>Step 2: <span style="font-weight: normal">Embed snippet <span class="avoidwrap">into your HTML</span>
+<a class="question-mark-circle"
+   href="#"
+   title="Don't forget to hit refresh on your web page after you embed the snippet.
+
+Remarkbox will verify that you have posession of the domain on first load."
+
+   alt="Don't forget to hit refresh on your web page after you embed the snippet.
+
+Remarkbox will verify that you have posession of the domain on first load.">
+</a></span></label>
+
+  {% for namespace_request in unverified_namespace_requests %}
+
+  <br>
+
+  <b title='rb_owner_key="{{ namespace_request.id }}"'>{{ namespace_request.namespace.name }}</b>
+  <form class="inline" method="post" action="{{ request.link_prefix }}/nsr/cancel" onsubmit="submit.disabled = true; return true;">
+    <input type="hidden" name="namespace-request-id" value="{{ namespace_request.id }}"> 
+    {% include 'snippets/csrf.j2' %}
+    {% set submit_button_classes = 'button-small' %}
+    {% set submit_button_value = 'cancel' %}
+    {% include 'snippets/submit.j2' %}
+    <a href="/embed-iframe.txt?rb_owner_key={{ namespace_request.id }}" target="_blank"><button type="button">snippet</button></a>
+  </form>
+  
+  {% endfor %}
+
+  <br>
+
+</section>
+
+<br>
+<br>
+<br>
+
+<section class="step-3">
+<label>Step 3: <span style="font-weight: normal">Pay what you can!</span></label>
+
+Our business model depends on reciprocity and trust to succeed. We do not set price, but wish for contributions to maintain the product and service.
+
+<br>
+<br>
+
+There's no obligation to pay anything.  : )
+
+<br>
+<br>
+
+{{ forms.pay_what_you_can() }}
+
+<br>
+
+<div>
+{% if request.stripe_active_card %}
+  {{ stripe.active_card(change_card=True) }}
+{% else %}
+  {{ stripe.new_card() }}
+{% endif %}
+</div>
+
+<br>
+
+Or PayPal <a href="https://www.paypal.me/russellbal/" target="_blank">@russellbal</a>
+
+
+<br>
+<br>
+
+<b>Thank you so much!</b>
+
+<br>
+
+
+</section>
+
+
+<br/>
+<br/>
+<br/>
+
+<section class="step-4">
+<label>What's next?</label>
+<p>
+You should <a style="color: rgb(var(--red-darker));" href="https://russell.ballestrini.net/contact/" target="_blank">contact me</a>, don't be to shy to say hi! I love hearing from all my friends, old and new! What are you up to? Any cool projects? Got an idea?
+
+</p>
+<p style="text-align: center;">
+<b>russell.ballestrini@gmail.com</b>
+</p>
+</section>
+
+{% endif %}
+{% endif %}
+
+<br/>
+<br/>
+<br/>
+
+{%- endblock -%}

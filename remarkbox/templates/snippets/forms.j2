@@ -1,0 +1,100 @@
+{% macro reply(node, root) %}
+
+{% if root.locked %}
+<br>
+<p>This thread was locked to prevent additional comments.</p>
+{% else %}
+
+<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/reply" onsubmit="submit.disabled = true; return true;">
+
+{# the first if statement gaurds the 2nd and is an optimization #}
+{% if node.id == request.node.id %}
+{% if node.has_uri %}
+    <input type="hidden" name="thread_uri" id="thread_uri_input" value="{{ node.uri.data }}" />
+{% endif %}
+{% endif %}
+
+    <textarea
+        name        = "thread_data"
+        id          = "textarea-{{ node.id }}"
+        class       = "common-textarea"
+        onkeyup     = "previewAjax( 'textarea-{{ node.id }}', 'preview-{{ node.id }}', show_raw=true, mathjax={{ request.mathjax }} )"
+        placeholder = "{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% else %}What do you want to say? markdown{% endif %}"
+        required></textarea>
+
+  <details open>
+  <summary class="action link" float="right">hide preview</summary>
+  <div id='preview-{{ node.id }}' name='preview' class='preview js-only'></div>
+  </details>
+
+{% include 'csrf.j2' %}
+
+{% set show_whats_next_notifications = true %}
+{% include 'email.j2' %}
+
+{% set submit_button_classes = 'button-right' %}
+{% set submit_button_value = 'save message' %}
+{% include 'submit.j2' %}
+</form>
+
+{% endif %}
+
+{% endmacro %}
+
+{% macro edit(node) %}
+
+<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/edit" onsubmit="submit.disabled = true; return true;">
+
+    {% if node.title %}
+    <input
+        name        = "thread_title"
+        id          = "thread_title_input"
+        class       = "common-text-input"
+        value       = "{{ node.title }}"
+        placeholder = "Descriptive title"
+        required />
+    {% endif %}
+
+    <textarea
+        name        = "thread_data"
+        id          = "edit-textarea-{{ node.id }}"
+        class       = "common-textarea textarea_edit"
+        onkeyup     = "previewAjax( 'edit-textarea-{{ node.id }}', 'node-data-{{ node.id }}', show_raw=false, mathjax={{ request.mathjax }} )"
+        placeholder = "{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% else %}What do you want to say? markdown{% endif %}"
+        required>{{ node.data }}</textarea>
+
+{% include 'csrf.j2' %}
+
+{% set submit_button_classes = 'button-right' %}
+{% set submit_button_value = 'save message' %}
+{% include 'submit.j2' %}
+</form>
+
+{% endmacro %}
+
+{% macro pay_what_you_can() %}
+<form method="post" action="/pay-what-you-can" onsubmit="submit.disabled = true; return true;">
+<fieldset style="text-align: left;">
+    <legend>Pay What You Can</legend>
+    Safely adjust frequency or amount anytime.
+    <br>
+    <br>
+    <input type="radio" name="frequency" value="once" {% if request.user.pay_what_you_can.frequency == "once"%}checked="checked"{% endif %} required><b>Once</b><br>
+    <input type="radio" name="frequency" value="yearly" {% if request.user.pay_what_you_can.frequency == "yearly"%}checked="checked"{% endif %} required><b>Yearly</b><br>
+    <br>
+    <input type="text" id="amount" name="amount" placeholder="Amount: $USD" style="width: 94%;" {% if request.user.pay_what_you_can.amount %}value="{{ request.user.pay_what_you_can.amount }}"{% endif %} required>
+    <br>
+    <br>
+    We charge cards on the <b>1st</b> of each month to prevent double charges.
+    <br>
+    <br>
+    <b>Once</b> is <b>cumulative</b>, for example let's say you configured amount to $15 and months later adjust to $25, on the 1st of the next month you will be charged $10.
+    <br>
+    <br>
+    <b>Yearly</b> acts similar but also reoccurs each anniversary.
+    <br>
+    {% include 'snippets/csrf.j2' %}
+    <input type="submit" value="Save" style="float: right;">
+</fieldset>
+</form>
+{% endmacro %}

@@ -1,0 +1,38 @@
+body {
+  margin-left: 0px;
+  margin-top: 0px;
+  margin-right: 0px;
+  margin-bottom: 16px;
+
+  /* This is a hack for iOS to prevent overflow on ipads and phones */
+  width: 1px;
+  min-width: 100%;
+  *width: 100%;
+}
+
+.remarkbox-menu {
+  grid-template-columns: 1fr;
+  font-size: 1em;
+}
+
+.remarkbox-menu .home {
+  display: none;
+}
+
+.remarkbox-menu .search {
+  display: none;
+}
+
+.remarkbox-menu .user {
+  text-align: right;
+  padding: 0px;
+}
+
+.call-to-action {
+  grid-column: 1;
+}
+
+.avatar-nav .avatar {
+  margin-top: -4px;
+  margin-left: 6px;
+}

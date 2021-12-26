@@ -1,0 +1,29 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h3>{{ the_title }}</h3>
+
+{% for namespace_request in namespace_requests %}
+
+<div style="font-size: 18px; font-weight: bold;">{% if namespace_request.verified %}<b style="color: green;">&#9745;</b>{% else %}&#9744;{% endif %}</span>
+<a href="http://{{ namespace.name }}" title='rb_owner_key="{{ namespace_request.id }}"'>{{ namespace.name }}</a> |
+
+{% if namespace_request.target %}
+<a href="{{ namespace_request.target }}" target="_blank">{{ namespace_request.target }}</a>
+{% endif %}
+
+</div>
+
+<div style="padding-left: 22px; padding-bottom: 10px; padding-top: 10px;">
+{{ namespace_request.namespace.owner_request_timestamp }}
+{{ namespace_request.user.name }} |
+{{ namespace_request.user.email }}
+<br>
+<a href="/embed-iframe.txt?rb_owner_key={{ namespace_request.id }}" target="_blank" class="button small-button">snippet</a>
+</div>  
+
+{% endfor %}
+
+{%- endblock -%}

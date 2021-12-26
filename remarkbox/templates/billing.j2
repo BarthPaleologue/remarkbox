@@ -1,0 +1,44 @@
+{% extends request.base_funnel_template -%}
+{%- import 'snippets/stripe.j2' as stripe with context -%}
+{% import 'snippets/forms.j2' as forms with context %}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<center>
+<h4>{{ the_title }}</h4>
+</center>
+
+<br>
+
+{{ forms.pay_what_you_can() }}
+
+<br>
+<br>
+
+<label>Active Card</label>
+{{ stripe.active_card() }}
+
+<br>
+
+{{ stripe.saved_cards() }}
+
+<label>New credit or debit card</label>
+<section class="new-card">
+<br>
+{{ stripe.new_card() }}
+</section>
+
+<br>
+<br>
+
+Or PayPal <a href="https://www.paypal.me/russellbal/" target="_blank">@russellbal</a>
+
+<br>
+<br>
+
+<b>Thank you so much!</b>
+
+<br>
+<br>
+{%- endblock -%}
