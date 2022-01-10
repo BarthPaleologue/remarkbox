@@ -14,7 +14,7 @@ test:
 
 build:
   stage: build
-  tags: "shell"
+  tags: ["shell"]
   script:
     - ls -hal
     - mv env.vanilla env
