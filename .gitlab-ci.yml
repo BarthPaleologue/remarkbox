@@ -1,0 +1,52 @@
+stages:
+  - test
+  - build
+  - publish
+
+test:
+  stage: test
+  tags: ["shell"]
+  script: make test
+  artifacts:
+    paths:
+      - env.vanilla
+    expire_in: 1 hour
+
+build:
+  stage: build
+  tags: "shell"
+  script:
+    - ls -hal
+    - mv env.vanilla env
+    - make prod
+    # copy static assets to env/static
+    - cp -pr remarkbox/static env/static
+    # copy static assets to env/static for westworld theme.
+    - cp -pr env/lib/python*/site-packages/remarkbox_westworld/static/* env/static
+    # copy static assets to env/static for meta.
+    - cp -pr env/lib/python*/site-packages/remarkbox_theme_meta/static/* env/static
+    # make tarball of the static files.
+    - cp -pr env/static static
+    # create a tarball of the static files.
+    - tar -zcf static.tar.gz static
+    # move the virtualenv with virtualenv-clone into desired location.
+    - virtualenv-clone env /www/demo.remarkbox.com/env
+    # make tarball of virtualenv.
+    - tar -zcf env.tar.gz -C /www/demo.remarkbox.com .
+    # create commit-hash.txt to track this build's git commit hash.
+    - echo $CI_COMMIT_SHA >> commit-hash.txt
+    # clean up directory outside of gitlab-runner filesystem.
+    - rm -rf /www/demo.remarkbox.com
+  artifacts:
+    paths:
+      - env.tar.gz
+      - static.tar.gz
+      - commit-hash.txt
+    expire_in: 1 month
+
+publish:
+  stage: publish
+  tags: ["shell"]
+  script:
+    # publish build to Salt Master
+    - sudo /opt/salt-call-put-artifacts-onto-salt-master.sh
