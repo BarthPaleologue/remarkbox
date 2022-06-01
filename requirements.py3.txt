@@ -22,7 +22,7 @@ psycopg2-binary
 
 # Template renderer.
 #jinja2
-jinja2==2.11.1
+jinja2
 
 # MarkDown is a popular and familair WYSIWYM markup language.
 markdown
