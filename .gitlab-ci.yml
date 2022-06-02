@@ -36,7 +36,7 @@ build:
     # create commit-hash.txt to track this build's git commit hash.
     - echo $CI_COMMIT_SHA >> commit-hash.txt
     # clean up directory outside of gitlab-runner filesystem.
-    - rm -rf /opt/remarkbox
+    - rm -rf /opt/remarkbox/env
   artifacts:
     paths:
       - env.tar.gz
