@@ -30,13 +30,13 @@ build:
     # create a tarball of the static files.
     - tar -zcf static.tar.gz static
     # move the virtualenv with virtualenv-clone into desired location.
-    - virtualenv-clone env /www/demo.remarkbox.com/env
+    - virtualenv-clone env /opt/remarkbox/env
     # make tarball of virtualenv.
-    - tar -zcf env.tar.gz -C /www/demo.remarkbox.com .
+    - tar -zcf env.tar.gz -C /opt/remarkbox .
     # create commit-hash.txt to track this build's git commit hash.
     - echo $CI_COMMIT_SHA >> commit-hash.txt
     # clean up directory outside of gitlab-runner filesystem.
-    - rm -rf /www/demo.remarkbox.com
+    - rm -rf /opt/remarkbox
   artifacts:
     paths:
       - env.tar.gz
