@@ -1,7 +1,6 @@
 stages:
   - test
   - build
-  - publish
 
 test:
   stage: test
@@ -43,10 +42,3 @@ build:
       - static.tar.gz
       - commit-hash.txt
     expire_in: 1 month
-
-publish:
-  stage: publish
-  tags: ["shell"]
-  script:
-    # publish build to Salt Master
-    - sudo /opt/salt-call-put-artifacts-onto-salt-master.sh
