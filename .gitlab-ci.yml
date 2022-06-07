@@ -41,6 +41,7 @@ build:
   artifacts:
     paths:
       - env.tar.gz
+      - env.tar.gz.hash
       - static.tar.gz
       - commit-hash.txt
     expire_in: 1 month
