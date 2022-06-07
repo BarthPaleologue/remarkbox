@@ -4,7 +4,7 @@ stages:
 
 test:
   stage: test
-  tags: ["shell"]
+  tags: ["build"]
   script: make test
   artifacts:
     paths:
@@ -13,7 +13,7 @@ test:
 
 build:
   stage: build
-  tags: ["shell"]
+  tags: ["build"]
   script:
     - ls -hal
     - mv env.vanilla env
@@ -32,6 +32,8 @@ build:
     - virtualenv-clone env /opt/remarkbox/env
     # make tarball of virtualenv.
     - tar -zcf env.tar.gz -C /opt/remarkbox .
+    # create sha512 of into the file named env.tar.gz.hash
+    - sha512sum env.tar.gz >> env.tar.gz.hash
     # create commit-hash.txt to track this build's git commit hash.
     - echo $CI_COMMIT_SHA >> commit-hash.txt
     # clean up directory outside of gitlab-runner filesystem.
