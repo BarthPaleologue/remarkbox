@@ -1,12 +1,17 @@
+import re
+
 from pyramid.view import view_config
 
 from pyramid.httpexceptions import HTTPFound
 
 from remarkbox.models import get_node_by_uri, get_node_by_id
 
-from remarkbox.lib.mail import send_otp_email
+from remarkbox.models.user import get_or_create_user_by_email
+
+from remarkbox.lib.mail import send_verification_digits_to_email
 
 from . import get_referer_or_home, get_embed_route_uri, verify_pending_nodes_in_session
+
 
 
 @view_config(route_name="log-out")
@@ -17,6 +22,7 @@ def log_out(request):
     request.session["authenticated_user_id"] = None
     return HTTPFound(uri)
 
+'''
 
 # disable CSRF checking for iframe embedded version of this view.
 # If a client has 3rd party cookies disabled this security feature causes
@@ -31,17 +37,18 @@ def join_or_log_in(request):
     It uses "password-less" authentication by sending OTP (one-time-password)
     links to the user's email address.
     """
-    # get the return_to uri from posted parameters.
-    return_to = request.params.get("return-to", "")
-
-    # get the return_to uri from posted parameters.
-    thread_uri = request.params.get("thread_uri", "")
+    _email_regex = re.compile("^[^@]+@[^@]+\.[^.@]+$")
 
     # get the raw OTP (one-time-password) from posted parameters.
     raw_otp = request.params.get("raw-otp", "")
 
     # get the email_id from posted parameters.
     email_id = request.params.get("email-id", "")
+
+    if email_id and _email_regex.match(email_id) is None:
+        # posted email does not pass regex, set it to None.
+        email_id = ""
+        request.session.flash(("That email address is invalid.", "error"))
 
     if request.spam:
         return request.spam
@@ -50,8 +57,6 @@ def join_or_log_in(request):
 
         if request.user.authenticated:
             # user already authenticated, return early.
-            if return_to:
-                return HTTPFound(return_to)
             return HTTPFound(get_referer_or_home(request))
 
         user = request.user
@@ -72,7 +77,7 @@ def join_or_log_in(request):
             request.dbsession.add(user)
             request.dbsession.flush()
 
-            return HTTPFound(return_to)
+            return HTTPFound("/")
 
         if user.throttle_password():
             msg = (
@@ -86,15 +91,8 @@ def join_or_log_in(request):
             request.dbsession.add(user)
             request.dbsession.flush()
 
-            email_return_to = return_to
-
-            if thread_uri:
-                if "#" not in thread_uri:
-                    thread_uri = thread_uri + "#remarkbox-div"
-                email_return_to = thread_uri
-
             # email user the one-time-password and flash message.
-            send_otp_email(request, user.email, raw_otp, email_return_to)
+            send_otp_email(request, user.email, raw_otp)
 
             msg = (
                 "We just sent a link to {}. Click it to log in.".format(user.email),
@@ -126,5 +124,113 @@ def join_or_log_in(request):
         # 'the_title' : 'join or log in',
         "title": "join or log in",
         "return_to": return_to,
-        "thread_uri": thread_uri,
     }
+
+'''
+
+
+#@view_config(route_name="join-or-log-in", renderer="join-or-log-in.j2")
+@view_config(route_name="basic-join-or-log-in", renderer="join-or-log-in.j2", require_csrf=False)
+@view_config(route_name="embed-join-or-log-in", renderer="join-or-log-in.j2", require_csrf=False)
+def join_or_log_in(request):
+    """
+    This view handles user registration, verification, and log in.
+    It uses "password-less" authentication by sending 6 digit
+    OTP (one-time-password) tokens to email addresses to verify both the email
+    address & to authenticate the device displaying the challenge input field.
+    """
+    _email_regex = re.compile("^[^@]+@[^@]+\.[^.@]+$")
+
+    # get the raw OTP (one-time-password) from posted parameters.
+    raw_otp = request.params.get("raw-otp", "")
+
+    # get the email from posted parameters.
+    email = request.params.get("email", "")
+
+    if email and _email_regex.match(email) is None:
+        # posted email does not pass regex, set it to None.
+        email = ""
+        request.session.flash(("That email address is invalid.", "error"))
+
+    if request.spam:
+        return request.spam
+
+    if request.user and request.user.authenticated:
+        return HTTPFound(get_referer_or_home(request))
+
+    elif email:
+        # get or create a User object from the posted email.
+        user = get_or_create_user_by_email(request.dbsession, email)
+
+        if user.throttle_password():
+            msg = (
+                "We already sent a link to {}. Check email to log in.".format(user.email),
+                "info",
+            )
+
+        else:
+            # generate a new one-time-password and save to database
+            raw_otp = user.new_password()
+            request.dbsession.add(user)
+            request.dbsession.flush()
+
+            # email user the one-time-password and flash message.
+            send_verification_digits_to_email(request, user.email, raw_otp)
+
+            msg = (
+                "We just sent a link to {}. Check email to log in.".format(user.email),
+                "info",
+            )
+
+        request.session.flash(msg)
+
+        return HTTPFound("/verification-challenge?email={}".format(email))
+
+    return {
+        "title": "join or log in",
+    }
+
+
+@view_config(route_name="verification-challenge", renderer="verification-challenge.j2", require_csrf=False)
+def verification_challenge(request):
+
+    # get the raw OTP (one-time-password) from posted parameters.
+    raw_otp = request.params.get("raw-otp", "")
+
+    # get the email from posted parameters.
+    email = request.params.get("email", "")
+
+    user = None
+    if email:
+        # get or create a User object from the posted email.
+        user = get_or_create_user_by_email(request.dbsession, email)
+
+    if "submit" in request.params:
+        if raw_otp and user.check_password(raw_otp):
+            # success: the user was verified.
+            user.verified = True
+            msg = ("Welcome {}".format(user.name), "success")
+            request.session["authenticated_user_id"] = str(user.id)
+            request.session.flash(msg)
+
+            # attempt to verify all nodes_pending_verify in user's session.
+            verify_pending_nodes_in_session(request, user)
+
+            # Idempotent operation. Make certain a user has at least one reply_watcher.
+            user.create_default_reply_watcher()
+
+            request.dbsession.add(user)
+            request.dbsession.flush()
+
+            #return HTTPFound("/")
+
+        else:
+            msg = ("Invalid Verification Code", "error")
+            request.session.flash(msg)
+
+    return {
+        "title": "Please Enter Verification Code",
+        "email": email,
+        "raw_otp": raw_otp,
+    }
+

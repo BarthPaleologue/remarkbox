@@ -102,8 +102,8 @@ class UnauthenticatedFunctionalTests(FunctionalTests):
         self.assertIn(b"The resource was found at", redirect_res2.body)
 
         res = redirect_res2.follow()
-        self.assertIn(b"test title", res.body)
-        self.assertIn(b"test data", res.body)
+        self.assertIn(b"Your post was successful!", res.body)
+        self.assertIn(b"We just sent a link to test@example.com. Check email to log in.", res.body)
 
     def test_new_thread_without_email(self):
         redirect_res = self.testapp.post(
@@ -210,8 +210,8 @@ class AuthenticatedFunctionalTests(FunctionalTests):
 
     def _log_in_test_user(self, test_creds):
         # log in user.
-        res_login = self.testapp.get(
-            "/join-or-log-in?email={}&raw-otp={}".format(*test_creds)
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*test_creds)
         )
         # attach csrf to class.
         res_csrf = self.testapp.get("/")
@@ -219,10 +219,8 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         return res_login
 
     def test_log_in(self):
-        redirect_res1 = self._log_in_test_user(self.test_creds1)
-        redirect_res2 = redirect_res1.follow()
-        redirect_res3 = redirect_res2.follow()
-        self.assertIn(self.test_user1.name.encode("utf-8"), redirect_res3.body)
+        res = self._log_in_test_user(self.test_creds1)
+        self.assertIn(self.test_user1.name.encode("utf-8"), res.body)
 
     def test_log_in_or_join_creates_default_watcher(self):
         """This tests makes sure a default watcher is created for new users."""

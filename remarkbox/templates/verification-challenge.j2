@@ -1,0 +1,39 @@
+{% extends request.base_funnel_template -%}
+{% block title %}verify code | {{ request.domain }}{% endblock -%}
+{% block content %}
+<section class="one-column">
+  <section class="log-in-form well">
+  <h2>Verification Code</h2>
+   <b>Please enter code to log in.<b>
+   <br>
+   <br>
+   <form method="post" action="/verification-challenge">
+      <input
+          name        = "email"
+          type        = "hidden"
+          id          = "email_input"
+          class       = "common-text-input"
+          value       = "{{ email }}"
+          placeholder = "Your Email Address" />
+
+      <input
+          name        = "raw-otp"
+          type        = "number"
+          id          = "raw-otp"
+          class       = "common-text-input"
+          tabindex    = "1"
+          value       = "{% if raw_otp  %}{{ raw_otp }}{% endif %}"
+          placeholder = "6 digit challenge verification code"
+          required
+          autofocus />
+
+    <br/>
+    <br/>
+
+    <input type="submit" name="submit" id="submit" value="verify code" required />
+  
+   </form>
+    <br/>
+  </section>
+</section>
+{%- endblock -%}

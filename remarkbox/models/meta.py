@@ -150,3 +150,7 @@ class RBase(object):
     @property
     def dbsession(self):
         return object_session(self)
+
+    @property
+    def id_without_dashes(self):
+        return self.id.__str__().replace("-","")

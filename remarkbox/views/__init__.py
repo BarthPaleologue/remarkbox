@@ -105,12 +105,15 @@ def get_join_or_log_in_route_uri(request, return_to=""):
     )
 
 
-nodes_pending_verify = lambda request: request.session.get("nodes_pending_verify", [])
+def nodes_pending_verify(request):
+    if "nodes_pending_verify" not in request.session:
+        request.session["nodes_pending_verify"] = []
+    return request.session["nodes_pending_verify"]
 
 
 def set_node_to_pending_in_session(request, node):
     """Update session to make node go into pending_verify state."""
-    nodes_pending_verify(request).append(str(node.id))
+    nodes_pending_verify(request).append(str(node.id_without_dashes))
 
 
 def verify_pending_nodes_in_session(request, user):
@@ -123,6 +126,6 @@ def verify_pending_nodes_in_session(request, user):
             if user == node.user:
                 node.verified = True
                 request.dbsession.add(node)
-                still_pending_verify.remove(str(node.id))
-    request.dbsession.flush()
+                still_pending_verify.remove(str(node.id_without_dashes))
     request.session["nodes_pending_verify"] = still_pending_verify
+    request.dbsession.flush()

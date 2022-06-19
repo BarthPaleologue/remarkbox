@@ -38,7 +38,7 @@ class TestUser(unittest.TestCase):
 
     def test_new_password(self):
         raw_password = self.user.new_password()
-        self.assertGreater(len(raw_password), 30)
+        self.assertEqual(len(raw_password), 6)
 
     def test_check_password_success(self):
         raw_password = self.user.new_password()
