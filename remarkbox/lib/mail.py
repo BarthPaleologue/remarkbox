@@ -25,41 +25,30 @@ jinja2_env = Environment(
 )
 
 
-def send_otp_email(request, to_email, raw_otp, return_to):
+def send_verification_digits_to_email(request, to_email, raw_digits):
     """
-    Send email with OTP (one time password) link.
+    Send email with raw_digits a user may pass to verify & authenticate.
 
     request
       the request (of the successful log in attempt)
 
     to_email
-      the email address to send the OTP link
+      the email address to send the raw_digits
 
-    raw_otp
-      the raw (unencrypted) one time password
-
-    return_to
-      the URI to return the user on successful authentication
+    raw_digits:
+      the raw (unencrypted) digits the user may use to verify & authenticate.
     """
+    subject = "Verification Code - {}".format(raw_digits)
 
-    query_params = [
-        "email={}".format(quote_plus(to_email)),
-        "raw-otp={}".format(raw_otp),
-    ]
-
-    if return_to:
-        query_params.append("return-to={}".format(return_to))
-
-    link = "{0}/join-or-log-in?{1}".format(request.host_url, "&".join(query_params))
-
-    subject = "Magic sign-in link for comments"
+    message_text = WELCOME_1_TEXT.format(raw_digits)
+    message_html = WELCOME_1_HTML.format(subject, raw_digits)
 
     if not request.user.verified:
-        message_text = WELCOME_1_TEXT.format(link)
-        message_html = WELCOME_1_HTML.format(subject, link)
+        message_text = WELCOME_1_TEXT.format(raw_digits)
+        message_html = WELCOME_1_HTML.format(subject, raw_digits)
     else:
-        message_text = WELCOME_2_TEXT.format(link)
-        message_html = WELCOME_2_HTML.format(subject, link)
+        message_text = WELCOME_2_TEXT.format(raw_digits)
+        message_html = WELCOME_2_HTML.format(subject, raw_digits)
 
     send_pyramid_email(request, to_email, subject, message_text, message_html)
 

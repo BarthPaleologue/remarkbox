@@ -20,6 +20,7 @@ clean:
 
 test: dev
 	env/bin/py.test
+	#env/bin/py.test --lf
 
 serve: dev
 	# In the first shell, run a copy of remarkbox using:

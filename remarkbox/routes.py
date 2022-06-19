@@ -96,6 +96,8 @@ def includeme(config):
     # basic routes:
     config.add_route("basic-join-or-log-in", "/join-or-log-in")
 
+    config.add_route("verification-challenge", "/verification-challenge")
+
     config.add_route("basic-namespace-nodes", "/ns/{namespace}/nodes")
     config.add_route("basic-namespace-settings", "/ns/{namespace}/settings")
     config.add_route("basic-namespace-stats-json", "/ns/{namespace}/stats.json")

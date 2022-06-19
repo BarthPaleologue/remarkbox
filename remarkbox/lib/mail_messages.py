@@ -3,11 +3,13 @@ Hello!
 
 Thanks for joining the discussion.
 
-To get reply notifications, you should paste this link into your browser:
+Hey there!
+
+Here is the verification code you requested:
 
  \n{0}\n
 
-This will verify your email and log you in.
+Type code into the challenge input field.
 
 What's next?
 
@@ -33,23 +35,10 @@ WELCOME_1_HTML = """
     </p>
 
     <p>
-    To get reply notifcations, you should click this link:
+    Here is the verification code you requested:
     </p>
 
-    <p>
-    <a href="{1}" style="font-weight: bold;" target="_blank">Click here to verify and log in!</a>
-    </p>
-
-    <p style="font-size: .8em;">
-    <span style="color: #aaaaaa;">
-    You may paste this link into your browser:
-    </span>
-    <br>
-    <br>
-    <a href="{1}" style="color: #439fe0; font-weight: normal; text-decoration: none; word-break: break-word;" target="_blank">
-    {1}
-    </a>
-    </p>
+    <p><b>{1}</b></p>
 
     <p>
     This will verify your email and log you in.
@@ -76,9 +65,11 @@ WELCOME_1_HTML = """
 WELCOME_2_TEXT = """
 Hello again!
 
-To log in please paste this link into your browser:
+Here is the verification code you requested:
 
  \n{0}\n
+
+Type code into the challenge input field.
 
 Don't forget to check out your notification settings.
 
@@ -95,23 +86,10 @@ WELCOME_2_HTML = """
     <h2>Hello again!</h2>
 
     <p>
-    To log in please click the link below.
+    Here is the verification code you requested:
     </p>
 
-    <p>
-    <a href="{1}" style="font-weight: bold;" target="_blank">Click here to log in!</a>
-    </p>
-
-    <p style="font-size: .8em;">
-    <span style="color: #aaaaaa;">
-    You may paste this link into your browser:
-    </span>
-    <br>
-    <br>
-    <a href="{1}" style="color: #439fe0; font-weight: normal; text-decoration: none; word-break: break-word;" target="_blank">
-    {1}
-    </a>
-    </p>
+    <p><b>{1}</b></p>
 
     <h3>What's next?</h3>
 

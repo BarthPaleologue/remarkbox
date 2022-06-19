@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Column, Unicode, Enum, func, or_
+from sqlalchemy import BigInteger, Boolean, Integer, Column, Unicode, Enum, func, or_
 
 from sqlalchemy.orm import relationship, backref
 
@@ -91,6 +91,7 @@ class User(RBase, Base):
     # we only share this string with the owner of an email box. not-in-use...
     email_id = Column(Unicode(8))
     password = Column(Unicode(64))
+    password_attempts = Column(Integer, default=0)
     password_timestamp = Column(BigInteger)
     # TODO: someday this should be renamed to created_timestamp
     created = Column(BigInteger, nullable=False)
@@ -261,15 +262,20 @@ class User(RBase, Base):
         self.created = now_timestamp()
         self.id = uuid.uuid1()
         self.email = unicode(email)
-        self.email_id = unicode(self._generate_raw_password(8))
+
+        # TODO: this field was never used & should be sunset.
+        self.email_id = unicode(generate_password(size=8))
 
         self.new_password()
         # don't password throttle new User objects.
         self.password_timestamp = 0
 
-    def _generate_raw_password(self, size=32):
+    def _generate_raw_password(self):
         """Return a system generated password"""
-        return generate_password(size)
+        #return generate_password(size)
+        from random import choice
+        numbers = '0123456789'
+        return "".join([choice(numbers) for i in range(0,6)])
 
     def new_password(self):
         """Generate and return raw password, store password hash into DB."""
@@ -281,11 +287,24 @@ class User(RBase, Base):
             bcrypt.gensalt()
         ).decode("utf-8")
         self.password_timestamp = now_timestamp()
+        self.password_attempts = 0
         return raw_password
 
     def check_password(self, password):
         """Accept plain-text raw password, create hash, compare with DB."""
         stored_hash = self.password
+
+        # increment password attempts.
+        self.password_attempts += 1
+
+        # expire password after 15 minutes.
+        # 900000 milliseconds == 15 minutes
+        if self.password_timestamp_delta >= 900000:
+            return False
+
+        # prevent brute force, allow 10 invalid verification code attempts.
+        if self.password_attempts >= 10:
+            return False
 
         # bcrypt works with bytes so we encode to utf-8.
         new_hash = bcrypt.hashpw(
@@ -293,7 +312,7 @@ class User(RBase, Base):
             stored_hash.encode("utf-8"),
         ).decode("utf-8")
 
-        log.info("new_hash={} stored_hash={}".format(new_hash, stored_hash))
+        #log.info("new_hash={} stored_hash={}".format(new_hash, stored_hash))
 
         if new_hash == stored_hash:
             return True

@@ -94,16 +94,26 @@ Now browse to http://127.0.0.1:8000 and index.html will load and will have an em
 If you attempt to log in, your third shell will capture the email and you can copy / paste the verification link to log in!
 
 
-
-SQL Migrations
-===============
+New Environments
+================
 
 If your deployment is brand new, you don't need to run any migrations.
+
+To create all the schemas & tables in your database, run:
+
+.. code-block:: bash
+
+ env/bin/remarkbox_init_db development.ini
+
 You should however run this to stamp the database as ready:
 
 .. code-block:: bash
 
  alembic -c development.ini stamp head
+
+
+SQL Migrations
+===============
 
 Otherwise, it should be safe to run this at anytime to catch your database up:
 
