@@ -50,7 +50,8 @@ def join_or_log_in(request):
         return request.spam
 
     if request.user and request.user.authenticated:
-        return HTTPFound(get_referer_or_home(request))
+        #return HTTPFound(get_referer_or_home(request))
+        return HTTPFound("/")
 
     elif email:
         # get or create a User object from the posted email.
