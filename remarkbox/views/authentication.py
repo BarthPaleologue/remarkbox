@@ -22,112 +22,6 @@ def log_out(request):
     request.session["authenticated_user_id"] = None
     return HTTPFound(uri)
 
-'''
-
-# disable CSRF checking for iframe embedded version of this view.
-# If a client has 3rd party cookies disabled this security feature causes
-# more trouble then it helps, essentially blocking unauthenticated users.
-# disable CSRF checking for basic mode since we only set the
-# CSRF token for logged in users.
-@view_config(route_name="basic-join-or-log-in", renderer="join-or-log-in.j2", require_csrf=False)
-@view_config(route_name="embed-join-or-log-in", renderer="join-or-log-in.j2", require_csrf=False)
-def join_or_log_in(request):
-    """
-    This view handles user registration, verification, and log in.
-    It uses "password-less" authentication by sending OTP (one-time-password)
-    links to the user's email address.
-    """
-    _email_regex = re.compile("^[^@]+@[^@]+\.[^.@]+$")
-
-    # get the raw OTP (one-time-password) from posted parameters.
-    raw_otp = request.params.get("raw-otp", "")
-
-    # get the email_id from posted parameters.
-    email_id = request.params.get("email-id", "")
-
-    if email_id and _email_regex.match(email_id) is None:
-        # posted email does not pass regex, set it to None.
-        email_id = ""
-        request.session.flash(("That email address is invalid.", "error"))
-
-    if request.spam:
-        return request.spam
-
-    if request.user is not None:
-
-        if request.user.authenticated:
-            # user already authenticated, return early.
-            return HTTPFound(get_referer_or_home(request))
-
-        user = request.user
-
-        if raw_otp and user.check_password(raw_otp):
-            # success: the user was verified.
-            user.verified = True
-            msg = ("Welcome {}".format(user.name), "success")
-            request.session["authenticated_user_id"] = str(user.id)
-            request.session.flash(msg)
-
-            # attempt to verify all nodes_pending_verify in user's session.
-            verify_pending_nodes_in_session(request, user)
-
-            # Idempotent operation. Make certain a user has at least one reply_watcher.
-            user.create_default_reply_watcher()
-
-            request.dbsession.add(user)
-            request.dbsession.flush()
-
-            return HTTPFound("/")
-
-        if user.throttle_password():
-            msg = (
-                "We already sent a link to {}. Click it to log in.".format(user.email),
-                "info",
-            )
-
-        else:
-            # generate a new one-time-password and save to database
-            raw_otp = user.new_password()
-            request.dbsession.add(user)
-            request.dbsession.flush()
-
-            # email user the one-time-password and flash message.
-            send_otp_email(request, user.email, raw_otp)
-
-            msg = (
-                "We just sent a link to {}. Click it to log in.".format(user.email),
-                "info",
-            )
-
-        request.session.flash(msg)
-
-        if request.mode == "basic":
-            return HTTPFound(return_to)
-
-        if request.mode == "embed":
-            # determine if fragment is a valid node.id.
-            if "#" in return_to:
-                node = get_node_by_id(request.dbsession, return_to.split("#")[-1])
-                if node is not None:
-                    if node.root.uri:
-                        return HTTPFound(
-                            get_embed_route_uri(request, node.root.uri.data, node.id)
-                        )
-
-            # determine if return_to is a valid uri in database.
-            root = get_node_by_uri(request.dbsession, return_to.split("#")[0])
-            if root is not None:
-                # embeded external site, uses embed routes.
-                return HTTPFound(get_embed_route_uri(request, root.uri.data))
-
-    return {
-        # 'the_title' : 'join or log in',
-        "title": "join or log in",
-        "return_to": return_to,
-    }
-
-'''
-
 
 #@view_config(route_name="join-or-log-in", renderer="join-or-log-in.j2")
 @view_config(route_name="basic-join-or-log-in", renderer="join-or-log-in.j2", require_csrf=False)
@@ -184,14 +78,15 @@ def join_or_log_in(request):
 
         request.session.flash(msg)
 
-        return HTTPFound("/verification-challenge?email={}".format(email))
+        return HTTPFound("{}/verification-challenge?email={}".format(request.link_prefix, email))
 
     return {
         "title": "join or log in",
     }
 
 
-@view_config(route_name="verification-challenge", renderer="verification-challenge.j2", require_csrf=False)
+@view_config(route_name="basic-verification-challenge", renderer="verification-challenge.j2", require_csrf=False)
+@view_config(route_name="embed-verification-challenge", renderer="verification-challenge.j2", require_csrf=False)
 def verification_challenge(request):
 
     # get the raw OTP (one-time-password) from posted parameters.
@@ -222,7 +117,7 @@ def verification_challenge(request):
             request.dbsession.add(user)
             request.dbsession.flush()
 
-            #return HTTPFound("/")
+            return HTTPFound("{}/u/settings".format(request.link_prefix))
 
         else:
             msg = ("Invalid Verification Code", "error")

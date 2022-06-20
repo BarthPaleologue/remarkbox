@@ -1,13 +1,12 @@
 {% extends request.base_funnel_template -%}
 {% block title %}verify code | {{ request.domain }}{% endblock -%}
 {% block content %}
-<section class="one-column">
-  <section class="log-in-form well">
-  <h2>Verification Code</h2>
-   <b>Please enter code to log in.<b>
-   <br>
-   <br>
-   <form method="post" action="/verification-challenge">
+<section class="join-or-log-in">
+   <b>Verification Code</b>
+   <br/>
+   Please enter code to log in.
+   <br/>
+   <form method="post" action="{{ request.link_prefix }}/verification-challenge">
       <input
           name        = "email"
           type        = "hidden"
@@ -27,13 +26,11 @@
           required
           autofocus />
 
-    <br/>
-    <br/>
-
-    <input type="submit" name="submit" id="submit" value="verify code" required />
+    <p>
+    <input type="submit" name="submit" id="submit" class="rb-submit red-button button-max-width send-log-in-email" value="verify code" required />
+    <p/>
   
    </form>
-    <br/>
-  </section>
+
 </section>
 {%- endblock -%}

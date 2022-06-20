@@ -65,6 +65,8 @@ def includeme(config):
 
     # embed routes:
     config.add_route("embed-join-or-log-in", "/embed/ns/{namespace}/join-or-log-in")
+    config.add_route("embed-verification-challenge", "/embed/ns/{namespace}/verification-challenge")
+
     config.add_route("embed-log-out", "/embed/ns/{namespace}/log-out")
 
     config.add_route("embed-namespace-nodes", "/embed/ns/{namespace}/nodes")
@@ -96,7 +98,7 @@ def includeme(config):
     # basic routes:
     config.add_route("basic-join-or-log-in", "/join-or-log-in")
 
-    config.add_route("verification-challenge", "/verification-challenge")
+    config.add_route("basic-verification-challenge", "/verification-challenge")
 
     config.add_route("basic-namespace-nodes", "/ns/{namespace}/nodes")
     config.add_route("basic-namespace-settings", "/ns/{namespace}/settings")
