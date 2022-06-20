@@ -219,7 +219,8 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         return res_login
 
     def test_log_in(self):
-        res = self._log_in_test_user(self.test_creds1)
+        redirect_res = self._log_in_test_user(self.test_creds1)
+        res = redirect_res.follow()
         self.assertIn(self.test_user1.name.encode("utf-8"), res.body)
 
     def test_log_in_or_join_creates_default_watcher(self):
