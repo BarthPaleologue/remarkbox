@@ -11,8 +11,8 @@ input.rb-submit {
 }
 </style>
 <br/>
-  <p class="whats-next"><b>What's next?</b> check your email to log in!</p>
 <section class="join-or-log-in">
+  <p class="whats-next"><b>What's next?</b> check your email to log in!</p>
  <form method="post" action="{{ request.link_prefix }}/join-or-log-in" onsubmit="submit.disabled = true; return true;">
   {% include 'snippets/csrf.j2' %}
   {% include 'snippets/email.j2' %}
