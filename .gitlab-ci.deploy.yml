@@ -1,0 +1,11 @@
+stages:
+  - my.remarkbox.com
+
+my.remarkbox.com:
+  stage: my.remarkbox.com
+  tags: ["my.remarkbox.com"]
+  script:
+    # publish build to Salt Master
+    - sudo /opt/salt-call-state-highstate.sh
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'

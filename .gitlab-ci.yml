@@ -1,7 +1,7 @@
 stages:
   - test
   - build
-  - my.remarkbox.com
+  - deploy
 
 test:
   stage: test
@@ -47,12 +47,8 @@ build:
       - commit-hash.txt
     expire_in: 1 month
 
-
-my.remarkbox.com:
-  stage: my.remarkbox.com
-  tags: ["my.remarkbox.com"]
-  script:
-    # publish build to Salt Master
-    - sudo /opt/salt-call-state-highstate.sh
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+deploy:
+  stage: deploy
+  needs: [build]
+  trigger:
+    include: .gitlab-ci.deploy.yml
