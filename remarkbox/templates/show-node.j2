@@ -21,12 +21,14 @@
   {% endif %}
 {% endif %}
 
-{%- if request.user.authenticated and request.mode == "embed" %}
+{% if request.mode == "embed" %}
+{%- if request.user.authenticated %}
   <span class="avoidwrap">
   {{ snippets.user_avatar_link(request.user, 35, class="avatar-nav") }}
   </span>
 {% else %}
-  <a href="{{ domain_app }}{% if request.mode == "embed" %}{{ request.link_prefix }}{% endif %}/join-or-log-in{% if request.mode == "basic" %}?return-to={{ request.path_url }}{% endif %}">join or log in</a>
+  <a href="{{ request.link_prefix }}/join-or-log-in">join or log in</a>
+{%- endif %}
 {%- endif %}
 
 
