@@ -29,11 +29,6 @@ def main(argv=sys.argv):
 
     engine = get_engine(settings)
     Base.metadata.create_all(engine)
-
-    session_factory = get_session_factory(engine)
-
-    Base.metadata.create_all(engine)
-
     session_factory = get_session_factory(engine)
 
     with transaction.manager:
