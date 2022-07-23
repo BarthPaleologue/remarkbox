@@ -11,7 +11,13 @@
 {% endif %}
 
 
+{% if request.mode == "embed" %}
+<a href="{{ request.session["back_to_thread"] }}" class="button-right">< back to thread</a>
+{% endif %}
+
 <a href="{{ request.link_prefix }}/log-out" class="button button-right button-small">log out</a>
+
+
 
 <h4>User Settings</h4>
 

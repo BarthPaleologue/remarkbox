@@ -191,6 +191,7 @@ def main(global_config, **settings):
         # are dumb. If we fix our forms to only pass node_id/node_path when not
         # None, the priority / order will not matter.
         if thread_uri:
+            request.session["back_to_thread"] = request.url
             node = get_or_create_node_by_uri(request.dbsession, thread_uri, thread_title)
         elif node_id:
             node = get_node_by_id(request.dbsession, node_id)
