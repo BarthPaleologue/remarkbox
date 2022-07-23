@@ -266,8 +266,8 @@ def main(global_config, **settings):
             namespace_request = get_namespace_request_by_id(
                 request.dbsession, request.owner_key
             )
+            # for dubugging purposes only.
             # log.info("owner_key={}, pending={}".format(request.owner_key,request.namespace.owner_request_pending))
-            log.info("{} {}".format(namespace_request.namespace,request.namespace))
             if namespace_request and namespace_request.namespace == request.namespace:
                 return namespace_request
 
