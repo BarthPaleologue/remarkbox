@@ -13,14 +13,21 @@ from ..models import (
     is_user_name_available,
 )
 
-from miscutils import generate_password
-
 from . import base_parser
 
 try:
     unicode("")
 except:
     from six import u as unicode
+
+
+def generate_password(size=32):
+    """Return a system generated password"""
+    from random import choice
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    digits = "0123456789"
+    pool = letters + digits
+    return "".join([choice(pool) for i in range(size)])
 
 
 def get_arg_parser():

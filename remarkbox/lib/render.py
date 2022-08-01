@@ -1,4 +1,4 @@
-from miscutils.sanitize_html import (
+from .sanitize_html import (
     default_cleaner,
     default_tag_acl,
     markdown_to_raw_html,

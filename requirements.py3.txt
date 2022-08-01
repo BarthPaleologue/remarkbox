@@ -43,9 +43,6 @@ ago
 # light weight URI attribute parser.
 miniuri
 
-# my miscutils checked out via git as an editable package.
-git+https://github.com/russellballestrini/miscutils.git#egg=miscutils
-
 # the official Remarkbox "meta" theme.
 #git+https://github.com/russellballestrini/remarkbox-theme-meta.git#egg-remarkbox-theme-meta
 git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git#egg-remarkbox-theme-meta

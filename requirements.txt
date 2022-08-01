@@ -52,10 +52,6 @@ ago
 # light weight URI attribute parser.
 miniuri
 
-# my miscutils checked out via git as an editable package.
-#-e git+git@github.com:russellballestrini/miscutils.git#egg=miscutils
-git+https://github.com/russellballestrini/miscutils.git#egg=miscutils
-
 # Create URI slugs from titles.
 python-slugify
 

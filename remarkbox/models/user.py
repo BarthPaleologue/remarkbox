@@ -23,8 +23,6 @@ from .watcher import Watcher
 
 from .notification import NodeEventNotification
 
-from miscutils import generate_password
-
 import logging
 
 log = logging.getLogger(__name__)
@@ -34,6 +32,14 @@ try:
 except:
     from six import u as unicode
 
+
+def generate_password(size=32):
+    """Return a system generated password"""
+    from random import choice
+    letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    digits = "0123456789"
+    pool = letters + digits
+    return "".join([choice(pool) for i in range(size)])
 
 
 class UserSurrogate(RBase, Base):
