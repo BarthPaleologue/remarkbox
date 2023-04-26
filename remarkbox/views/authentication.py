@@ -12,6 +12,7 @@ from remarkbox.lib.mail import send_verification_digits_to_email
 
 from . import get_referer_or_home, get_embed_route_uri, verify_pending_nodes_in_session
 
+from urllib.parse import urlencode
 
 
 @view_config(route_name="log-out")
@@ -79,7 +80,9 @@ def join_or_log_in(request):
 
         request.session.flash(msg)
 
-        return HTTPFound("{}/verification-challenge?email={}".format(request.link_prefix, email))
+        email_encoded = urlencode({"email": email})
+
+        return HTTPFound("{}/verification-challenge?email={}".format(request.link_prefix, email_encoded))
 
     return {
         "title": "join or log in",
