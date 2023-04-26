@@ -318,7 +318,7 @@ class User(RBase, Base):
             stored_hash.encode("utf-8"),
         ).decode("utf-8")
 
-        #log.info("new_hash={} stored_hash={}".format(new_hash, stored_hash))
+        log.info("new_hash={} stored_hash={}".format(new_hash, stored_hash))
 
         if new_hash == stored_hash:
             return True
