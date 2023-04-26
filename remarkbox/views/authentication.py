@@ -82,7 +82,7 @@ def join_or_log_in(request):
 
         email_encoded = urlencode({"email": email})
 
-        return HTTPFound("{}/verification-challenge?email={}".format(request.link_prefix, email_encoded))
+        return HTTPFound("{}/verification-challenge?{}".format(request.link_prefix, email_encoded))
 
     return {
         "title": "join or log in",
