@@ -64,7 +64,7 @@ requests[security]
 # idna==2.6
 
 # credit card storage and processing.
-stripe
+stripe==3.5.0
 
 # slack: bot notifications.
 slacker
