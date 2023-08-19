@@ -101,7 +101,7 @@ blockquote {
 
 button.link,
 .button {
-  color: #292929;
+  color: #32A6CD; 
   text-align: left;
   padding: 0;
   opacity: .80;
@@ -144,7 +144,7 @@ p.whats-next {
 }
 
 form.node-action {
-  display: inline;
+  display: inline-block;
 }
 
 .node-actions {
