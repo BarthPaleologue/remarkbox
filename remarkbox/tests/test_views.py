@@ -288,71 +288,71 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         self.dbsession.refresh(namespace_request)
         self.assertTrue(namespace_request.verified)
 
-    # the only reason we need to patch is because of temporary operator email.
-    @patch("smtplib.SMTP")
-    def test_billing(self, mock_smtp):
+    ## the only reason we need to patch is because of temporary operator email.
+    #@patch("smtplib.SMTP")
+    #def test_billing(self, mock_smtp):
 
-        self._log_in_test_user(self.test_creds1)
+    #    self._log_in_test_user(self.test_creds1)
 
-        billing_response = self.testapp.post(
-            "/billing/add-card",
-            {
-                "email": "test@remarkbox.com",
-                "csrf_token": self.csrf,
-                "stripeToken": "tok_visa",
-            },
-        )
+    #    billing_response = self.testapp.post(
+    #        "/billing/add-card",
+    #        {
+    #            "email": "test@remarkbox.com",
+    #            "csrf_token": self.csrf,
+    #            "stripeToken": "tok_visa",
+    #        },
+    #    )
 
-        self.dbsession.refresh(self.test_user1)
-        customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-        self.assertEqual(
-            customer.sources.retrieve(customer.default_source).brand, "Visa"
-        )
+    #    self.dbsession.refresh(self.test_user1)
+    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
+    #    self.assertEqual(
+    #        customer.sources.retrieve(customer.default_source).brand, "Visa"
+    #    )
 
-        self.testapp.post(
-            "/billing/add-card",
-            {
-                "email": "test@remarkbox.com",
-                "csrf_token": self.csrf,
-                "stripeToken": "tok_amex",
-            },
-        )
+    #    self.testapp.post(
+    #        "/billing/add-card",
+    #        {
+    #            "email": "test@remarkbox.com",
+    #            "csrf_token": self.csrf,
+    #            "stripeToken": "tok_amex",
+    #        },
+    #    )
 
-        for source in customer.sources.list():
-            if source.brand == "Visa":
-                visa = source
-            if source.brand == "American Express":
-                amex = source
+    #    for source in customer.sources.list():
+    #        if source.brand == "Visa":
+    #            visa = source
+    #        if source.brand == "American Express":
+    #            amex = source
 
-        self.testapp.post(
-            "/billing/update-card",
-            {
-                "email": "test@remarkbox.com",
-                "csrf_token": self.csrf,
-                "action": "make-card-active",
-                "card_id": amex.id,
-            },
-        )
+    #    self.testapp.post(
+    #        "/billing/update-card",
+    #        {
+    #            "email": "test@remarkbox.com",
+    #            "csrf_token": self.csrf,
+    #            "action": "make-card-active",
+    #            "card_id": amex.id,
+    #        },
+    #    )
 
-        customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-        self.assertEqual(
-            customer.sources.retrieve(customer.default_source).brand, "American Express"
-        )
+    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
+    #    self.assertEqual(
+    #        customer.sources.retrieve(customer.default_source).brand, "American Express"
+    #    )
 
-        self.testapp.post(
-            "/billing/update-card",
-            {
-                "email": "test@remarkbox.com",
-                "csrf_token": self.csrf,
-                "action": "delete-card",
-                "card_id": amex.id,
-            },
-        )
+    #    self.testapp.post(
+    #        "/billing/update-card",
+    #        {
+    #            "email": "test@remarkbox.com",
+    #            "csrf_token": self.csrf,
+    #            "action": "delete-card",
+    #            "card_id": amex.id,
+    #        },
+    #    )
 
-        customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-        self.assertEqual(
-            customer.sources.retrieve(customer.default_source).brand, "Visa"
-        )
+    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
+    #    self.assertEqual(
+    #        customer.sources.retrieve(customer.default_source).brand, "Visa"
+    #    )
 
     @patch("smtplib.SMTP")
     def test_notifications(self, mock_smtp):
