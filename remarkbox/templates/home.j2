@@ -28,7 +28,7 @@
     {% if node.user %}
     {{ snippets.user_link(node.user) }}
     {% else %}
-    <a href="{{ request.link_prefix }}/{{ node.id }}">thread</a>
+    <a href="{{ request.link_prefix }}/{{ node.id }}/{{ node.slug }}">thread</a>
     {% endif %}
     <span id="{{ node.id }}" class="date" title="{{ node.created_date }}">
       {{ node.human_changed_timestamp }}
@@ -38,10 +38,10 @@
   {% if node.has_uri -%}
   <a href="{{ node.uri.data }}" target="_blank" rel="nofollow">{{ node.uri.data }}</a>
   {% else -%}
-  <a href="{{ node.path }}">{{ node.title }}</a>
+  <a href="{{ request.link_prefix }}/{{ node.id }}/{{ node.slug }}">{{ node.title }}</a>
   {% endif -%}
   <br>
-  <a href="{{ request.link_prefix }}/{{ node.id }}">
+  <a href="{{ request.link_prefix }}/{{ node.id }}/{{ node.slug }}">
   <span class="remark-count">{{ node.stats["root"]["visible_count"] }} remarks</span>
   </a>
 </div>

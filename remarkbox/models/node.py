@@ -284,14 +284,15 @@ class Node(RBase, Base):
 
     @property
     def slug(self):
-        """return slug from title or None"""
+        """return slug from title or empty string"""
         if self.title:
             return slugify(self.title)
+        return ""
 
     @property
     def path(self):
         """return a node's path part of uri"""
-        if self.slug is not None:
+        if self.slug:
             return "/{}/{}".format(self.id, self.slug)
         else:
             return "/{}".format(self.id)
