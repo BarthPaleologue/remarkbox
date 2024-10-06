@@ -1,15 +1,10 @@
 from sqlalchemy import Boolean, Column, Unicode, BigInteger
-
 from sqlalchemy.orm import relationship
-
 import uuid
-
 from .meta import Base, RBase
 from .meta import UUIDType
 from .meta import now_timestamp, foreign_key, get_object_by_id
-
 import requests
-
 import logging
 
 log = logging.getLogger(__name__)
@@ -23,6 +18,9 @@ class NamespaceRequest(RBase, Base):
     # this is the endpoint uri to scrape looking for the namespace request id.
     target = Column(Unicode(256), nullable=True)
     verified = Column(Boolean, default=False)
+    last_scrape_timestamp = Column(
+        BigInteger, nullable=True
+    )  # New column to track last scrape time
 
     user = relationship(
         argument="User",
@@ -47,12 +45,10 @@ class NamespaceRequest(RBase, Base):
 
     def verify(self):
         self.namespace.owner_request_timestamp = now_timestamp()
-        # set this namespace_request to verified.
         self.verified = True
 
     def unverify(self):
         self.namespace.owner_request_timestamp = now_timestamp()
-        # set this namespace_request to unverified.
         self.verified = False
 
     def verify_target(self, target):
@@ -66,9 +62,14 @@ class NamespaceRequest(RBase, Base):
         """Scrape the given target for NamespaceRequest id
         Return True if found else False.
         """
-        # TODO: this is a blocking external call to a resource we
-        # have no control over and should likely be a different service!
-        # https://github.com/russellballestrini/webwords
+        current_time = now_timestamp()
+        # Check if the last scrape was within the last 5 minutes (300 seconds)
+        if (
+            self.last_scrape_timestamp
+            and (current_time - self.last_scrape_timestamp) < 300
+        ):
+            return self.verified
+
         namespace_request_id = str(self.id)
         if self.target:
             # https://en.wikipedia.org/wiki/List_of_HTTP_header_fields#Request_fields
@@ -90,6 +91,7 @@ class NamespaceRequest(RBase, Base):
                             namespace_request_id,
                         )
                     )
+                    self.last_scrape_timestamp = current_time
                     return True
 
                 log.info(
@@ -98,6 +100,7 @@ class NamespaceRequest(RBase, Base):
                         namespace_request_id,
                     )
                 )
+                self.last_scrape_timestamp = current_time
                 return False
             log.info(
                 "scraping target={} looking for uuid={} status={} reason={}".format(
@@ -107,6 +110,7 @@ class NamespaceRequest(RBase, Base):
                     resp.reason,
                 )
             )
+            self.last_scrape_timestamp = current_time
             return False
 
 
