@@ -12,6 +12,7 @@ from miniuri import Uri
 
 log = logging.getLogger(__name__)
 
+# Dictionary to track when scraping is allowed again for specific domains
 domain_skip_until = {}
 
 
@@ -62,7 +63,7 @@ class NamespaceRequest(RBase, Base):
         else:
             self.unverify()
 
-    def scrape_target(self):
+    def scrape_target(self, max_redirects=5):
         """Scrape the given target for NamespaceRequest id
         Return True if found else False.
         """
@@ -106,7 +107,19 @@ class NamespaceRequest(RBase, Base):
                     )
                 )
                 try:
-                    resp = requests.get(self.target, timeout=8.50)
+                    # Follow redirects up to max_redirects
+                    resp = requests.get(
+                        self.target, headers=headers, timeout=8.50, allow_redirects=True
+                    )
+                    redirect_count = 0
+                    while resp.is_redirect and redirect_count < max_redirects:
+                        redirect_count += 1
+                        next_url = resp.headers.get("Location")
+                        if not next_url:
+                            break
+                        log.info(f"Redirecting to {next_url}")
+                        resp = requests.get(next_url, headers=headers, timeout=8.50)
+
                     if resp.ok:
                         if namespace_request_id in resp.text:
                             log.info(
