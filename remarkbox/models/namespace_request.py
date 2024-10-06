@@ -7,8 +7,12 @@ from .meta import now_timestamp, foreign_key, get_object_by_id
 import requests
 import logging
 import threading
+from datetime import datetime, timedelta
+from miniuri import Uri
 
 log = logging.getLogger(__name__)
+
+domain_skip_until = {}
 
 
 class NamespaceRequest(RBase, Base):
@@ -20,7 +24,6 @@ class NamespaceRequest(RBase, Base):
     verified = Column(Boolean, default=False)
     last_scrape_timestamp = Column(BigInteger, nullable=True)
 
-    # Lock for preventing concurrent scrapes
     _scrape_lock = threading.Lock()
 
     user = relationship(
@@ -70,13 +73,21 @@ class NamespaceRequest(RBase, Base):
         ):
             return self.verified
 
-        # Attempt to acquire the lock without blocking
+        # Extract domain from target using miniuri
+        domain = self._get_domain_from_target(self.target)
+
+        # Check if the domain is currently being skipped
+        if domain in domain_skip_until and datetime.now() < domain_skip_until[domain]:
+            log.info(
+                f"Skipping scrape for domain={domain} until {domain_skip_until[domain]}"
+            )
+            return self.verified
+
         if not self._scrape_lock.acquire(blocking=False):
             log.info("Scrape already in progress for uuid={}".format(self.id))
             return self.verified
 
         try:
-            # Re-check the cache after acquiring the lock
             if (
                 self.last_scrape_timestamp
                 and (current_time - self.last_scrape_timestamp) < 300
@@ -115,14 +126,14 @@ class NamespaceRequest(RBase, Base):
                         )
                         self.last_scrape_timestamp = current_time
                         return False
-                    log.info(
-                        "scraping target={} looking for uuid={} status={} reason={}".format(
-                            self.target,
-                            namespace_request_id,
-                            resp.status_code,
-                            resp.reason,
+                    elif resp.status_code == 429:  # Too Many Requests
+                        # Set skip time for the domain
+                        domain_skip_until[domain] = datetime.now() + timedelta(
+                            minutes=30
                         )
-                    )
+                        log.info(
+                            f"Rate limited by domain={domain}, skipping until {domain_skip_until[domain]}"
+                        )
                 except requests.RequestException as e:
                     log.error(f"Error scraping target={self.target}: {e}")
 
@@ -130,6 +141,11 @@ class NamespaceRequest(RBase, Base):
                 return False
         finally:
             self._scrape_lock.release()
+
+    def _get_domain_from_target(self, target):
+        """Extract the domain from the target URL using miniuri."""
+        uri = Uri(target)
+        return uri.hostname
 
 
 def get_namespace_request_by_id(dbsession, namespace_request_id):
