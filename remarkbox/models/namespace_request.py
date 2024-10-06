@@ -6,6 +6,7 @@ from .meta import UUIDType
 from .meta import now_timestamp, foreign_key, get_object_by_id
 import requests
 import logging
+import threading
 
 log = logging.getLogger(__name__)
 
@@ -15,12 +16,12 @@ class NamespaceRequest(RBase, Base):
     user_id = Column(UUIDType, foreign_key("User", "id"), index=True)
     namespace_id = Column(UUIDType, foreign_key("Namespace", "id"), index=True)
     created_timestamp = Column(BigInteger, nullable=False, index=True)
-    # this is the endpoint uri to scrape looking for the namespace request id.
     target = Column(Unicode(256), nullable=True)
     verified = Column(Boolean, default=False)
-    last_scrape_timestamp = Column(
-        BigInteger, nullable=True
-    )  # New column to track last scrape time
+    last_scrape_timestamp = Column(BigInteger, nullable=True)
+
+    # Lock for preventing concurrent scrapes
+    _scrape_lock = threading.Lock()
 
     user = relationship(
         argument="User",
@@ -63,55 +64,72 @@ class NamespaceRequest(RBase, Base):
         Return True if found else False.
         """
         current_time = now_timestamp()
-        # Check if the last scrape was within the last 5 minutes (300 seconds)
         if (
             self.last_scrape_timestamp
             and (current_time - self.last_scrape_timestamp) < 300
         ):
             return self.verified
 
-        namespace_request_id = str(self.id)
-        if self.target:
-            # https://en.wikipedia.org/wiki/List_of_HTTP_header_fields#Request_fields
-            headers = {
-                "User-Agent": "remarkbox.com",
-            }
+        # Attempt to acquire the lock without blocking
+        if not self._scrape_lock.acquire(blocking=False):
+            log.info("Scrape already in progress for uuid={}".format(self.id))
+            return self.verified
 
-            log.info(
-                "scraping target={} looking for uuid={}".format(
-                    self.target, namespace_request_id
-                )
-            )
-            resp = requests.get(self.target, timeout=8.50)
-            if resp.ok:
-                if namespace_request_id in resp.text:
-                    log.info(
-                        "scraping target={} looking for uuid={} status=hit".format(
-                            self.target,
-                            namespace_request_id,
-                        )
-                    )
-                    self.last_scrape_timestamp = current_time
-                    return True
+        try:
+            # Re-check the cache after acquiring the lock
+            if (
+                self.last_scrape_timestamp
+                and (current_time - self.last_scrape_timestamp) < 300
+            ):
+                return self.verified
+
+            namespace_request_id = str(self.id)
+            if self.target:
+                headers = {
+                    "User-Agent": "remarkbox.com",
+                }
 
                 log.info(
-                    "scraping target={} looking for uuid={} status=miss".format(
-                        self.target,
-                        namespace_request_id,
+                    "scraping target={} looking for uuid={}".format(
+                        self.target, namespace_request_id
                     )
                 )
+                try:
+                    resp = requests.get(self.target, timeout=8.50)
+                    if resp.ok:
+                        if namespace_request_id in resp.text:
+                            log.info(
+                                "scraping target={} looking for uuid={} status=hit".format(
+                                    self.target,
+                                    namespace_request_id,
+                                )
+                            )
+                            self.last_scrape_timestamp = current_time
+                            return True
+
+                        log.info(
+                            "scraping target={} looking for uuid={} status=miss".format(
+                                self.target,
+                                namespace_request_id,
+                            )
+                        )
+                        self.last_scrape_timestamp = current_time
+                        return False
+                    log.info(
+                        "scraping target={} looking for uuid={} status={} reason={}".format(
+                            self.target,
+                            namespace_request_id,
+                            resp.status_code,
+                            resp.reason,
+                        )
+                    )
+                except requests.RequestException as e:
+                    log.error(f"Error scraping target={self.target}: {e}")
+
                 self.last_scrape_timestamp = current_time
                 return False
-            log.info(
-                "scraping target={} looking for uuid={} status={} reason={}".format(
-                    self.target,
-                    namespace_request_id,
-                    resp.status_code,
-                    resp.reason,
-                )
-            )
-            self.last_scrape_timestamp = current_time
-            return False
+        finally:
+            self._scrape_lock.release()
 
 
 def get_namespace_request_by_id(dbsession, namespace_request_id):
