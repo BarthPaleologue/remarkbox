@@ -57,6 +57,21 @@ class NamespaceRequest(RBase, Base):
         self.verified = False
 
     def verify_target(self, target):
+        """Verify the target only if not already verified or if a day has passed since last verification."""
+        current_time = now_timestamp()
+        one_day_in_milliseconds = 24 * 60 * 60 * 1000
+
+        # Skip verification if already verified and last scrape was within a day
+        if (
+            self.verified
+            and self.last_scrape_timestamp
+            and (current_time - self.last_scrape_timestamp) < one_day_in_milliseconds
+        ):
+            log.info(
+                f"Skipping target verification for verified namespace request id={self.id}"
+            )
+            return None
+
         self.target = target
         if self.scrape_target():
             self.verify()
