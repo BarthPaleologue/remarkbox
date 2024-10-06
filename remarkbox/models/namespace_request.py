@@ -68,11 +68,16 @@ class NamespaceRequest(RBase, Base):
         Return True if found else False.
         """
         current_time = now_timestamp()
+        one_day_in_milliseconds = 24 * 60 * 60 * 1000
+
+        # Skip scraping if already verified and last scrape was within a day
         if (
-            self.last_scrape_timestamp
-            and (current_time - self.last_scrape_timestamp) < 300
+            self.verified
+            and self.last_scrape_timestamp
+            and (current_time - self.last_scrape_timestamp) < one_day_in_milliseconds
         ):
-            return self.verified
+            log.info(f"Skipping scrape for verified namespace request id={self.id}")
+            return True
 
         # Extract domain from target using miniuri
         domain = self._get_domain_from_target(self.target)
