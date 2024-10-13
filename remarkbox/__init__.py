@@ -32,6 +32,7 @@ from pkg_resources import iter_entry_points
 from os.path import expandvars
 
 import logging
+
 log = logging.getLogger(__name__)
 
 JINJA2_EXTENSION = ".j2"
@@ -144,7 +145,7 @@ def maybe_root_domain(string):
 
 
 def main(global_config, **settings):
-    """ This function returns a Pyramid WSGI application."""
+    """This function returns a Pyramid WSGI application."""
 
     app_settings = get_children_settings(settings, "app")
     session_settings = get_children_settings(settings, "session")
@@ -224,7 +225,7 @@ def main(global_config, **settings):
 
     def add_csrf_token(request):
         if request.user and request.user.authenticated:
-           return request.session.get_csrf_token()
+            return request.session.get_csrf_token()
 
     def add_node(request):
         """Return Node object or None from matchdict or params."""
@@ -239,8 +240,15 @@ def main(global_config, **settings):
         # are dumb. If we fix our forms to only pass node_id/node_path when not
         # None, the priority / order will not matter.
         if thread_uri:
-            request.session["back_to_thread"] = request.url
-            node = get_or_create_node_by_uri(request.dbsession, thread_uri, thread_title)
+            # Remove "/reply" from the end of the URL if present
+            url = request.url
+            if url.endswith("/reply"):
+                url = url[:-6]  # Remove the last 6 characters ("/reply")
+            request.session["back_to_thread"] = url
+
+            node = get_or_create_node_by_uri(
+                request.dbsession, thread_uri, thread_title
+            )
         elif node_id:
             node = get_node_by_id(request.dbsession, node_id)
         elif nojs and request.referer:
@@ -353,9 +361,9 @@ def main(global_config, **settings):
         """Only one domain should have this method return True per deployment."""
         root_domain = request.app.get("root_domain")
         return (
-            root_domain and
-            request.domain.endswith(root_domain) and
-            request.app_domain == request.namespace.name
+            root_domain
+            and request.domain.endswith(root_domain)
+            and request.app_domain == request.namespace.name
         )
 
     def add_stripe(request):
@@ -481,7 +489,7 @@ def main(global_config, **settings):
     # register functions to app config as request methods.
     # each request instance will run these functions and attach results.
     # cache result with `reify=True` to prevent multiple db lookups.
-    #config.add_request_method(add_redis, "redis", reify=True)
+    # config.add_request_method(add_redis, "redis", reify=True)
     config.add_request_method(add_user, "user", reify=True)
     config.add_request_method(add_csrf_token, "csrf_token", reify=True)
     config.add_request_method(add_email, "email", reify=True)
@@ -523,7 +531,9 @@ def main(global_config, **settings):
     )
     config.add_request_method(add_stylesheet_uri, "stylesheet_uri", reify=True)
     config.add_request_method(add_base_template, "base_template", reify=True)
-    config.add_request_method(add_base_funnel_template, "base_funnel_template", reify=True)
+    config.add_request_method(
+        add_base_funnel_template, "base_funnel_template", reify=True
+    )
     config.add_request_method(add_page_number, "page_number", reify=True)
     config.add_request_method(add_page_size, "page_size", reify=True)
     config.add_request_method(add_page_offset, "page_offset", reify=True)
