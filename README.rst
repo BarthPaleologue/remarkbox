@@ -6,13 +6,13 @@ What is RemarkBox?:
   Works anywhere that supports HTML.
 
 Original Developer:
- Russell Ballestrini (https://russell.ballestrini.net)
+  Russell Ballestrini (https://russell.ballestrini.net)
 
 Project Goals
 =============
 
 Note:
- These goals are not in priority order.
+  These goals are not in priority order.
 
 #. To be a suitable for:
 
