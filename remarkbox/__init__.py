@@ -192,6 +192,12 @@ def main(global_config, **settings):
     # compile the email validator regex outside of the functions.
     _email_regex = re.compile("^[^@]+@[^@]+\.[^.@]+$")
 
+    def add_debug_mode(request):
+        """Return True if debug toolbar is enabled."""
+        return "pyramid_debugtoolbar" in request.registry.settings.get(
+            "pyramid.includes", ""
+        )
+
     '''
     def add_redis(request):
         """Return Redis Connection"""
@@ -490,6 +496,7 @@ def main(global_config, **settings):
     # each request instance will run these functions and attach results.
     # cache result with `reify=True` to prevent multiple db lookups.
     # config.add_request_method(add_redis, "redis", reify=True)
+    config.add_request_method(add_debug_mode, "debug_mode", reify=True)
     config.add_request_method(add_user, "user", reify=True)
     config.add_request_method(add_csrf_token, "csrf_token", reify=True)
     config.add_request_method(add_email, "email", reify=True)

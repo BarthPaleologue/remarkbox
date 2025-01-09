@@ -70,7 +70,7 @@ We utilize a ``Makefile`` to capture targets for building a local Remarkbox envi
 Functional testing environment
 -------------------------------
 
-To setup a "functional testing" environment on your personal workstation, open three terminal shells.
+To setup a "functional testing" environment on your personal workstation, open two terminal shells.
 
 In the first shell, run a copy of Remarkbox using:
 
@@ -84,14 +84,11 @@ In the second shell, run a "mock" simple HTTP web server to serve index.html:
 
  make http
 
-In the third shell, run a "mock" SMTP server to catch log in emails:
+Now browse to http://127.0.0.1:8000 and index.html will load.
+This has an embedded copy of Remarkbox which is also running on localhost.
 
-.. code-block:: bash
-
- make smtp
-
-Now browse to http://127.0.0.1:8000 and index.html will load and will have an embedded copy of Remarkbox which running on localhost.
-If you attempt to log in, your third shell will capture the email and you can copy / paste the verification link to log in!
+If you attempt to log in, a verification one-time-password code will be sent over SMTP to log in!
+If you do not have an SMTP server the socket error will log email to console when in development.
 
 
 New Environments
