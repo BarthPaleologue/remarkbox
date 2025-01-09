@@ -29,7 +29,3 @@ serve: dev
 http: dev
 	# In the second shell, run a "mock" simple HTTP webserver to serve index.html:
 	env/bin/python -m http.server 8000
-
-smtp: dev
-	# In the third shell, run a "mock" SMTP server to catch log in emails:
-	sudo env/bin/python -m smtpd -n -c DebuggingServer localhost:25
