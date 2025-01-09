@@ -43,7 +43,7 @@ Note:
 
 #. To be easy to manage and clean up spam if it happens
 
-#. To be passwordless. Registration, verification and authentication happen via one-time-password links sent via email.
+#. To be passwordless. Registration, verification and authentication happen via one-time-password codes sent via email.
 
 #. To scale horizontally
 
@@ -203,3 +203,33 @@ Here is a full `pshell` script to modify every `Node` who has a `Uri`:
 
  # commit/close the database transaction to really make changes.
  request.tm.commit()
+
+Contributing
+===================
+
+* Establish communication with Russell or another admin to bless your git.unturf.com gitlab account & put you into the proper roles.
+* Russell should see your account request but due to spam you have to ask him directly for approval via email or some other means of comms.
+* Clone repo & make commits
+* Create merge requests, we automatically run the unit & headless functional tests on each commit
+* On merge we release to the production site & see the change across users.
+
+Optionally, format your code.
+
+This is not set in stone, but if you want to use a formatter this is the path for now!
+
+**Python**
+  black (manual)
+
+**Jinja2**
+  None (not needed, neither is an HTML formatter)
+
+**JavaScript**
+  Prettier or biome (manual)
+
+**CSS**
+  Prettier or biome (manual)
+
+Licence
+=====================
+
+All code contributed goes into the public domain.
