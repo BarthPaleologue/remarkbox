@@ -51,9 +51,7 @@ deploy:
   stage: deploy
   needs: [build]
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-      when: on_success
-    - if: '$CI_COMMIT_BRANCH == "master"'
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"'
       when: on_success
   trigger:
     include: .gitlab-ci.deploy.yml
