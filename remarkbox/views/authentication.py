@@ -104,8 +104,8 @@ def verification_challenge(request):
         # get or create a User object from the posted email.
         user = get_or_create_user_by_email(request.dbsession, email)
 
-    if "submit" in request.params:
-        if raw_otp and user.check_password(raw_otp):
+    if raw_otp:
+        if user.check_password(raw_otp):
             # success: the user was verified.
             user.verified = True
             msg = ("Welcome {}".format(user.name), "success")
