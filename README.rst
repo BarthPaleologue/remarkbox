@@ -66,6 +66,40 @@ We utilize a ``Makefile`` to capture targets for building a local Remarkbox envi
 #. ``make dev``
 #. ``make test``
 
+## For WSL Users
+
+If you are using Windows Subsystem for Linux (WSL), follow these steps to set up your environment:
+
+Activate the virtual environment
+
+.. code-block:: bash
+
+ source env/bin/activate
+
+Install dependencies:
+
+.. code-block:: bash
+
+ pip install -r requirements-wsl.txt
+
+
+### For Other Users
+
+For users on other platforms, follow these steps:
+
+Activate the virtual environment:
+
+.. code-block:: bash 
+
+  source env/bin/activate
+
+Install dependencies:
+
+.. code-block:: bash
+
+   pip install -r requirements.txt
+
+   
 
 Functional testing environment
 -------------------------------
