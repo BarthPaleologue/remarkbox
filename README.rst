@@ -96,7 +96,15 @@ New Environments
 
 If your deployment is brand new, you don't need to run any migrations.
 
-To create all the schemas & tables in your database, run:
+To create all the schemas & tables in your database, run thse steps:
+
+Activate the virtual environment:
+
+.. code-block:: bash
+
+ source env/bin/activate
+   
+Create all the schemas & tables in your database
 
 .. code-block:: bash
 
