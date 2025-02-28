@@ -130,7 +130,7 @@ New Environments
 
 If your deployment is brand new, you don't need to run any migrations.
 
-To create all the schemas & tables in your database, run thse steps:
+To create all the schemas & tables in your database, run these steps:
 
 Activate the virtual environment:
 
