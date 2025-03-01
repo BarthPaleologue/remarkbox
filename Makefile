@@ -105,11 +105,6 @@ activate:
 	@echo "To activate the virtual environment, run:"
 	@echo "  source $(VENV_DIR)/bin/activate"
 
-# WSL-specific setup (install WSL requirements)
-wsl: venv
-	@echo "Installing WSL-specific requirements..."
-	$(PIP) install --upgrade -r requirements-wsl.txt
-
 # Production target: install production packages and requirements from PyPI
 prod: venv
 	@echo "Installing production packages..."
