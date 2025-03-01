@@ -7,6 +7,9 @@ env:
 	env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
 	cp -rp env env.vanilla
 
+wsl: env
+	env/bin/pip install --upgrade -r requirements-wsl.txt
+
 dev: env
 	env/bin/pip install --editable .
 	env/bin/pip install --upgrade -r requirements-dev.txt
