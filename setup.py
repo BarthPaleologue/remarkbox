@@ -1,6 +1,17 @@
 import os
 from setuptools import setup, find_packages
 
+def is_wsl():
+    """
+    Detect if we're running under Windows Subsystem for Linux.
+    Checks if /proc/version exists and contains 'microsoft'.
+    """
+    try:
+        with open('/proc/version', 'r', encoding='utf-8') as f:
+            return 'microsoft' in f.read().lower()
+    except Exception:
+        return False
+
 def parse_requirements(filename):
     """
     Read and parse a requirements file, ignoring comments and blank lines.
@@ -8,23 +19,24 @@ def parse_requirements(filename):
     req_path = os.path.join(os.path.dirname(__file__), filename)
     with open(req_path, "r", encoding="utf-8") as f:
         lines = f.read().splitlines()
-    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+    reqs = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+    return reqs
+
+# Determine which requirements file to use
+requirements_file = "requirements-wsl.txt" if is_wsl() else "requirements.py3.txt"
+install_requires = parse_requirements(requirements_file)
+
+# Optional extras for development, production, and testing.
+extras_require = {
+    'dev': parse_requirements("requirements-dev.txt"),
+    'prod': parse_requirements("requirements-prod.txt"),
+    'test': parse_requirements("requirements-test.txt"),
+}
 
 # Read the long description from README.rst
 here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
     long_description = f.read()
-
-# Use the Python 3 requirements file by default.
-install_requires = parse_requirements("requirements.py3.txt")
-
-# Extras for development, production, testing, and Windows WSL.
-extras_require = {
-    'dev': parse_requirements("requirements-dev.txt"),
-    'prod': parse_requirements("requirements-prod.txt"),
-    'test': parse_requirements("requirements-test.txt"),
-    'wsl': parse_requirements("requirements-wsl.txt"),
-}
 
 setup(
     name="remarkbox",

@@ -45,11 +45,13 @@ miniuri
 
 # the official Remarkbox "meta" theme.
 #git+https://github.com/russellballestrini/remarkbox-theme-meta.git#egg-remarkbox-theme-meta
-git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git#egg-remarkbox-theme-meta
+#git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git#egg-remarkbox-theme-meta
+#remarkbox-theme-meta @ git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
 
 # another example theme.
 #git+https://github.com/russellballestrini/remarkbox-westworld.git#egg-remarkbox-westworld
-git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git#egg-remarkbox-westworld
+#git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git#egg-remarkbox-westworld
+#remarkbox-westworld @ git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
 
 # Create URI slugs from titles.
 python-slugify
