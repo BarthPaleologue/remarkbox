@@ -1,12 +1,22 @@
 Remarkbox
 #########
 
-What is RemarkBox?:
+This is the codebase that powers both self-hosted & SaaS Remarkbox!
+
+SaaS sites:
+
+* https://www.remarkbox.com
+* https://faq.remarkbox.com
+* https://meta.remarkbox.com
+
+Self-hosted example running a custom theme:
+
+* https://westworld2.com
+
+**What is RemarkBox?:**
+
   A stand alone question and answer site (forum) or an embedded comments or product reviews service.
   Works anywhere that supports HTML.
-
-Original Developer:
-  Russell Ballestrini (https://russell.ballestrini.net)
 
 Project Goals
 =============
@@ -56,6 +66,9 @@ Note:
 #. To be search engine optimized
 
 #. To have great test coverage
+
+#. To be easy to create & load custom themes, similar to wordpress
+
 
 
 Local Installation
@@ -307,3 +320,6 @@ Licence
 =====================
 
 All code contributed goes into the public domain.
+
+Original Developer:
+  Russell Ballestrini (https://russell.ballestrini.net)
