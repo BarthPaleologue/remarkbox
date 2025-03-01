@@ -171,17 +171,20 @@ Operating a server with Python packages instead of source
 2. **Create a config file**
 
 .. code-block:: bash
+
    cd ~/remarkbox-data
    wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/raw/main/development.ini"
 
 3. **Activate the Virtual Environment:**
 
 .. code-block:: bash
+
    source ~/remarkbox-env/bin/activate
 
 4. **Install remarkbox Core and Development Extras (waitress server):**
 
 .. code-block:: bash
+
    pip install remarkbox
    pip install remarkbox[dev]
 
@@ -190,6 +193,7 @@ Operating a server with Python packages instead of source
 5. **Start the Development Server (Waitress):**
 
 .. code-block:: bash
+
    pserve development.ini --reload
 
 **Additional Meta Packages:**  
