@@ -67,10 +67,14 @@ install-source-dev-and-test: venv install-themes
 	$(PIP) install --editable .
 	$(PIP) install --upgrade -r requirements-dev.txt
 	$(PIP) install --upgrade -r requirements-test.txt
+	cp -rp $(VENV_DIR) $(VENV_DIR).vanilla
 
-install-source: venv install-themes
+install-source-prod: venv install-themes
 	@echo "Installing remarkbox from source (editable mode)..."
-	$(PIP) install --editable .
+	$(PIP) install .
+	$(PIP) install --upgrade -r requirements-prod.txt
+	cp -rp $(VENV_DIR) $(VENV_DIR).vanilla
+
 
 # -----------------------------------------------------------------------------
 # Database Initialization and Server Targets
@@ -95,7 +99,10 @@ serve: venv config
 install-from-pypi: venv config install init-db
 
 # Install and setup from source (editable mode)
-install-from-source: venv config install-source init-db
+install-from-source: venv config install-source-dev-and-test init-db
+
+# Install and setup from source (editable mode)
+install-from-source-prod: venv config install-source-prod init-db
 
 # -----------------------------------------------------------------------------
 # Additional Targets
@@ -106,12 +113,7 @@ activate:
 	@echo "To activate the virtual environment, run:"
 	@echo "  source $(VENV_DIR)/bin/activate"
 
-# Production target: install production packages and requirements from PyPI
-prod: venv install-themes
-	@echo "Installing production packages..."
-	$(PIP) install .
-	$(PIP) install --upgrade -r requirements-prod.txt
-
+# Run the test suite (installs test dependencies if needed)
 # Run the test suite (installs test dependencies if needed)
 test: install-source-dev-and-test
 	@echo "Running tests..."
