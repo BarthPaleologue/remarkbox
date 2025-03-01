@@ -19,25 +19,27 @@ build:
     - ls -hal
     - mv env.vanilla env
     - make prod
-    # copy static assets to env/static
+    # Install the two themes separately
+    - env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
+    - env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
+    # Copy static assets to env/static
     - cp -pr remarkbox/static env/static
-    # copy static assets to env/static for westworld theme.
+    # Copy static assets to env/static for westworld theme.
     - cp -pr env/lib/python*/site-packages/remarkbox_westworld/static/* env/static
-    # copy static assets to env/static for meta.
+    # Copy static assets to env/static for meta theme.
     - cp -pr env/lib/python*/site-packages/remarkbox_theme_meta/static/* env/static
-    # make tarball of the static files.
+    # Make tarball of the static files.
     - cp -pr env/static static
-    # create a tarball of the static files.
     - tar -zcf static.tar.gz static
-    # move the virtualenv with virtualenv-clone into desired location.
+    # Clone the virtualenv with virtualenv-clone into the desired location.
     - virtualenv-clone env /opt/remarkbox/env
-    # make tarball of virtualenv.
+    # Create a tarball of the virtualenv.
     - tar -zcf env.tar.gz -C /opt/remarkbox .
-    # create sha512 of into the file named env.tar.gz.hash
+    # Create a SHA512 hash of env.tar.gz.
     - sha512sum env.tar.gz >> env.tar.gz.hash
-    # create commit-hash.txt to track this build's git commit hash.
+    # Create commit-hash.txt to track this build's git commit hash.
     - echo $CI_COMMIT_SHA >> commit-hash.txt
-    # clean up directory outside of gitlab-runner filesystem.
+    # Clean up the directory outside of the gitlab-runner filesystem.
     - rm -rf /opt/remarkbox/env
   artifacts:
     paths:
