@@ -7,6 +7,8 @@ stages:
 test:
   stage: test
   tags: ["build"]
+  except:
+    - tags
   script: make test
   artifacts:
     paths:
@@ -16,6 +18,8 @@ test:
 build:
   stage: build
   tags: ["build"]
+  except:
+    - tags
   script:
     - ls -hal
     - mv env.vanilla env
@@ -50,6 +54,8 @@ build:
 deploy:
   stage: deploy
   needs: [build]
+  except:
+    - tags
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"'
       when: on_success
@@ -66,5 +72,5 @@ pypi-twine:
   script:
     - pip install --upgrade pip
     - pip install twine
-    - python setup.py sdist bdist_wheel
+    - python3 setup.py sdist bdist_wheel
     - twine upload dist/*
