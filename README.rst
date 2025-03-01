@@ -190,7 +190,17 @@ Operating a server with Python packages instead of source
 
 *Note: A plain `pip install remarkbox` automatically chooses between the Python‑3 or WSL requirements.*
 
-5. **Start the Development Server (Waitress):**
+5. **Create Database**
+
+.. code-block:: bash
+
+   remarkbox_init_db development.ini
+
+.. code-block:: bash
+
+   alembic -c development.ini stamp head
+
+6. **Start the Development Server (Waitress):**
 
 .. code-block:: bash
 
