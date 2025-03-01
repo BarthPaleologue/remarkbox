@@ -1,0 +1,79 @@
+# python 2 -> 3 compat.
+six
+
+# Pyramid.
+plaster_pastedeploy
+pyramid
+pyramid_jinja2
+pyramid_debugtoolbar
+pyramid_retry
+pyramid_tm
+
+# python 2.
+venusian==2.1.0
+
+# python 2.
+soupsieve==1.9.5
+
+# Model.
+SQLAlchemy==1.3.24
+SQLAlchemy-Utils==0.36.3
+transaction
+zope.sqlalchemy
+alembic
+
+# PostgreSQL database connections.
+# requires postgresql-devel on Fedora for `pg_config` binary.
+psycopg2-binary
+
+# Template renderer.
+# python 3.
+#jinja2
+# python 2.
+jinja2==3.0.3
+
+# MarkupSafe is a Python library designed to provide a safe way of handling strings that contain data from untrusted sources.
+# compatible with jinja2
+markupsafe==2.0.1
+
+# MarkDown is a popular and familair WYSIWYM markup language.
+# python 2.
+markdown==2.6.11
+python-markdown-math
+html5lib
+BeautifulSoup4
+
+# Bleach sanitizes MarkDown (removes HTML/Javascript) to prevent XSS.
+bleach>=2.1.4
+bleach-allowlist
+
+# codehilite.
+pygments
+
+# Human readable time deltas.
+ago
+
+# light weight URI attribute parser.
+miniuri
+
+# Create URI slugs from titles.
+python-slugify
+
+# Future proof, computationally complex password hashes.
+bcrypt
+
+# reach out to verify public rb_owner_key.
+requests[security]
+# request library pins this dependency too low.
+# idna==2.6
+
+# credit card storage and processing.
+stripe==3.5.0
+
+# slack: bot notifications.
+slacker
+
+# DKIM Signed Email from Python.
+#dkimpy
+# python 2.
+dkimpy==1.0.2
