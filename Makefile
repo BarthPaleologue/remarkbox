@@ -62,14 +62,15 @@ install: install-core install-dev install-themes
 # -----------------------------------------------------------------------------
 
 # Install remarkbox from source (editable mode) plus dev, test, and themes
-install-source: venv
+install-source-dev-and-test: venv install-themes
 	@echo "Installing remarkbox from source (editable mode)..."
 	$(PIP) install --editable .
 	$(PIP) install --upgrade -r requirements-dev.txt
 	$(PIP) install --upgrade -r requirements-test.txt
-	@echo "Installing optional themes from Git..."
-	$(PIP) install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
-	$(PIP) install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
+
+install-source: venv install-themes
+	@echo "Installing remarkbox from source (editable mode)..."
+	$(PIP) install --editable .
 
 # -----------------------------------------------------------------------------
 # Database Initialization and Server Targets
@@ -106,15 +107,13 @@ activate:
 	@echo "  source $(VENV_DIR)/bin/activate"
 
 # Production target: install production packages and requirements from PyPI
-prod: venv
+prod: venv install-themes
 	@echo "Installing production packages..."
 	$(PIP) install .
 	$(PIP) install --upgrade -r requirements-prod.txt
 
 # Run the test suite (installs test dependencies if needed)
-test: venv
-	@echo "Installing test dependencies..."
-	$(PIP) install --upgrade -r requirements-test.txt
+test: install-source-dev-and-test
 	@echo "Running tests..."
 	$(VENV_DIR)/bin/py.test
 
