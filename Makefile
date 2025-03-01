@@ -3,6 +3,8 @@ env:
 	. env/bin/activate
 	env/bin/pip install --upgrade pip
 	env/bin/pip install --upgrade -r requirements.py3.txt
+	env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
+	env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
 	cp -rp env env.vanilla
 
 dev: env

@@ -19,9 +19,6 @@ build:
     - ls -hal
     - mv env.vanilla env
     - make prod
-    # Install the two themes separately
-    - env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
-    - env/bin/pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
     # Copy static assets to env/static
     - cp -pr remarkbox/static env/static
     # Copy static assets to env/static for westworld theme.
