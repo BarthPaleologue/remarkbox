@@ -54,8 +54,6 @@ build:
 deploy:
   stage: deploy
   needs: [build]
-  except:
-    - tags
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"'
       when: on_success
