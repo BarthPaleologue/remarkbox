@@ -25,6 +25,7 @@ vars.sh
 
 venv/
 dist/
+data/
 
 index3.html
 index4.html

@@ -1,325 +1,205 @@
+Quick Start: Operating a Server with PyPI or Source Code
+==============================================================
+
+This Makefile‑based workflow lets you choose between installing Remarkbox from PyPI packages or directly from the source code (editable mode). Both flows create a virtual environment in ``./env`` and store configuration and SQLite data in the persistent ``./data`` directory.
+
+1. **Install Remarkbox**
+
+   - For a PyPI Installation, run::
+
+         make install-from-pypi
+
+   - For a Source Installation (editable mode), run::
+
+         make install-from-source
+
+2. **Activate the Virtual Environment**
+
+   Before running any subsequent commands or scripts (including starting the server or running tests), activate the virtual environment with::
+
+         source env/bin/activate
+
+   Activating the virtual environment ensures that all Python commands (such as ``pip`` or ``pshell``) use the packages and settings in ``./env`` rather than your system-wide Python installation. This is crucial for consistency throughout the rest of this document.
+
+3. **Start the Development Server**
+
+   Once the virtual environment is active, run::
+
+         make serve
+
+Other commands—such as ``make test``, and ``make http`` operate within this environment.
+
+For a production installation, additional meta packages are available, for example:
+
+..code-block:: bash
+
+  pip install remarkbox[prod]
+
+
 Remarkbox
-#########
+==============================================
 
-This is the codebase that powers both self-hosted & SaaS Remarkbox!
+This is the codebase that powers both self‑hosted and SaaS Remarkbox!
 
-SaaS sites:
+SaaS Sites
+----------
 
-* https://www.remarkbox.com
-* https://faq.remarkbox.com
-* https://meta.remarkbox.com
+- `https://www.remarkbox.com <https://www.remarkbox.com>`_
+- `https://faq.remarkbox.com <https://faq.remarkbox.com>`_
+- `https://meta.remarkbox.com <https://meta.remarkbox.com>`_
 
-Self-hosted example running a custom theme:
+Self‑hosted Example Running a Custom Theme
+-------------------------------------------
 
-* https://westworld2.com
+- `https://westworld2.com <https://westworld2.com>`_
 
-**What is RemarkBox?:**
-
-  A stand alone question and answer site (forum) or an embedded comments or product reviews service.
-  Works anywhere that supports HTML.
+What is Remarkbox?
+------------------
+Remarkbox is a standalone question and answer site (forum) or an embedded comments/product reviews service that works anywhere HTML is supported.
 
 Project Goals
-=============
+==============================================
 
-Note:
-  These goals are not in priority order.
+*Note: These goals are not in priority order.*
 
-#. To be a suitable for:
+#. **Support Multiple Use Cases:**  
+   - Q&A sites (e.g. StackOverflow)  
+   - Embedded comment systems for static sites  
+   - Forums  
+   - Product review sections on e‑commerce sites
 
-   * question and answer sites (StackOverflow)
-   * embedded comment system for static sites
-   * forums
-   * product review sections of e-commerce sites
+#. **Adopt Widely Used Tools:**  
+   - GitHub (with GitLab under consideration) over Bitbucket  
+   - Git instead of Mercurial  
+   - Jinja2 templates instead of Mako  
+   - Markdown rather than reStructuredText  
+   - …and more, choosing solutions trusted by the majority.
 
-   |
-
-#. To choose popular libraries instead of proper libraries, for example:
-
-   * Github over Bitbucket (seriously considering GitLab)
-   * Git over HG Mercurial
-   * Jinja2 templates over Mako templates
-   * Markdown over ReStructuredText
-   * etc
-
-   |
-
-   Basically I have been burned too many times trying to pick the proper
-   library or tool for the job, so this time around, I will make effort
-   to choose solutions that the majority uses.
-
-#. To be popular
-
-#. To be safe from spammers
-
-#. To be easy to manage and clean up spam if it happens
-
-#. To be passwordless. Registration, verification and authentication happen via one-time-password codes sent via email.
-
-#. To scale horizontally
-
-#. To be multitenant
-
-#. To have low friction for new users to join (posters and commenters)
-
-#. To be engaging for users (posters and commenters)
-
-#. To be search engine optimized
-
-#. To have great test coverage
-
-#. To be easy to create & load custom themes, similar to wordpress
-
-
+#. To be popular  
+#. To be safe from spammers  
+#. To be easy to manage and clean up spam  
+#. To be passwordless – using one‑time-password codes via email for registration and authentication  
+#. To scale horizontally  
+#. To be multitenant  
+#. To minimize friction for new users  
+#. To be engaging for users  
+#. To be search engine optimized  
+#. To have great test coverage  
+#. To be easy to create and load custom themes (similar to WordPress)
 
 Local Installation
-==================
+==============================================
 
-We utilize a ``Makefile`` to capture targets for building a local Remarkbox environment. Please make sure you have ``make`` installed.
+This repository includes a Makefile that automates your local Remarkbox environment setup by creating:
+- A virtual environment in ``./env``
+- A persistent data directory in ``./data`` (which holds your ``development.ini`` and SQLite database)
 
-Review the make targets in the Makefile!
+*Note: The Makefile handles environment setup and database initialization, so you do not need to run these steps manually.*
 
-#. ``make dev``
-#. ``make test``
-#. ``make wsl``
-#. ``make prod``
+Functional Testing Environment
+==============================================
 
+To set up a functional testing environment on your workstation, open two terminal shells:
 
-Functional testing environment
--------------------------------
+1. In the first shell, start the Remarkbox server::
 
-To setup a "functional testing" environment on your personal workstation, open two terminal shells.
+       make serve
 
-In the first shell, run a copy of Remarkbox using:
+2. In the second shell, run a simple HTTP server (to serve an ``index.html`` file)::
 
-.. code-block:: bash
+       make http
 
- make serve
-
-In the second shell, run a "mock" simple HTTP web server to serve index.html:
-
-.. code-block:: bash
-
- make http
-
-Now browse to http://127.0.0.1:8000 and index.html will load.
-This has an embedded copy of Remarkbox which is also running on localhost.
-
-If you attempt to log in, a verification one-time-password code will be sent over SMTP to log in!
-If you do not have an SMTP server the socket error will log email to console when in development.
-
-
-New Environments
-================
-
-If your deployment is brand new, you don't need to run any migrations.
-
-To create all the schemas & tables in your database, run these steps:
-
-Activate the virtual environment:
-
-.. code-block:: bash
-
- source env/bin/activate
-   
-Create all the schemas & tables in your database
-
-.. code-block:: bash
-
- env/bin/remarkbox_init_db development.ini
-
-You should however run this to stamp the database as ready:
-
-.. code-block:: bash
-
- alembic -c development.ini stamp head
-
+Browse to `http://127.0.0.1:8000 <http://127.0.0.1:8000>`_ to view the homepage, which embeds a local copy of Remarkbox. In development, one‑time-password codes are logged to the console if an SMTP server is not available.
 
 SQL Migrations
-===============
+==============================================
 
-Otherwise, it should be safe to run this at anytime to catch your database up:
+For new environments, migrations are not needed—the Makefile creates and stamps the database schema as ready. For existing deployments, you can run:
 
-.. code-block:: bash
+- **Upgrade to the Latest Revision:**
 
- alembic -c development.ini upgrade head
+  ::
 
-To look at the current revision and the history run these:
+      env/bin/alembic -c data/development.ini upgrade head
 
-.. code-block:: bash
+- **View Migration History and Current Revision:**
 
- alembic -c development.ini history
- alembic -c development.ini current
+  ::
 
-If you ever want to cut a new migration script, you can run this:
+      env/bin/alembic -c data/development.ini history
+      env/bin/alembic -c data/development.ini current
 
-.. code-block:: bash
+- **Create a New Migration Script:**
 
- alembic -c development.ini revision -m "Added email_id column to User table."
+  ::
 
-Then you can edit / modify the generated ``.py`` file with your changes.
+      env/bin/alembic -c data/development.ini revision -m "Added email_id column to User table."
 
-You can also autogenerate a new migration script using `--autogenerate`.
-Alembic will prepare a migration script by comparing the state of the
-database with the state of the model:
+- **Autogenerate a Migration Script:**
 
-.. code-block:: bash
+  ::
 
-  alembic -c development.ini revision --autogenerate -m "autogenerated indices."
+      env/bin/alembic -c data/development.ini revision --autogenerate -m "autogenerated indices."
 
-You should review the recommended migration script before `upgrade`.
+Review the generated script before applying it.
 
-Below is a brief README section that explains how to set up a virtual environment in `~/remarkbox-env`, create a data directory in `~/remarkbox-data` (for your `development.ini` and SQLite file), and then run the development server using Waitress. It also lists the additional meta packages for production and testing.
+Looking Up Paying Customers
+==============================================
 
-
-Operating a server with Python packages instead of source
-==================================================================
-
-1. **Create Your Virtual Environment and Data Directory:**
-
-.. code-block:: bash
-
-   python3 -m venv ~/remarkbox-env
-   mkdir -p ~/remarkbox-data
-
-2. **Create a config file**
-
-.. code-block:: bash
-
-   cd ~/remarkbox-data
-   wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/raw/main/development.ini"
-
-3. **Activate the Virtual Environment:**
-
-.. code-block:: bash
-
-   source ~/remarkbox-env/bin/activate
-
-4. **Install remarkbox Core and Development Extras (waitress server):**
-
-.. code-block:: bash
-
-   pip install remarkbox
-   pip install remarkbox[dev]
-
-   # optional themes.
-   pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
-   pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
-
-*Note: A plain `pip install remarkbox` automatically chooses between the Python‑3 or WSL requirements.*
-
-5. **Create Database**
-
-.. code-block:: bash
-
-   remarkbox_init_db development.ini
-
-.. code-block:: bash
-
-   alembic -c development.ini stamp head
-
-6. **Start the Development Server (Waitress):**
-
-.. code-block:: bash
-
-   pserve development.ini --reload
-
-**Additional Meta Packages:**  
-For production and testing, you can also install:
-
-- ``pip install remarkbox[prod]``
-- ``pip install remarkbox[test]``
-
-
-
-Cleaning the homepage
-========================
-
-Sometimes (all the times) it's nice to clear all the test comments from
-the homepage of our marketing site. Use this query.
+To list paying customers, execute:
 
 .. code-block:: sql
 
-  sqlite> UPDATE rb_uri SET data = "https://www.remarkbox.com/?cleaned=2018-09-28" WHERE data = "https://www.remarkbox.com/";
-  
-  sqlite> SELECT * FROM rb_uri WHERE data LIKE "%https://www.remarkbox.com/?cleaned%";
-  1e631dd85d104555b41b300961d2f909|82008b2b178f4daab64c35ab5c5f9b56|https://www.remarkbox.com/?cleaned=2017-11-01
-  6b2a4772679611e8ad95040140774501|6b2a42ae679611e8ad95040140774501|https://www.remarkbox.com/?cleaned=2018-09-28
-
-
-
-Looking up paying customers
-==============================
-
-.. code-block:: sql
-
-
- SELECT * FROM rb_pay_what_you_can
-     INNER JOIN rb_user ON rb_user.id = rb_pay_what_you_can.user_id
-     WHERE amount > 0 and rb_user.stripe_id is not null;
-
-
+    SELECT * FROM rb_pay_what_you_can
+        INNER JOIN rb_user ON rb_user.id = rb_pay_what_you_can.user_id
+        WHERE amount > 0 AND rb_user.stripe_id IS NOT NULL;
 
 Python Pyramid Shell
-==========================
+==============================================
 
-If you want to use an interactive Python interpreter to interact with the Remarkbox app/models and database:
+To interact with Remarkbox’s models and database using an interactive Python shell, run:
 
 .. code-block:: bash
 
- pshell development.ini
+    env/bin/pshell data/development.ini
 
-Here is a full `pshell` script to modify every `Node` who has a `Uri`:
+For example, the following script modifies every ``Node`` that has a ``Uri``:
 
 .. code-block:: python
 
- # begin the database transaction.
- request.tm.begin()
-
- # get all Uri objects.
- uris = m.uri.get_all_uris(request.dbsession)
-
- # iterate over all Uri objects.
- for uri in uris:
-     # modify the Uri's related Node.
-     uri.node.has_uri = True
-     # add the related Node object to the sqlalchemy session.
-     request.dbsession.add(uri.node)
-
- # flush / commit all changes stored the sqlalchemy session.
- request.dbsession.flush()
-
- # commit/close the database transaction to really make changes.
- request.tm.commit()
+    # Begin the database transaction.
+    request.tm.begin()
+    
+    # Retrieve all Uri objects.
+    uris = m.uri.get_all_uris(request.dbsession)
+    
+    # Update each Node.
+    for uri in uris:
+        uri.node.has_uri = True
+        request.dbsession.add(uri.node)
+    
+    # Flush and commit changes.
+    request.dbsession.flush()
+    request.tm.commit()
 
 Contributing
-===================
+==============================================
 
-* Establish communication with Russell or another admin to bless your git.unturf.com gitlab account & put you into the proper roles.
-* Russell should see your account request but due to spam you have to ask him directly for approval via email or some other means of comms.
-* Clone repo & make commits
-* Create merge requests, we automatically run the unit & headless functional tests on each commit
-* On merge we release to the production site & see the change across users.
+- Establish communication with Russell or another admin to have your GitLab account approved.
+- Clone the repository and make commits.
+- Create merge requests; unit and headless functional tests run automatically on each commit.
+- Upon merge, changes are released to production and become visible to users.
 
-Optionally, format your code.
+*Optional Formatting Guidelines:*
 
-This is not set in stone, but if you want to use a formatter this is the path for now!
-
-**Python**
-  black (manual)
-
-**Jinja2**
-  None (not needed, neither is an HTML formatter)
-
-**JavaScript**
-  Prettier or biome (manual)
-
-**CSS**
-  Prettier or biome (manual)
+- **Python:** Use `black <https://black.readthedocs.io/>`_ (manual execution).
+- **Jinja2/HTML:** No formatter needed.
+- **JavaScript/CSS:** Use Prettier or Biome (manual execution).
 
 Licence
-=====================
+==============================================
 
-All code contributed goes into the public domain.
+All contributed code is placed in the public domain.
 
-Original Developer:
-  Russell Ballestrini (https://russell.ballestrini.net)
+**Original Developer:**  
+`Russell Ballestrini <https://russell.ballestrini.net>`_

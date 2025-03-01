@@ -2,6 +2,7 @@ stages:
   - test
   - build
   - deploy
+  - pypi-twine
 
 test:
   stage: test
@@ -54,3 +55,16 @@ deploy:
       when: on_success
   trigger:
     include: .gitlab-ci.deploy.yml
+
+
+pypi-twine:
+  stage: pypi-twine
+  tags:
+    - build
+  only:
+    - tags
+  script:
+    - pip install --upgrade pip
+    - pip install twine
+    - python setup.py sdist bdist_wheel
+    - twine upload dist/*
