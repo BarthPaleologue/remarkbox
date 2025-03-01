@@ -40,7 +40,7 @@ with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
 
 setup(
     name="remarkbox",
-    version="1.0.0",
+    version="1.0.1",
     description="remarkbox",
     long_description=long_description,
     classifiers=[
