@@ -188,6 +188,10 @@ Operating a server with Python packages instead of source
    pip install remarkbox
    pip install remarkbox[dev]
 
+   # optional themes.
+   pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
+   pip install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
+
 *Note: A plain `pip install remarkbox` automatically chooses between the Python‑3 or WSL requirements.*
 
 5. **Create Database**
