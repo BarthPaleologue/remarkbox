@@ -111,8 +111,10 @@ prod: venv
 	$(PIP) install .
 	$(PIP) install --upgrade -r requirements-prod.txt
 
-# Run the test suite
+# Run the test suite (installs test dependencies if needed)
 test: venv
+	@echo "Installing test dependencies..."
+	$(PIP) install --upgrade -r requirements-test.txt
 	@echo "Running tests..."
 	$(VENV_DIR)/bin/py.test
 
