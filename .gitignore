@@ -24,6 +24,7 @@ vars.fish
 vars.sh
 
 venv/
+dist/
 
 index3.html
 index4.html

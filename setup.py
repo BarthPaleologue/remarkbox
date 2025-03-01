@@ -1,17 +1,36 @@
 import os
-
 from setuptools import setup, find_packages
 
+def parse_requirements(filename):
+    """
+    Read and parse a requirements file, ignoring comments and blank lines.
+    """
+    req_path = os.path.join(os.path.dirname(__file__), filename)
+    with open(req_path, "r", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    return [line.strip() for line in lines if line.strip() and not line.startswith("#")]
+
+# Read the long description from README.rst
 here = os.path.abspath(os.path.dirname(__file__))
-readme_path = os.path.join(here, "README.rst")
-with open(readme_path, "r") as f:
-    README = f.read()
+with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
+    long_description = f.read()
+
+# Use the Python 3 requirements file by default.
+install_requires = parse_requirements("requirements.py3.txt")
+
+# Extras for development, production, testing, and Windows WSL.
+extras_require = {
+    'dev': parse_requirements("requirements-dev.txt"),
+    'prod': parse_requirements("requirements-prod.txt"),
+    'test': parse_requirements("requirements-test.txt"),
+    'wsl': parse_requirements("requirements-wsl.txt"),
+}
 
 setup(
     name="remarkbox",
-    version="0.2.01",
+    version="0.0.11",
     description="remarkbox",
-    long_description=README,
+    long_description=long_description,
     classifiers=[
         "Programming Language :: Python",
         "Framework :: Pyramid",
@@ -29,6 +48,8 @@ setup(
     },
     zip_safe=False,
     test_suite="remarkbox",
+    install_requires=install_requires,
+    extras_require=extras_require,
     entry_points={
         "paste.app_factory": ["main = remarkbox:main"],
         "console_scripts": [
@@ -47,3 +68,6 @@ setup(
         ],
     },
 )
+
+# python setup.py sdist bdist_wheel
+# twine upload dist/*
