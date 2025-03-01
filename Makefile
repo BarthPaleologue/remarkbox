@@ -101,7 +101,7 @@ install-from-pypi: venv config install init-db
 # Install and setup from source (editable mode)
 install-from-source: venv config install-source-dev-and-test init-db
 
-# Install and setup from source (editable mode)
+# Install and setup from source (no edit)
 install-from-source-prod: venv config install-source-prod init-db
 
 # -----------------------------------------------------------------------------
