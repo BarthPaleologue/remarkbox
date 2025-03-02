@@ -1,4 +1,14 @@
+# WSL Requirements
+# ============================
+# This requirements file specifies the exact package versions needed for WSL environment compatibility. 
+# These versions are specifically chosen to ensure proper functionality of the template rendering system.
+
+# markupsafe==2.0.1    # Required version for Jinja2 template engine compatibility
+# jinja2==3.0.3        # Template rendering engine with exact version specification
+# ============================
+
 # python 2 -> 3 compat.
+
 six
 
 # Pyramid.
