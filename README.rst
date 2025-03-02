@@ -27,6 +27,22 @@ This ``Makefile`` based workflow lets you choose between installing Remarkbox fr
 
 3. **Start the Development Server**
 
+   You'll want to configure the system in ``data/development.ini``.
+
+   Typically I control most stuff with environment vars, for example ``vars.sh``::
+
+         # optional but currently broken...
+         export REMARKBOX_APP_STRIPE_PUBLIC="pk_test_removed"
+         export REMARKBOX_APP_STRIPE_SECRET="sk_test_removed"
+         
+         # optional & you will need to create you're own slack app/bot.
+         export REMARKBOX_APP_SLACK_PUBLIC="removed"
+         export REMARKBOX_APP_SLACK_SECRET="removed"
+         
+         # optional, defaults to localhost & http://localhost:6543
+         export REMARKBOX_APP_ROOT_DOMAIN="example.com"
+         export REMARKBOX_APP_URL="https://example.com"
+
    Once the virtual environment is active, run::
 
          make serve
