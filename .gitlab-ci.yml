@@ -23,7 +23,7 @@ build:
   script:
     - ls -hal
     - mv env.vanilla env
-    - make install-from-source-prod
+    - make install-source-prod
     # Copy static assets to env/static
     - cp -pr remarkbox/static env/static
     # Copy static assets to env/static for westworld theme.
