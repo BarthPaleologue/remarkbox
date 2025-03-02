@@ -9,7 +9,7 @@ This ``Makefile`` based workflow lets you choose between installing Remarkbox fr
 
    - For a PyPI Installation, run::
 
-         wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/blob/main/Makefile"
+         wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/raw/main/Makefile"
          make install-from-pypi
 
    - For a Source Installation (editable mode), run::
