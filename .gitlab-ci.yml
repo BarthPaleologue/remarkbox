@@ -1,7 +1,7 @@
 stages:
   - test
   - build
-  - deploy
+  - my.remarkbox.com
   - pypi-twine
 
 test:
@@ -51,14 +51,15 @@ build:
       - commit-hash.txt
     expire_in: 1 month
 
-deploy:
-  stage: deploy
-  needs: [build]
+
+my.remarkbox.com:
+  stage: my.remarkbox.com
+  tags: ["my.remarkbox.com"]
+  script:
+    # publish build to Salt Master
+    - sudo /opt/salt-call-state-highstate.sh
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "main"'
-      when: on_success
-  trigger:
-    include: .gitlab-ci.deploy.yml
+    - if: '$CI_COMMIT_BRANCH == "main"'
 
 
 pypi-twine:
