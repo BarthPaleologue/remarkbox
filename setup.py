@@ -43,12 +43,6 @@ setup(
     version="1.0.1",
     description="remarkbox",
     long_description=long_description,
-    classifiers=[
-        "Programming Language :: Python",
-        "Framework :: Pyramid",
-        "Topic :: Internet :: WWW/HTTP",
-        "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
-    ],
     author="Russell Ballestrini",
     author_email="russell@ballestrini.net",
     url="https://russell.ballestrini.net",
@@ -79,6 +73,22 @@ setup(
             "remarkbox_send_node_digest_notifications = remarkbox.scripts.send_node_digest_notifications:main",
         ],
     },
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python",
+        "Framework :: Pyramid",
+        "Topic :: Internet :: WWW/HTTP",
+        "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+    ],
 )
 
 # python setup.py sdist bdist_wheel
