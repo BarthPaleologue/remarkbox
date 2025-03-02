@@ -1,20 +1,20 @@
 Quick Start: Operating a Server with PyPI or Source Code
 ==============================================================
 
+Before you install, navigate to the directory you want to install into.
+
 This ``Makefile`` based workflow lets you choose between installing Remarkbox from PyPI packages or directly from the source code (editable mode). Both flows create a virtual environment in ``./env`` and store configuration and SQLite data in the persistent ``./data`` directory.
 
 1. **Install Remarkbox**
 
-   - Get the ``Makefile`` in your present working direcory, run::
-
-         wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/blob/main/Makefile"
-
    - For a PyPI Installation, run::
 
+         wget "https://git.unturf.com/engineering/remarkbox/remarkbox/-/blob/main/Makefile"
          make install-from-pypi
 
    - For a Source Installation (editable mode), run::
 
+         git clone ssh://git@git.unturf.com:2222/engineering/remarkbox/remarkbox.git
          make install-from-source
 
 2. **Activate the Virtual Environment**
