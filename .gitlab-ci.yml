@@ -44,13 +44,16 @@ build:
       - static.tar.gz
       - commit-hash.txt
     expire_in: 1 month
+    when: always
 
 
 my.remarkbox.com:
   stage: my.remarkbox.com
   tags: ["my.remarkbox.com"]
+  needs:
+    - build
   script:
-    # publish build to Salt Master
+    # deploy build via salt-call out to the salt-master for a highstate.
     - sudo /opt/salt-call-state-highstate.sh
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
