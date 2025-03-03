@@ -69,7 +69,9 @@ install-source-dev-and-test: venv install-themes
 	$(PIP) install --upgrade -r requirements-test.txt
 
 install-source-prod: venv install-themes
-	@echo "Installing remarkbox from source (editable mode)..."
+        @echo "Deleting tests from source code for production..."
+        rm -rf remarkbox/tests
+	@echo "Installing remarkbox from source (in non-editable mode)..."
 	$(PIP) install .
 	$(PIP) install --upgrade -r requirements-prod.txt
 
