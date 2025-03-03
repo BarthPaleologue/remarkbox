@@ -48,7 +48,7 @@ setup(
     url="https://russell.ballestrini.net",
     keywords="remarkbox question answer forum embed comments reviews",
     include_package_data=True,
-    packages=find_packages(),
+    ackages=find_packages(exclude=["tests"]),
     package_data={
         "remarkbox": ["scripts/alembic/*.py", "scripts/alembic/versions/*.py"]
     },
