@@ -7,8 +7,6 @@ stages:
 my.remarkbox.com:
   stage: deploy
   tags: ["my.remarkbox.com"]
-  needs:
-    - build
   script:
     # deploy build via salt-call out to the salt-master for a highstate.
     - sudo /opt/salt-call-state-highstate.sh
