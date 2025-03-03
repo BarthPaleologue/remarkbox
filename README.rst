@@ -216,5 +216,11 @@ Licence
 
 All contributed code is placed in the public domain.
 
+source code: `https://git.unturf.com/engineering/remarkbox/remarkbox <https://git.unturf.com/engineering/remarkbox/remarkbox>`_
+
+Remarkbox is trademarked, do not misrepresent the brand.
+
+Feel free to white label any code or themes into your own brand.
+
 **Original Developer:**  
 `Russell Ballestrini <https://russell.ballestrini.net>`_
