@@ -10,10 +10,6 @@ test:
   except:
     - tags
   script: make test
-  artifacts:
-    paths:
-      - env.vanilla
-    expire_in: 1 hour
 
 build:
   stage: build
@@ -21,8 +17,6 @@ build:
   except:
     - tags
   script:
-    - ls -hal
-    - mv env.vanilla env
     - make install-source-prod
     # Copy static assets to env/static
     - cp -pr remarkbox/static env/static
@@ -34,7 +28,7 @@ build:
     - cp -pr env/static static
     - tar -zcf static.tar.gz static
     # Clone the virtualenv with virtualenv-clone into the desired location.
-    - virtualenv-clone env /opt/remarkbox/env
+    - virtualenv-clone -vvv $PWD/env /opt/remarkbox/env
     # Create a tarball of the virtualenv.
     - tar -zcf env.tar.gz -C /opt/remarkbox .
     # Create a SHA512 hash of env.tar.gz.

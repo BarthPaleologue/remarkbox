@@ -67,13 +67,11 @@ install-source-dev-and-test: venv install-themes
 	$(PIP) install --editable .
 	$(PIP) install --upgrade -r requirements-dev.txt
 	$(PIP) install --upgrade -r requirements-test.txt
-	cp -rp $(VENV_DIR) $(VENV_DIR).vanilla
 
 install-source-prod: venv install-themes
 	@echo "Installing remarkbox from source (editable mode)..."
 	$(PIP) install .
 	$(PIP) install --upgrade -r requirements-prod.txt
-	cp -rp $(VENV_DIR) $(VENV_DIR).vanilla
 
 
 # -----------------------------------------------------------------------------
