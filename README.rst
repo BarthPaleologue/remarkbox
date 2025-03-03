@@ -45,6 +45,7 @@ This ``Makefile`` based workflow lets you choose between installing Remarkbox fr
 
    Once the virtual environment is active, run::
 
+         source vars.sh
          make serve
 
 Other commands—such as ``make test``, and ``make http`` operate within this environment.
