@@ -1,2 +1,3 @@
 include *.txt *.ini *.cfg *.rst
 recursive-include remarkbox *.ico *.png *.css *.gif *.jpg *.pt *.txt *.mak *.mako *.js *.html *.xml *.j2 *.map
+prune remarkbox/tests
