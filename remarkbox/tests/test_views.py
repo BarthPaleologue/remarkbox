@@ -65,7 +65,7 @@ class UnauthenticatedFunctionalTests(FunctionalTests):
 
     def test_root_home_page(self):
         res = self.testapp.get("/", status=200)
-        self.assertTrue(b"Faq" in res.body)
+        self.assertTrue(b"FAQ" in res.body)
         self.assertTrue(b"Meta" in res.body)
         self.assertTrue(b"About" in res.body)
         self.assertTrue(b"Demo" in res.body)
