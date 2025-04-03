@@ -71,6 +71,7 @@ setup(
             "remarkbox_recompute_node_depths = remarkbox.scripts.recompute_node_depths:main",
             "remarkbox_safe_approve_all_nodes = remarkbox.scripts.safe_approve_all_nodes:main",
             "remarkbox_send_node_digest_notifications = remarkbox.scripts.send_node_digest_notifications:main",
+            "remarkbox_delete_disabled_nodes = remarkbox.scripts.delete_disabled_nodes:main",
         ],
     },
     classifiers=[
