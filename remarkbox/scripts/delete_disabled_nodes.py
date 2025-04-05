@@ -25,8 +25,6 @@ def is_node_anonymized(node):
         (node.title == "deleted" or node.title is None)
         and node.data == "deleted"
         and node.data_html == "deleted"
-        and node.user_id is None
-        and node.user_surrogate_id is None
         and node.ip_address is None
     )
 
