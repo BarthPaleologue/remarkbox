@@ -76,12 +76,6 @@ def delete_disabled_nodes(request):
                 node.data = "deleted"
                 node.data_html = "deleted"
                 node.ip_address = None
-                node.user_id = None
-                node.user_surrogate_id = None
-                node.events = None
-                node.user = None
-                node.watchers = None
-                node.cache = None
                 node.changed = now_timestamp()
 
                 # Clean up URI if it exists
@@ -101,14 +95,12 @@ def delete_disabled_nodes(request):
             else:
                 # Delete leaf node and its related data
                 # Handle events deletion
-                if node.events:
-                    for event in node.events:
-                        dbsession.delete(event)
+                for event in node.events:
+                    dbsession.delete(event)
 
                 # Handle watchers deletion with a loop
-                if node.watchers:
-                    for watcher in node.watchers:
-                        dbsession.delete(watcher)
+                for watcher in node.watchers:
+                    dbsession.delete(watcher)
 
                 # Delete cache if it exists
                 if node.cache:
