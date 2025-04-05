@@ -36,7 +36,7 @@ def is_node_anonymized(node):
 
 def delete_disabled_nodes(request):
     """
-    Delete disabled leaf nodes and anonymize disabled parent nodes while leaving children intact.
+    Delete disabled leaf nodes (nodes without children) and anonymize disabled parent nodes while leaving children intact.
     Skips re-anonymizing already anonymized parent nodes.
     
     This function:
@@ -114,7 +114,7 @@ def delete_disabled_nodes(request):
                     dbsession.delete(node.cache)
                 
                 if node.has_uri and node.uri:
-                    dbsession.delete(node.uri.ConcurrentModificationException)
+                    dbsession.delete(node.uri)
                 
                 dbsession.delete(node)
                 print(f"Deleted leaf node {node.id}")
