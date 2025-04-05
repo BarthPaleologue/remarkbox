@@ -15,15 +15,35 @@ from ..models.meta import now_timestamp
 
 log = logging.getLogger(__name__)
 
+def is_node_anonymized(node):
+    """
+    Check if a node has already been anonymized based on its attributes.
+    
+    Args:
+        node: Node object to check
+        
+    Returns:
+        bool: True if already anonymized, False otherwise
+    """
+    return (
+        (node.title == 'deleted' or node.title is None) and
+        node.data == 'deleted' and
+        node.data_html == 'deleted' and
+        node.user_id is None and
+        node.user_surrogate_id is None and
+        node.ip_address is None
+    )
+
 def delete_disabled_nodes(request):
     """
-    Delete disabled parent nodes and anonymize their children in one pass.
+    Delete disabled leaf nodes and anonymize disabled parent nodes while leaving children intact.
+    Skips re-anonymizing already anonymized parent nodes.
     
     This function:
     1. Queries for all disabled nodes
-    2. Anonymizes all children of disabled nodes
-    3. Deletes disabled parent nodes (nodes with no children)
-    4. Verifies the deletion was successful
+    2. Deletes disabled nodes without children
+    3. Anonymizes disabled nodes with children leaving children intact (if not already anonymized)
+    4. Verifies the deletion/anonymization was successful
     
     Args:
         request: Pyramid request object with transaction manager
@@ -32,120 +52,86 @@ def delete_disabled_nodes(request):
         bool: True if successful, False on error
     """
     try:
-        # Use the request's transaction-managed session instead of creating a new one
         dbsession = get_tm_session(request.registry['dbsession_factory'], transaction.manager)
         
-        # Query disabled nodes
+        # Query disabled nodes using the Node model's properties
         disabled_nodes = dbsession.query(Node).filter(Node.disabled == True).all()
         print(f"Found {len(disabled_nodes)} disabled nodes.")
         
         deleted_count = 0
         anonymized_count = 0
-        already_anonymized_count = 0
+        skipped_count = 0
         
         # Process all nodes in one pass
         for node in disabled_nodes:
-            # Get all children (actual objects, not just count)
-            children = dbsession.query(Node).filter(Node.parent_id == node.id).all()
+            # Use the children relationship from Node model
+            children_query = node.children
+            has_children = children_query.count() > 0
             
-            if children:
-            
+            if has_children:
+                # Check if node is already anonymized
+                if is_node_anonymized(node):
+                    print(f"Skipped already anonymized parent node {node.id} with {children_query.count()} children")
+                    skipped_count += 1
+                    continue
                 
-                # Anonymize each child
-                for child in children:
-                    #check if child is already anonymized
-                    if (child.title == 'deleted' or child.title is None) and \
-                       child.data == 'deleted' and \
-                       child.data_html == 'deleted':
-                        already_anonymized_count += 1
-                        continue
-
-                    child.title = 'deleted' if child.title else None
-                    child.data = 'deleted'
-                    child.data_html = 'deleted'
-                    child.ip_address = None
-                    child.user_id = None
-                    child.user_surrogate_id = None
-                    child.changed = now_timestamp()
-                    child.disabled_timestamp = now_timestamp()
+                # Anonymize parent node with children, leave children intact
+                node.title = 'deleted' if node.title else None
+                node.data = 'deleted'
+                node.data_html = 'deleted'
+                node.ip_address = None
+                node.user_id = None
+                node.user_surrogate_id = None
+                node.events = None
+                node.user = None
+                node.watchers = None
+                node.cache = None
+                node.changed = now_timestamp()
+                
+                # Clean up related objects using relationship properties
+                if node.has_uri and node.uri:
+                    node.uri.data = 'deleted'
+                    node.has_uri = False
                     
-                    # Process related objects for the child
-                    # Anonymize Events
-                    events = dbsession.query(NodeEvent).filter(NodeEvent.node_id == child.id).all()
-                    for event in events:
-                        event.user_id = None
-
-                    # Anonymize Votes
-                    votes = dbsession.query(Vote).filter(Vote.node_id == child.id).all()
-                    for vote in votes:
-                        vote.user_id = None
-
-                    # Anonymize Watchers
-                    watchers = dbsession.query(Watcher).filter(Watcher.node_id == child.id).all()
-                    for watcher in watchers:
-                        notifications = dbsession.query(NodeEventNotification).filter(
-                            NodeEventNotification.watcher_id == watcher.id
-                        ).all()
-                        for notification in notifications:
-                            notification.user_id = None
-                    
-                    # Anonymize optional related objects
-                    if child.uri:
-                        child.uri.data = 'deleted'
-                        child.has_uri = False
-
-                    if child.cache:
-                        child.cache.stats = {}
-                        child.cache.invalidate()
-
-                    print(f"Anonymized child node {child.id} of disabled parent {node.id}")
-                    anonymized_count += 1
+                if node.cache:
+                    node.cache.stats = {}
+                    node.cache.invalidate()
+                
+                print(f"Anonymized parent node {node.id} with {children_query.count()} children")
+                anonymized_count += 1
             else:
-                # Delete node with no children (parent node)
-                dbsession.query(NodeEvent).filter(NodeEvent.node_id == node.id).delete()
+                # Delete disabled node with no children
+                node.events.delete()
                 dbsession.query(Vote).filter(Vote.node_id == node.id).delete()
-                dbsession.query(Watcher).filter(Watcher.node_id == node.id).delete()
+                watchers = node.watchers
+                for watcher in watchers:
+                    dbsession.query(NodeEventNotification).filter(
+                        NodeEventNotification.watcher_id == watcher.id
+                    ).delete()
+                watchers.delete()
                 
                 if node.cache:
                     dbsession.delete(node.cache)
                 
-                if node.uri:
-                    dbsession.delete(node.uri)
+                if node.has_uri and node.uri:
+                    dbsession.delete(node.uri.ConcurrentModificationException)
                 
-                #delete the node
                 dbsession.delete(node)
-                print(f"Deleted parent node {node.id}")
+                print(f"Deleted leaf node {node.id}")
                 deleted_count += 1
         
-        # Check remaining disabled parent nodes using a subquery
-        subquery = select(Node.id).where(
-            Node.parent_id.in_(
-                select(Node.id).where(Node.disabled == True)
-            )
-        ).subquery()
-        remaining_disabled_parent_nodes = dbsession.query(Node).filter(
-            Node.disabled == True,
-            ~Node.id.in_(subquery.select())  
-        ).count()
-
-        
-
+        # Verify using Node model queries
+        remaining_disabled_nodes = dbsession.query(Node).filter(Node.disabled == True).count()
         active_nodes_count = dbsession.query(Node).filter(Node.disabled == False).count()
 
-        print(f"Summary: Deleted {deleted_count} parent nodes, anonymized {anonymized_count} child nodes. ")
+        print(f"Summary: Deleted {deleted_count} leaf nodes, anonymized {anonymized_count} parent nodes with children, skipped {skipped_count} already anonymized nodes")
+        
+        if remaining_disabled_nodes > 0:
+            print(f"Note: {remaining_disabled_nodes} disabled nodes remain (all have children)")
+        
+        print(f"Total active nodes: {active_nodes_count}, Remaining disabled nodes: {remaining_disabled_nodes}")
 
-        print(f"Total Nodes previously anonymized: {already_anonymized_count}.")
-
-        
-        
-
-        if remaining_disabled_parent_nodes > 0:
-            print(f"Warning: {remaining_disabled_parent_nodes} disabled leaf nodes remain ")
-        
-        print(f"Total active nodes: {active_nodes_count}, Remaining disabled leaf nodes: {remaining_disabled_parent_nodes}")
-        
         return True
-        
         
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -153,17 +139,10 @@ def delete_disabled_nodes(request):
         return False
 
 def main():
-
     """
     Main entry point for the script.
-    
-    This function:
-    1. Sets up Pyramid environment
-    2. Configures logging
-    3. Manages transaction scope
-    4. Handles script execution and exit status
     """
-    parser = base_parser("Delete disabled parent nodes and anonymize their children in one pass.")
+    parser = base_parser("Delete disabled leaf nodes and anonymize disabled parent nodes with children.")
     args = parser.parse_args()
     setup_logging(args.config)
     
