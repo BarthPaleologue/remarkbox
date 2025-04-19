@@ -22,7 +22,7 @@
         placeholder = "{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% else %}What do you want to say? markdown{% endif %}"
         required></textarea>
 
-  {% set submit_button_classes = 'button-right' %}
+  {% set submit_button_classes = 'green-button button-right' %}
   {% set submit_button_value = 'save message' %}
   {% include 'submit.j2' %}
 

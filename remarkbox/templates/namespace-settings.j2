@@ -70,6 +70,7 @@ If checked, allow beautiful math equations with <a href="https://www.mathjax.org
 <input type="checkbox" name="hide-powered-by-checkbox" id="hide-powered-by-checkbox" {% if request.namespace.hide_powered_by %}checked{% endif %}></input>
 If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_powered_by %}.. <b>bummer.</b>{% endif %}
 
+{% set submit_button_classes = 'green-button' %}
 {% include 'snippets/submit.j2' %}
 
 <br>
@@ -96,6 +97,7 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
+{% set submit_button_classes = 'green-button' %}
 {% include 'snippets/submit.j2' %}
 
 <br>
@@ -113,6 +115,7 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
+{% set submit_button_classes = 'green-button' %}
 {% include 'snippets/submit.j2' %}
 {% include 'snippets/csrf.j2' %}
 </form>
