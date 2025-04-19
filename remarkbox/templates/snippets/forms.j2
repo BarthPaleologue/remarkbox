@@ -22,6 +22,10 @@
         placeholder = "{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% else %}What do you want to say? markdown{% endif %}"
         required></textarea>
 
+  {% set submit_button_classes = 'button-right' %}
+  {% set submit_button_value = 'save message' %}
+  {% include 'submit.j2' %}
+
   <details open>
   <summary class="action link" float="right">hide preview</summary>
   <div id='preview-{{ node.id }}' name='preview' class='preview js-only'></div>
@@ -32,9 +36,6 @@
 {% set show_whats_next_notifications = true %}
 {% include 'email.j2' %}
 
-{% set submit_button_classes = 'button-right' %}
-{% set submit_button_value = 'save message' %}
-{% include 'submit.j2' %}
 </form>
 
 {% endif %}
