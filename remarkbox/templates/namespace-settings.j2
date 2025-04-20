@@ -73,6 +73,8 @@ If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_power
 <br>
 <br>
 
+{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 
 <br>
@@ -99,7 +101,8 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
-{% set submit_button_classes = 'green-button' %}
+{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 
 <br>
@@ -117,7 +120,8 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
-{% set submit_button_classes = 'green-button' %}
+{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 {% include 'snippets/csrf.j2' %}
 </form>
