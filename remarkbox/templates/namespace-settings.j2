@@ -3,7 +3,7 @@
 {% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
 {% block content -%}
 
-{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 
 <h3>{{ the_title }}</h3>
@@ -73,7 +73,7 @@ If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_power
 <br>
 <br>
 
-{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 
@@ -101,7 +101,7 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
-{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 
@@ -120,7 +120,7 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
-{% set submit_button_classes = 'button-right button-green' %}
+{% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
 {% include 'snippets/csrf.j2' %}
