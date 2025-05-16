@@ -1,8 +1,7 @@
 from pyramid.paster import bootstrap, setup_logging
-
 from ..lib.notify import deliver_scheduled_notifications
-
 from . import base_parser
+import transaction
 
 
 def get_arg_parser():
@@ -17,3 +16,4 @@ def main():
 
     with bootstrap(args.config) as env:
         deliver_scheduled_notifications(env["request"])
+        transaction.commit()
