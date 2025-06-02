@@ -257,4 +257,4 @@ def send_digest_notifications(request, notification_dict, frequency="daily"):
         for notification in notifications:
             notification.sent = True
             request.dbsession.add(notification)
-        request.dbsession.flush()
+            request.dbsession.flush()
