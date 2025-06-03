@@ -20,7 +20,7 @@ def main():
             try:
                 deliver_scheduled_notifications(request)
                 print("Committing transaction.")
-                # transaction.commit()
+                transaction.commit()
                 print("Committed transaction.")
                 raise SystemExit(0)
             except Exception as e:
