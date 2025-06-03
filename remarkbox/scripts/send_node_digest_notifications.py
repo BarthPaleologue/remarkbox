@@ -16,16 +16,13 @@ def main():
 
     with bootstrap(args.config) as env:
         request = env["request"]
-        with transaction.manager:
+        with request.tm:
             try:
                 deliver_scheduled_notifications(request)
-                print("Committing transaction.")
-                # transaction.commit()
-                print("Committed transaction.")
+                print("Notifications processed successfully.")
                 raise SystemExit(0)
             except Exception as e:
-                print("Aborting transaction.")
-                transaction.abort()
+                print("Error processing notifications:", str(e))
                 raise SystemExit(1)
     
 if __name__ == "__main__":
