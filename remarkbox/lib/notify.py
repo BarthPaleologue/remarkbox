@@ -166,7 +166,7 @@ def deliver_scheduled_notifications(request=None):
         if datetime.today().weekday() == 0:
             notification_dict = get_email_notifications(request.dbsession, "weekly")
             send_digest_notifications(request, notification_dict, "weekly")
-
+    
 
 def send_immediate_notifications(request, notifications):
     deliver_email_notifications = request.app.get("deliver_email_notifications", True)

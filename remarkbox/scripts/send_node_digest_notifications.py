@@ -15,13 +15,17 @@ def main():
     setup_logging(args.config)
 
     with bootstrap(args.config) as env:
-        try:
-            deliver_scheduled_notifications() 
-            print("Notifications processed successfully.")
-            raise SystemExit(0)
-        except Exception as e:
-            print("Error processing notifications:", str(e))
-            raise SystemExit(1)
+        request = env["request"]
+        with request.tm:
+            try:
+                deliver_scheduled_notifications() 
+                print("Notifications processed successfully.")
+                transaction.commit()
+                raise SystemExit(0)
+            except Exception as e:
+                print("Error processing notifications:", str(e))
+                transaction.abort()
+                raise SystemExit(1)
     
 if __name__ == "__main__":
     main()
