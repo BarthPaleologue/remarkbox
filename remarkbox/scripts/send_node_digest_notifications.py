@@ -18,7 +18,7 @@ def main():
         request = env["request"]
         with request.tm:
             try:
-                deliver_scheduled_notifications() 
+                deliver_scheduled_notifications(request) 
                 print("Notifications processed successfully.")
                 transaction.commit()
                 raise SystemExit(0)
