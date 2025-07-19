@@ -15,13 +15,19 @@ def main():
     setup_logging(args.config)
 
     with bootstrap(args.config) as env:
-        request = env["request"]
-        with request.tm:
             try:
-                deliver_scheduled_notifications(request) 
+                deliver_scheduled_notifications(env["request"])
+        
+                # Fix: mark all unsent notifications as sent and commit
+                dbsession = env["request"].dbsession
+                dbsession.query(NodeEventNotification).filter(
+                    NodeEventNotification.sent == False
+                ).update({'sent': True, 'sent_timestamp': now_timestamp()})
+                
                 print("Notifications processed successfully.")
                 transaction.commit()
                 raise SystemExit(0)
+
             except Exception as e:
                 print("Error processing notifications:", str(e))
                 transaction.abort()
