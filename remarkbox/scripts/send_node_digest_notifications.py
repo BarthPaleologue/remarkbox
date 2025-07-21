@@ -34,7 +34,8 @@ def main():
         
         # Let deliver_scheduled_notifications manage its own transaction
         deliver_scheduled_notifications(request)
-        
+        dbsession.flush()  # Ensure changes are flushed before commit
+        transaction.commit()
         # Check after and mark as sent with fresh session
         try:
             with transaction.manager:
