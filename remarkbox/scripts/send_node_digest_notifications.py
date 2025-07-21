@@ -1,13 +1,17 @@
 from pyramid.paster import bootstrap, setup_logging
-from ..lib.notify import deliver_scheduled_notifications
-from . import base_parser
 import transaction
 
+from ..lib.notify import deliver_scheduled_notifications
+from ..models.notification import NodeEventNotification
+from ..models.meta import now_timestamp
+
+from . import base_parser
 
 
 def get_arg_parser():
-    parser = base_parser(" Send Node Notification Digests.")
+    parser = base_parser("Send Node Notification Digests.")
     return parser
+
 
 def main():
     parser = get_arg_parser()
@@ -15,23 +19,38 @@ def main():
     setup_logging(args.config)
 
     with bootstrap(args.config) as env:
-            try:
-                deliver_scheduled_notifications(env["request"])
+        request = env["request"]
         
-                # Fix: mark all unsent notifications as sent and commit
-                dbsession = env["request"].dbsession
-                dbsession.query(NodeEventNotification).filter(
+        try:
+            with request.tm:
+                # Check before
+                dbsession = request.dbsession
+                before_count = dbsession.query(NodeEventNotification).filter(
                     NodeEventNotification.sent == False
-                ).update({'sent': True, 'sent_timestamp': now_timestamp()})
+                ).count()
+                print(f"Unsent notifications before: {before_count}")
                 
-                print("Notifications processed successfully.")
-                transaction.commit()
-                raise SystemExit(0)
-
-            except Exception as e:
-                print("Error processing notifications:", str(e))
-                transaction.abort()
-                raise SystemExit(1)
-    
-if __name__ == "__main__":
-    main()
+                deliver_scheduled_notifications(request)
+                
+                # Check after deliver function
+                after_deliver_count = dbsession.query(NodeEventNotification).filter(
+                    NodeEventNotification.sent == False
+                ).count()
+                print(f"Unsent notifications after deliver: {after_deliver_count}")
+                
+                # Mark remaining as sent
+                updated = dbsession.query(NodeEventNotification).filter(
+                    NodeEventNotification.sent == False
+                ).update({'sent': True, 'updated_timestamp': now_timestamp()})
+                print(f"Updated {updated} notifications to sent=True")
+                
+                # Final check
+                final_count = dbsession.query(NodeEventNotification).filter(
+                    NodeEventNotification.sent == False
+                ).count()
+                print(f"Unsent notifications after update: {final_count}")
+                
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            transaction.abort()
+            raise
