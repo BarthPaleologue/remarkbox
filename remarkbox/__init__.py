@@ -202,18 +202,7 @@ def main(global_config, **settings):
             session_settings["domain"] = root_domain
 
         factory = SignedCookieSessionFactory(**session_settings)
-        session = factory(request)
-
-        # Log session contents and size on every request
-        import pickle
-        session_dict = dict(session)
-        serialized = pickle.dumps(session_dict)
-        log.info(f"Session total size: {len(serialized)} bytes, keys: {list(session_dict.keys())}")
-        for key, value in session_dict.items():
-            item_size = len(pickle.dumps({key: value}))
-            log.info(f"  Session['{key}'] = {item_size} bytes (type: {type(value).__name__})")
-
-        return session
+        return factory(request)
 
     # setup session factory to use unencrypted but signed cookies.
     # session_factory = SignedCookieSessionFactory(**session_settings)
