@@ -1,10 +1,11 @@
-/* Variables */
+/* Variables - Light Mode (default) */
 :root {
   --color: #222222;
   --color-muted: #3f3f3f;
 
   --color-code: #000000;
 
+  --background: #ffffff;
   --background-faint: #fafafa;
 
   --primary: #d40000; /* Remarkbox logo color */
@@ -19,6 +20,28 @@
   --line-height: 1.6;
 }
 
+/* Dark Mode Variables */
+:root.dark-mode {
+  --color: #e8e8e8;
+  --color-muted: #b0b0b0;
+
+  --color-code: #e8e8e8;
+
+  --background: #1a1a1a;
+  --background-faint: #2a2a2a;
+
+  --primary: #ff5555; /* Brighter red for dark mode */
+  --primary-hover: #ff7777;
+  --primary-inverse: #1a1a1a;
+
+  --border: #444444;
+  --border-faint: #333333;
+
+  --color-mod: #ff5555;
+
+  --line-height: 1.6;
+}
+
 body {
   overflow-x: hidden;
   line-height: var(--line-height);
@@ -26,6 +49,7 @@ body {
   font-family: "Raleway", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial,
     sans-serif;
   color: var(--color);
+  background-color: var(--background);
 }
 
 h1,

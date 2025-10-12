@@ -99,6 +99,8 @@ def load_entry_points(group_name):
 def load_jinja2_themes(config):
     """Automatically load any entry_point registered Remarkbox theme."""
     themes = load_entry_points("remarkbox.themes")
+    theme_defaults = {}
+
     for theme_name, theme_module in themes.items():
         theme_module_name = theme_module.__name__
         # teach Jinja2 about the template dir in the theme package.
@@ -111,6 +113,12 @@ def load_jinja2_themes(config):
             "{}:static/theme/{}".format(theme_module_name, theme_name),
             cache_max_age=3600,
         )
+        # Collect theme's default mode if defined
+        if hasattr(theme_module, 'default_theme_mode'):
+            theme_defaults[theme_name] = theme_module.default_theme_mode
+
+    # Store theme defaults in config registry for later access
+    config.registry.settings['theme_defaults'] = theme_defaults
     return config
 
 
@@ -492,6 +500,30 @@ def main(global_config, **settings):
     def add_mathjax(request):
         return "true" if request.namespace.mathjax else "false"
 
+    def add_theme_mode(request):
+        """
+        Return theme mode 'light' or 'dark'.
+        Priority: user preference > query params > theme default > 'light'.
+        """
+        # If user is authenticated and has a preference
+        if request.user and request.user.authenticated and request.user.theme_mode != 'auto':
+            return request.user.theme_mode
+
+        # Check if there's a mode parameter (for embeds or overrides)
+        param_mode = request.params.get("mode")
+        if param_mode in ("light", "dark"):
+            return param_mode
+
+        # Use theme's default mode if available
+        if request.theme:
+            theme_defaults = request.registry.settings.get('theme_defaults', {})
+            theme_default = theme_defaults.get(request.theme)
+            if theme_default in ("light", "dark"):
+                return theme_default
+
+        # Final fallback to light
+        return "light"
+
     # register functions to app config as request methods.
     # each request instance will run these functions and attach results.
     # cache result with `reify=True` to prevent multiple db lookups.
@@ -546,6 +578,7 @@ def main(global_config, **settings):
     config.add_request_method(add_page_offset, "page_offset", reify=True)
     config.add_request_method(add_node_order, "node_order", reify=True)
     config.add_request_method(add_mathjax, "mathjax", reify=True)
+    config.add_request_method(add_theme_mode, "theme_mode", reify=True)
 
     # all of the web application routes.
     config.include(".routes")

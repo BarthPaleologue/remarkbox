@@ -1,7 +1,7 @@
 {%- import 'snippets/snippets.j2' as snippets with context -%}
 {% include 'snippets/owner-key-comment.j2' %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="{% if request.theme_mode == 'dark' %}dark-mode{% endif %}">
 <head>
   <title>{% block title %}{{ request.app_domain }}{% endblock %}</title>
   <meta charset="utf-8" />

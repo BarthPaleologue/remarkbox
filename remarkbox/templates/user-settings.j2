@@ -29,12 +29,9 @@
 
 {{ snippets.user_avatar_link(request.user, 130, class="user-settings-profile-pic") }}
 <br>
-<br>
 
 <input type="checkbox" name="gravatar-checkbox" id="gravatar-checkbox" {% if request.user.gravatar %}checked{% endif %}></input> enable <a href="https://en.gravatar.com/support/what-is-gravatar/" target="_blank">gravatar</a>?
 
-<br/>
-<br/>
 <br/>
 
 <!--
@@ -51,6 +48,19 @@ automatically watch any threads I participate in.
 <br/>
 
 -->
+
+<br/>
+<label>Theme Mode</label>
+
+<div class="theme-appearance-section">
+<input type="radio" name="theme-mode" id="theme-mode-auto" value="auto" {% if request.user.theme_mode == "auto" %}checked{% endif %} onchange="previewTheme(this.value)"></input> <label for="theme-mode-auto" class="inline-label">Auto (follow parent site)</label>
+<br/>
+<input type="radio" name="theme-mode" id="theme-mode-light" value="light" {% if request.user.theme_mode == "light" %}checked{% endif %} onchange="previewTheme(this.value)"></input> <label for="theme-mode-light" class="inline-label">Light</label>
+<br/>
+<input type="radio" name="theme-mode" id="theme-mode-dark" value="dark" {% if request.user.theme_mode == "dark" %}checked{% endif %} onchange="previewTheme(this.value)"></input> <label for="theme-mode-dark" class="inline-label">Dark</label>
+</div>
+
+<br/>
 
 <label>Reply Notifications</label>
 
@@ -94,5 +104,26 @@ View and adjust your <a href="{{ request.link_prefix }}/u/watching">Namespace no
 {% include 'snippets/submit.j2' %}
 
 </form>
+
+<script>
+function previewTheme(mode) {
+  const html = document.documentElement;
+
+  if (mode === 'dark') {
+    html.classList.add('dark-mode');
+  } else if (mode === 'light') {
+    html.classList.remove('dark-mode');
+  } else if (mode === 'auto') {
+    // Auto mode: check if parent provided a mode parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const parentMode = urlParams.get('mode');
+    if (parentMode === 'dark') {
+      html.classList.add('dark-mode');
+    } else {
+      html.classList.remove('dark-mode');
+    }
+  }
+}
+</script>
 
 {%- endblock -%}
