@@ -231,6 +231,7 @@ def user_settings(request):
         default_node_watcher_frequency = request.params[
             "default-node-watcher-frequency"
         ]
+        theme_mode = request.params.get("theme-mode", "auto")
 
         if display_name != request.user.name:
             if is_user_name_valid(display_name) == False:
@@ -322,6 +323,25 @@ def user_settings(request):
             else:
                 request.session.flash(
                     ("Invalid Enum value for reply_watcher_frequency.", "error")
+                )
+
+        if theme_mode != request.user.theme_mode:
+            if theme_mode in ('auto', 'light', 'dark'):
+                request.user.theme_mode = theme_mode
+                theme_labels = {
+                    'auto': 'Auto (follow parent site)',
+                    'light': 'Light',
+                    'dark': 'Dark'
+                }
+                request.session.flash(
+                    (
+                        "Theme appearance set to <b>{}</b>".format(theme_labels[theme_mode]),
+                        "success",
+                    )
+                )
+            else:
+                request.session.flash(
+                    ("Invalid theme mode value.", "error")
                 )
 
         request.dbsession.add(request.user)

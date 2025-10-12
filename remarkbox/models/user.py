@@ -114,6 +114,12 @@ class User(RBase, Base):
         default="daily",
         nullable=False,
     )
+    # Theme mode preference: 'auto', 'light', or 'dark'. 'auto' respects parent site.
+    theme_mode = Column(
+        Enum('auto', 'light', 'dark', name='theme_mode_enum'),
+        default='auto',
+        nullable=False,
+    )
     # example: cus_12345678AbCdEF but may be null.
     stripe_id = Column(Unicode(18), unique=True, nullable=True)
 

@@ -92,7 +92,10 @@ def show_count(request):
 @view_config(route_name="embed-iframe-min")
 def embed_iframe(request):
     """Jinja render a text file and serve it as plain text."""
-    context = {"rb_owner_key": request.params.get("rb_owner_key", "none")}
+    context = {
+        "rb_owner_key": request.params.get("rb_owner_key", "none"),
+        "mode": request.params.get("mode", "light")
+    }
     response = render_to_response("embed-iframe.txt.j2", context, request=request)
     response.content_type = "text/plain"
     if request.matched_route.name == "embed-iframe-min":
