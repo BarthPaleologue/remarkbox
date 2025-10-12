@@ -34,7 +34,7 @@
 
     {{ snippets.namespace_home_uri(request.namespace) }} &nbsp;
 
-    {%- if request.user.authenticated and request.user.namespaces %}
+    {%- if request.mode != 'embed' and request.user.authenticated and request.user.namespaces %}
     <a href="{{ domain_app }}/u/namespaces" onclick="toggle('my-namespaces-div', 'my-namespaces-link', '(switch)', '(switch)'); return false;" id="my-namespaces-link">(switch)</a>
 
     <div id="my-namespaces-div" class="my-namespaces-div">
