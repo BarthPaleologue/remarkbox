@@ -187,12 +187,12 @@ def send_verification_digits_to_email(request, to_email, raw_digits):
     message_text = WELCOME_1_TEXT.format(raw_digits)
     message_html = WELCOME_1_HTML.format(subject, raw_digits)
 
-    if not request.user.verified:
-        message_text = WELCOME_1_TEXT.format(raw_digits)
-        message_html = WELCOME_1_HTML.format(subject, raw_digits)
-    else:
+    if request.user and request.user.verified:
         message_text = WELCOME_2_TEXT.format(raw_digits)
         message_html = WELCOME_2_HTML.format(subject, raw_digits)
+    else:
+        message_text = WELCOME_1_TEXT.format(raw_digits)
+        message_html = WELCOME_1_HTML.format(subject, raw_digits)
 
     send_pyramid_email(request, to_email, subject, message_text, message_html)
 

@@ -113,7 +113,11 @@ def nodes_pending_verify(request):
 
 def set_node_to_pending_in_session(request, node):
     """Update session to make node go into pending_verify state."""
-    nodes_pending_verify(request).append(str(node.id_without_dashes))
+    pending = nodes_pending_verify(request)
+    node_id = str(node.id_without_dashes)
+    # Only add if not already present and list isn't too large
+    if node_id not in pending and len(pending) < 50:
+        pending.append(node_id)
 
 
 def verify_pending_nodes_in_session(request, user):

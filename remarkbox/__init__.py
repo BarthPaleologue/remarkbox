@@ -28,9 +28,6 @@ import re
 # needed to load themes.
 from pkg_resources import iter_entry_points
 
-# needed to support expanding ENV vars from ini.
-from os.path import expandvars
-
 import logging
 
 log = logging.getLogger(__name__)
@@ -43,16 +40,45 @@ def get_int_or_bool_or_none_or_str(value):
     Given a string value pulled from a configuration file,
     this function attempts to return the value with the proper type.
     """
+    # Handle non-string values
+    if not isinstance(value, str):
+        return value
+
+    # Handle string values
     try:
         return int(value)
     except ValueError:
-        if value.lower() in {"yes", "y", "true", "y"}:
+        value_lower = value.lower()
+        if value_lower in {"yes", "y", "true", "t", "1"}:
             return True
-        elif value.lower() in {"no", "n", "false", "f"}:
+        elif value_lower in {"no", "n", "false", "f", "0"}:
             return False
-        elif value.lower() == "none":
+        elif value_lower in {"none", "null"}:
             return None
         return str(value)
+
+
+def expand_env_vars(value):
+    """Expand environment variables including ${VAR:-default} syntax."""
+    if not isinstance(value, str):
+        return value
+
+    import os
+    import re
+
+    # Handle ${VAR:-default} syntax
+    # Use a non-greedy match to stop at the first closing brace
+    pattern = r"\$\{([^:}]*)(?::-([^}]*?))?\}"
+
+    def replacer(match):
+        var_name = match.group(1)
+        # Handle empty variable name case ${:-default}
+        if not var_name:
+            return match.group(2) if match.group(2) is not None else match.group(0)
+        default_value = match.group(2) if match.group(2) is not None else ""
+        return os.environ.get(var_name, default_value)
+
+    return re.sub(pattern, replacer, value)
 
 
 def get_children_settings(settings, parent_key):
@@ -73,18 +99,14 @@ def get_children_settings(settings, parent_key):
       {'hashalg': 'md5'}
 
     """
-    # needed to support expanding ENV vars from ini.
-    from os.path import expandvars
-
     # the +1 is the . between parent and child settings.
     parent_len = len(parent_key) + 1
     children = {}
     for key, value in settings.items():
         if parent_key in key:
-            # expandvars replaces template with ENV vars.
-            children[key[parent_len:]] = get_int_or_bool_or_none_or_str(
-                expandvars(value)
-            )
+            # Expand environment variables with support for defaults
+            expanded_value = expand_env_vars(value)
+            children[key[parent_len:]] = get_int_or_bool_or_none_or_str(expanded_value)
     return children
 
 
@@ -155,6 +177,11 @@ def maybe_root_domain(string):
 def main(global_config, **settings):
     """This function returns a Pyramid WSGI application."""
 
+    # Expand environment variables in all settings using our custom function
+    for key, value in list(settings.items()):
+        if isinstance(value, str):
+            settings[key] = expand_env_vars(value)
+
     app_settings = get_children_settings(settings, "app")
     session_settings = get_children_settings(settings, "session")
 
@@ -175,7 +202,18 @@ def main(global_config, **settings):
             session_settings["domain"] = root_domain
 
         factory = SignedCookieSessionFactory(**session_settings)
-        return factory(request)
+        session = factory(request)
+
+        # Log session contents and size on every request
+        import pickle
+        session_dict = dict(session)
+        serialized = pickle.dumps(session_dict)
+        log.info(f"Session total size: {len(serialized)} bytes, keys: {list(session_dict.keys())}")
+        for key, value in session_dict.items():
+            item_size = len(pickle.dumps({key: value}))
+            log.info(f"  Session['{key}'] = {item_size} bytes (type: {type(value).__name__})")
+
+        return session
 
     # setup session factory to use unencrypted but signed cookies.
     # session_factory = SignedCookieSessionFactory(**session_settings)

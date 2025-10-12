@@ -60,7 +60,7 @@ Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
   var thread_fragment = window.location.hash;
   var email = "russell.ballestrini@gmail.com";
   function create_remarkbox_iframe() {
-    var src = "http://127.0.0.1:6543/embed?rb_owner_key=" + rb_owner_key + "&email=" + email + "&thread_uri=" + thread_uri;
+    var src = "http://127.0.0.1:6543/embed?rb_owner_key=" + rb_owner_key + "&email=" + email + "&thread_uri=" + thread_uri + "&mode=light";
     var ifrm = document.createElement("iframe");
     ifrm.setAttribute("id", "remarkbox-iframe");
     ifrm.setAttribute("scrolling", "no");
@@ -86,5 +86,4 @@ Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
 </div>
 
 </body>
-
 </html>

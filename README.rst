@@ -72,6 +72,14 @@ What is Remarkbox?
 ------------------
 Remarkbox is a standalone question and answer site (forum) or an embedded comments/product reviews service that works anywhere HTML is supported.
 
+Features
+--------
+- **Dark Mode Support:** User-configurable theme preferences with automatic theme detection for embedded contexts
+- **Passwordless Authentication:** One-time-password codes via email for secure registration and login
+- **Multi-tenant Architecture:** Host multiple forums and comment systems on a single installation
+- **Customizable Themes:** Plugin-based theme system supporting custom branding and styling
+- **Embed Anywhere:** Works with static sites, WordPress, or any platform that supports HTML
+
 Project Goals
 ==============================================
 

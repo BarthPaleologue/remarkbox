@@ -7,6 +7,7 @@ from sqlalchemy import ForeignKey
 
 from time import time
 
+import base64
 import uuid
 from sqlalchemy_utils import UUIDType as TempUUIDType
 
@@ -75,10 +76,10 @@ def short_id_to_bytes(short_id):
     """Accept a short_id (sanitized url safe base64 string) and return a byte string.
 
     >>> short_id_to_bytes('dbHeSEFLEeeuz5xONpxxWA')
-    'u\xb1\xdeHAK\x11\xe7\xae\xcf\x9cN6\x9cqX'
+    b'u\xb1\xdeHAK\x11\xe7\xae\xcf\x9cN6\x9cqX'
 
     """
-    return (short_id + "===").replace("_", "/").replace("-", "+").decode("base64")
+    return base64.b64decode((short_id + "===").replace("_", "/").replace("-", "+"))
 
 
 def id_to_uuid(the_id):
