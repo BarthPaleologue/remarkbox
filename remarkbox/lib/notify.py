@@ -151,6 +151,37 @@ def get_email_notifications(dbsession, frequency):
     return notification_dict
 
 
+def filter_orphaned_notifications(notification_dict):
+    """
+    Filter out notifications with null node_event from the notification dictionary.
+
+    Args:
+        notification_dict: Dictionary mapping user_id to list of notifications
+
+    Returns:
+        dict: Filtered notification dictionary with orphaned notifications removed
+    """
+    filtered_dict = {}
+    total_orphaned = 0
+
+    for user_id, notifications in notification_dict.items():
+        valid_notifications = []
+        for notification in notifications:
+            if notification.node_event is None:
+                total_orphaned += 1
+                log.warning(f"Skipping orphaned notification {notification.id} for user {user_id}")
+            else:
+                valid_notifications.append(notification)
+
+        if valid_notifications:
+            filtered_dict[user_id] = valid_notifications
+
+    if total_orphaned > 0:
+        log.warning(f"Filtered out {total_orphaned} orphaned notifications")
+
+    return filtered_dict
+
+
 def deliver_scheduled_notifications(request=None):
     from datetime import datetime
     from pyramid.scripting import prepare
@@ -160,12 +191,14 @@ def deliver_scheduled_notifications(request=None):
         request = env["request"]
 
         notification_dict = get_email_notifications(request.dbsession, "daily")
-        send_digest_notifications(request, notification_dict, "daily")
+        filtered_dict = filter_orphaned_notifications(notification_dict)
+        send_digest_notifications(request, filtered_dict, "daily")
 
         # Send weekly on Monday.
         if datetime.today().weekday() == 0:
             notification_dict = get_email_notifications(request.dbsession, "weekly")
-            send_digest_notifications(request, notification_dict, "weekly")
+            filtered_dict = filter_orphaned_notifications(notification_dict)
+            send_digest_notifications(request, filtered_dict, "weekly")
     
 
 def send_immediate_notifications(request, notifications):
@@ -210,10 +243,14 @@ def group_notifications_by_root(notifications):
     """
     group notifications by root node, where the key is
     the root node and the value is a list of notification objects.
+    Skips orphaned notifications (where node_event is None).
     """
     groups = defaultdict(list)
     for notification in notifications:
-        groups[notification.node_event.node.root].append(notification)
+        if notification.node_event is not None:
+            groups[notification.node_event.node.root].append(notification)
+        else:
+            log.warning(f"Skipping orphaned notification {notification.id} in group_notifications_by_root")
     return groups
 
 
