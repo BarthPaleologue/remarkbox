@@ -4,6 +4,7 @@ import transaction
 import logging
 from pyramid.paster import bootstrap, setup_logging
 from ..models import Node, get_tm_session, now_timestamp
+from ..models.notification import NodeEventNotification
 
 from . import base_parser
 
@@ -29,10 +30,40 @@ def is_node_anonymized(node):
     )
 
 
+def cleanup_orphaned_notifications(dbsession):
+    """
+    Clean up any existing orphaned NodeEventNotification records.
+    
+    Args:
+        dbsession: Database session
+        
+    Returns:
+        int: Number of orphaned notifications cleaned up
+    """
+    # Find notifications with null node_event references
+    orphaned = (
+        dbsession.query(NodeEventNotification)
+        .filter(NodeEventNotification.node_event_id.is_(None))
+        .all()
+    )
+    
+    count = len(orphaned)
+    if count > 0:
+        print(f"Found {count} orphaned notifications, cleaning them up...")
+        for notification in orphaned:
+            dbsession.delete(notification)
+        print(f"Cleaned up {count} orphaned notifications")
+    else:
+        print("No orphaned notifications found")
+    
+    return count
+
+
 def delete_disabled_nodes(request):
     """
     Delete disabled leaf nodes and anonymize disabled parent nodes while preserving children.
     Skips re-anonymizing already anonymized parent nodes.
+    Also cleans up any existing orphaned notifications.
 
     Args:
         request: Pyramid request object with transaction manager
@@ -45,6 +76,10 @@ def delete_disabled_nodes(request):
         dbsession = get_tm_session(
             request.registry["dbsession_factory"], transaction.manager
         )
+
+        # First, clean up any existing orphaned notifications
+        print("Checking for orphaned notifications...")
+        orphaned_count = cleanup_orphaned_notifications(dbsession)
 
         # Fetch all disabled nodes in one query
         disabled_nodes = dbsession.query(Node).filter(Node.disabled == True).all()
@@ -92,8 +127,16 @@ def delete_disabled_nodes(request):
                 anonymized_count += 1
             else:
                 # Delete leaf node and its related data
-                # Handle events deletion
+                # Handle events deletion and cleanup associated notifications
                 for event in node.events:
+                    # Delete all notifications associated with this event
+                    notifications = dbsession.query(NodeEventNotification).filter(
+                        NodeEventNotification.node_event_id == event.id
+                    ).all()
+                    for notification in notifications:
+                        dbsession.delete(notification)
+                    
+                    # Delete the event itself
                     dbsession.delete(event)
 
                 # Handle watchers deletion with a loop
@@ -123,7 +166,7 @@ def delete_disabled_nodes(request):
 
         # Print summary of operations
         print(
-            f"Summary: Deleted {deleted_count} leaf nodes, anonymized {anonymized_count} parent nodes with children, skipped {skipped_count} already anonymized nodes"
+            f"Summary: Cleaned up {orphaned_count} orphaned notifications, deleted {deleted_count} leaf nodes, anonymized {anonymized_count} parent nodes with children, skipped {skipped_count} already anonymized nodes"
         )
 
         if remaining_disabled_nodes > 0:
@@ -150,7 +193,7 @@ def main():
     """
     # Set up argument parser with description
     parser = base_parser(
-        "Delete disabled leaf nodes and anonymize disabled parent nodes with children."
+        "Delete disabled leaf nodes, anonymize disabled parent nodes with children, and clean up orphaned notifications."
     )
     args = parser.parse_args()
 
