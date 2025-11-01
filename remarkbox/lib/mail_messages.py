@@ -26,21 +26,26 @@ WELCOME_1_HTML = """
 <html>
 <head>
 <title>{0}</title>
+<style>
+  .otp-code {{
+    font-size: 3em;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    margin: 1em 0;
+  }}
+</style>
 </head>
   <body>
-    <h2>Hello!</h2>
+    <h1 class="otp-code">{1}</h1>
+
+    <p>Hello!</p>
 
     <p>
     Thanks for joining the discussion.
     </p>
 
     <p>
-    Here is the verification code you requested:
-    </p>
-
-    <p><b>{1}</b></p>
-
-    <p>
+    Here is the verification code you requested.
     This will verify your email and log you in.
     </p>
 
@@ -81,15 +86,23 @@ WELCOME_2_HTML = """
 <html>
 <head>
 <title>{0}</title>
+<style>
+  .otp-code {{
+    font-size: 3em;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    margin: 1em 0;
+  }}
+</style>
 </head>
   <body>
-    <h2>Hello again!</h2>
+    <h1 class="otp-code">{1}</h1>
+
+    <p>Hello again!</p>
 
     <p>
-    Here is the verification code you requested:
+    Here is the verification code you requested.
     </p>
-
-    <p><b>{1}</b></p>
 
     <h3>What's next?</h3>
 
