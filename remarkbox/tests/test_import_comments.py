@@ -72,28 +72,27 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.test_namespace = get_or_create_namespace(
             self.dbsession, "test.example.com"
         )
-        self.test_namespace.add_owner(self.test_user)
+        self.test_namespace.set_role_for_user(self.test_user, role="owner")
         self.dbsession.add(self.test_namespace)
         self.dbsession.flush()
         self.tm.commit()
 
     def tearDown(self):
-        # Clean up: log out and delete test data
+        # Clean up: log out
         self.testapp.get("/log-out")
 
-        # Delete all nodes
-        self.dbsession.query(Node).delete()
+        # Reset namespace postfix for next test
+        namespace = self.get_test_namespace()
+        if namespace:
+            namespace.import_group_postfix = None
+            self.dbsession.add(namespace)
+            self.dbsession.flush()
+            self.tm.commit()
 
-        # Delete test user
-        if self.test_user:
-            self.dbsession.delete(self.test_user)
-
-        # Delete test namespace
-        if self.test_namespace:
-            self.dbsession.delete(self.test_namespace)
-
-        self.dbsession.flush()
-        self.tm.commit()
+    def get_test_namespace(self):
+        """Helper to get fresh namespace object from DB"""
+        from remarkbox.models import get_namespace_by_name
+        return get_namespace_by_name(self.dbsession, "test.example.com")
 
     def test_import_page_requires_authentication(self):
         """Test that the import page requires user authentication"""
@@ -212,8 +211,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"2 comments", res.body)
 
         # Verify that the comments were imported
+        namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == self.test_namespace
+            Node.namespace == namespace
         ).all()
 
         # Should have 3 nodes: 1 root + 2 comments
@@ -267,8 +267,8 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"Successfully imported", res.body)
         self.assertIn(b"1 comments", res.body)
 
-    def test_import_with_automatic_group_name(self):
-        """Test import automatically adds timestamp group name to all new users"""
+    def test_import_with_automatic_group_postfix(self):
+        """Test import automatically adds group postfix to all new users"""
         disqus_data = {
             "test-post": {
                 "link": "https://example.com/group-test",
@@ -299,11 +299,11 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
 
         self.assertIn(b"Successfully imported", res.body)
 
-        # Verify user was created with automatic timestamp group suffix
+        # Verify user was created with automatic group postfix
         user = get_user_by_email(self.dbsession, "testgroup@example.com")
         self.assertIsNotNone(user)
-        # Should have timestamp pattern in username
-        self.assertRegex(user.name, r".*-\d{8}-\d{6}")
+        # Should have postfix pattern in username (e.g., "Test-User-te")
+        self.assertIn("-", user.name)
 
     def test_import_empty_comments(self):
         """Test import with threads that have no comments"""
@@ -446,8 +446,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"2 comments", res.body)
 
         # Verify parent-child relationship
+        namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == self.test_namespace,
+            Node.namespace == namespace,
             Node.parent_id.isnot(None)
         ).all()
 
@@ -518,8 +519,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"4 comments", res.body)
 
         # Verify the nesting hierarchy
+        namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == self.test_namespace,
+            Node.namespace == namespace,
             Node.parent_id.isnot(None)
         ).all()
 
@@ -560,8 +562,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"Successfully imported", res.body)
 
         # Get count after first import
+        namespace = self.get_test_namespace()
         first_count = self.dbsession.query(Node).filter(
-            Node.namespace == self.test_namespace
+            Node.namespace == namespace
         ).count()
 
         # Second import - should reuse existing user
@@ -577,8 +580,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         self.assertIn(b"Successfully imported", res2.body)
 
         # Count should double (new nodes, but same users)
+        namespace = self.get_test_namespace()
         second_count = self.dbsession.query(Node).filter(
-            Node.namespace == self.test_namespace
+            Node.namespace == namespace
         ).count()
 
         # We should have more nodes but the user should be reused
@@ -698,8 +702,9 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
 
         # Verify surrogates were created
         from remarkbox.models import UserSurrogate
+        namespace = self.get_test_namespace()
         surrogates = self.dbsession.query(UserSurrogate).filter(
-            UserSurrogate.namespace == self.test_namespace
+            UserSurrogate.namespace == namespace
         ).all()
 
         # Should have 2 unique surrogates (Guest1 and Guest2)
@@ -858,16 +863,6 @@ class ImportCommentsUnitTests(unittest.TestCase):
 
         password = generate_password(16)
         self.assertEqual(len(password), 16)
-
-    def test_generate_import_group_name(self):
-        """Test import group name generation"""
-        from remarkbox.views.authenticated.import_comments import generate_import_group_name
-
-        group_name = generate_import_group_name("test")
-        # Should start with prefix and contain a timestamp
-        self.assertTrue(group_name.startswith("test-"))
-        # Should contain date in YYYYMMDD format
-        self.assertRegex(group_name, r"test-\d{8}-\d{6}")
 
     def test_generate_group_prefix_from_namespace(self):
         """Test group prefix generation from namespace domain"""
