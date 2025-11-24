@@ -81,14 +81,6 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Clean up: log out
         self.testapp.get("/log-out")
 
-        # Reset namespace postfix for next test
-        namespace = self.get_test_namespace()
-        if namespace:
-            namespace.import_group_postfix = None
-            self.dbsession.add(namespace)
-            self.dbsession.flush()
-            self.tm.commit()
-
     def get_test_namespace(self):
         """Helper to get fresh namespace object from DB"""
         from remarkbox.models import get_namespace_by_name
@@ -213,7 +205,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Verify that the comments were imported
         namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == namespace
+            Node.namespace_id == namespace.id
         ).all()
 
         # Should have 3 nodes: 1 root + 2 comments
@@ -448,7 +440,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Verify parent-child relationship
         namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == namespace,
+            Node.namespace_id == namespace.id,
             Node.parent_id.isnot(None)
         ).all()
 
@@ -521,7 +513,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Verify the nesting hierarchy
         namespace = self.get_test_namespace()
         nodes = self.dbsession.query(Node).filter(
-            Node.namespace == namespace,
+            Node.namespace_id == namespace.id,
             Node.parent_id.isnot(None)
         ).all()
 
@@ -564,7 +556,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Get count after first import
         namespace = self.get_test_namespace()
         first_count = self.dbsession.query(Node).filter(
-            Node.namespace == namespace
+            Node.namespace_id == namespace.id
         ).count()
 
         # Second import - should reuse existing user
@@ -582,7 +574,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         # Count should double (new nodes, but same users)
         namespace = self.get_test_namespace()
         second_count = self.dbsession.query(Node).filter(
-            Node.namespace == namespace
+            Node.namespace_id == namespace.id
         ).count()
 
         # We should have more nodes but the user should be reused
@@ -704,7 +696,7 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         from remarkbox.models import UserSurrogate
         namespace = self.get_test_namespace()
         surrogates = self.dbsession.query(UserSurrogate).filter(
-            UserSurrogate.namespace == namespace
+            UserSurrogate.namespace_id == namespace.id
         ).all()
 
         # Should have 2 unique surrogates (Guest1 and Guest2)
