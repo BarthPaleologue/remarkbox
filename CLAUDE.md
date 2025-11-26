@@ -4,9 +4,11 @@
 
 **IMPORTANT**: Before starting any work on a repository:
 1. Check for a `CLAUDE.md` file in the repository root
-2. Read and follow all instructions in that file
-3. These project-specific instructions override default Claude Code behavior
-4. Look for conventions around commits, testing, code style, and workflows
+2. Check for a `CLAUDE.md` file in parent directories (we often work across repos on localhost)
+3. Read and follow all instructions in those files
+4. These project-specific instructions override default Claude Code behavior
+5. Look for conventions around commits, testing, code style, and workflows
+6. If working across multiple repositories, respect the conventions from each repo's CLAUDE.md
 
 ## Commit Attribution
 
