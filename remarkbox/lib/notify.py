@@ -229,8 +229,9 @@ def send_immediate_notifications(request, notifications):
                 },
             )
             log.info(
-                "notification frequency=immediately email={}, count={}".format(
-                    notification.user.email,
+                "notification frequency=immediately user={} ({}), count={}".format(
+                    notification.user.name,
+                    notification.user_id,
                     notification.id,
                 )
             )
@@ -285,9 +286,10 @@ def send_digest_notifications(request, notification_dict, frequency="daily"):
             },
         )
         log.info(
-            "notification frequency={} email={}, count={}".format(
+            "notification frequency={} user={} ({}), count={}".format(
                 frequency,
-                recipient_email,
+                user.name,
+                user_id,
                 notifications_count,
             )
         )
