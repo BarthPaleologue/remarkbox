@@ -38,6 +38,22 @@ function sendPreview(textarea, div, mathjax=false){
 }
 
 
+// Auto-focus textarea when details element opens (progressive enhancement).
+// Falls back gracefully if browser doesn't support the required APIs.
+if (typeof document.addEventListener === 'function') {
+  document.addEventListener('toggle', function(e) {
+    var details = e.target;
+    if (details.tagName !== 'DETAILS' || !details.open) return;
+
+    // Find textarea inside the details element and focus it.
+    var textarea = details.querySelector('textarea');
+    if (textarea && typeof textarea.focus === 'function') {
+      // Small delay to let the CSS transition start.
+      setTimeout(function() { textarea.focus(); }, 50);
+    }
+  }, true);
+}
+
 $(document).ready( function() {
 
   $('button.vote-up').click(

@@ -411,7 +411,7 @@ form.node-action {
   opacity: 0.8 !important;
 }
 
-/* Pure CSS toggle using <details> element */
+/* Pure CSS toggle using <details> element with animations */
 .toggle-summary {
   cursor: pointer;
   list-style: none;
@@ -453,6 +453,33 @@ details[open] > .toggle-summary .when-closed {
   display: none;
 }
 
+/* Animated details content using CSS grid technique */
+.edit-box-details,
+.remark-box-details,
+.node-children-details {
+  --details-transition-duration: 0.3s;
+}
+
+.edit-box-details > .details-content,
+.remark-box-details > .details-content,
+.node-children-details > .details-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--details-transition-duration) ease-out;
+}
+
+.edit-box-details[open] > .details-content,
+.remark-box-details[open] > .details-content,
+.node-children-details[open] > .details-content {
+  grid-template-rows: 1fr;
+}
+
+.edit-box-details > .details-content > .details-content-inner,
+.remark-box-details > .details-content > .details-content-inner,
+.node-children-details > .details-content > .details-content-inner {
+  overflow: hidden;
+}
+
 /* Edit box details styling */
 .edit-box-details {
   margin-top: 15px;
@@ -480,6 +507,13 @@ details[open] > .toggle-summary .when-closed {
   padding: 10px;
   border: 1px solid #ddd;
   min-width: 120px;
+  /* Fade in animation for dropdown */
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Node children collapse/expand */

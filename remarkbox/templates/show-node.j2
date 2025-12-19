@@ -77,12 +77,16 @@
 
 <details id="edit-box-{{ request.node.id }}" class="edit-box-details">
    <summary class="action toggle-summary"><span class="when-closed">edit</span><span class="when-open">hide</span></summary>
+   <div class="details-content"><div class="details-content-inner">
    {{ forms.edit(request.node) }}
+   </div></div>
 </details>
 
 <details id="remark-box-{{ request.node.id }}" class="remark-box-details remark-box-details-main" open>
    <summary class="toggle-summary toggle-summary-hidden"></summary>
+   <div class="details-content"><div class="details-content-inner">
    {{ forms.reply(request.node, request.root_node) }}
+   </div></div>
 </details>
 
 
@@ -152,20 +156,26 @@
 
     <details id="edit-box-{{ parent.id }}" class="edit-box-details">
        <summary class="action toggle-summary"><span class="when-closed">edit</span><span class="when-open">hide</span></summary>
+       <div class="details-content"><div class="details-content-inner">
        {{ forms.edit(parent) }}
+       </div></div>
     </details>
 
     <details id="remark-box-{{ parent.id }}" class="remark-box-details">
        <summary class="remark toggle-summary"><span class="when-closed">remark</span><span class="when-open">hide</span></summary>
+       <div class="details-content"><div class="details-content-inner">
        {{ forms.reply(parent, request.root_node) }}
+       </div></div>
     </details>
 
     {#- nest children in this node's div for convo collapsing. -#}
     <details id="node-children-{{ parent.id }}" class="node-children-details" open>
     <summary class="action link toggle-summary"><span class="when-closed">expand [+]</span><span class="when-open">collapse [-]</span></summary>
+    <div class="details-content"><div class="details-content-inner">
     {%- if children_ids %}
     {{ loop(children_ids) }}
     {% endif -%}
+    </div></div>
     </details>
 
     {# close the class="node" div #}
