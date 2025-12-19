@@ -37,17 +37,6 @@ function sendPreview(textarea, div, mathjax=false){
     }
 }
 
-// this toggles a dropdown.
-function toggle(target, button, off_text, on_text="hide"){
-    if (!$('#' + target + ":visible").height()){
-        $('#' + target).slideDown("slow");
-        $('#' + button).text(on_text);
-    }
-    else {
-        $('#' + target).slideUp("slow");
-        $('#' + button).text(off_text);
-    }
-}
 
 $(document).ready( function() {
 

@@ -1,5 +1,4 @@
 {% macro reply(node, root) %}
-
 {% if root.locked %}
 <br>
 <p>This thread was locked to prevent additional comments.</p>
@@ -39,11 +38,9 @@
 </form>
 
 {% endif %}
-
 {% endmacro %}
 
 {% macro edit(node) %}
-
 <form method="post" action="{{ request.link_prefix }}/{{ node.id }}/edit" onsubmit="submit.disabled = true; return true;">
 
     {% if node.title %}
@@ -70,7 +67,6 @@
 {% set submit_button_value = 'save message' %}
 {% include 'submit.j2' %}
 </form>
-
 {% endmacro %}
 
 {% macro pay_what_you_can() %}

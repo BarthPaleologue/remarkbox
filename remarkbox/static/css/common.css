@@ -411,33 +411,84 @@ form.node-action {
   opacity: 0.8 !important;
 }
 
-.remark-box-div-main {
-  margin-bottom: 35px;
+/* Pure CSS toggle using <details> element */
+.toggle-summary {
+  cursor: pointer;
+  list-style: none;
 }
 
-.remark-box-div {
+.toggle-summary::-webkit-details-marker {
   display: none;
-  /* this is needed to prevent "jumping" jquery bug. */
-  overflow: hidden;
-  margin-top: 10px;
 }
 
-.edit-box-div {
+.toggle-summary::marker {
   display: none;
-  /* this is needed to prevent "jumping" jquery bug. */
-  overflow: hidden;
+  content: "";
+}
+
+/* Toggle text switching: show/hide different text based on open state */
+.toggle-summary .when-open {
+  display: none;
+}
+
+.toggle-summary .when-closed {
+  display: inline;
+}
+
+details[open] > .toggle-summary .when-open {
+  display: inline;
+}
+
+details[open] > .toggle-summary .when-closed {
+  display: none;
+}
+
+/* Hidden summary for main remark box (always open) */
+.toggle-summary-hidden {
+  display: none;
+}
+
+/* Fallback links hidden when JS not needed */
+.toggle-fallback {
+  display: none;
+}
+
+/* Edit box details styling */
+.edit-box-details {
   margin-top: 15px;
 }
 
-.my-namespaces-div {
-  display: none;
+/* Remark box details styling */
+.remark-box-details {
+  margin-top: 10px;
+}
+
+.remark-box-details-main {
+  margin-bottom: 35px;
+}
+
+/* Namespace switcher dropdown */
+.my-namespaces-details {
+  display: inline;
+  position: relative;
+}
+
+.my-namespaces-content {
   position: absolute;
   background-color: #ffffff;
   z-index: 1;
-  /* this is needed to prevent "jumping" jquery bug. */
-  overflow: hidden;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  min-width: 120px;
+}
+
+/* Node children collapse/expand */
+.node-children-details {
+  margin-top: 5px;
+}
+
+.node-children-details > .toggle-summary {
+  margin-bottom: 5px;
 }
 
 #remarkbox-footer {

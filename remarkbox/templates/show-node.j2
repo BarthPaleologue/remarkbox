@@ -75,13 +75,15 @@
 </div>
 {% endif %}
 
-<div id="edit-box-{{ request.node.id }}" class="edit-box-div">
+<details id="edit-box-{{ request.node.id }}" class="edit-box-details">
+   <summary class="action toggle-summary"><span class="when-closed">edit</span><span class="when-open">hide</span></summary>
    {{ forms.edit(request.node) }}
-</div>
+</details>
 
-<div id="remark-box-{{ request.node.id }}" class="remark-box-div-main not-hidden-remark-box-div">
+<details id="remark-box-{{ request.node.id }}" class="remark-box-details remark-box-details-main" open>
+   <summary class="toggle-summary toggle-summary-hidden"></summary>
    {{ forms.reply(request.node, request.root_node) }}
-</div>
+</details>
 
 
 {%- if request.node.id and request.node_graph[request.node.id] -%}
@@ -148,20 +150,23 @@
     <a href="{{ request.link_prefix }}/{{ parent.id }}#{{ parent.id }}" class="load-more shown-on-tablet">load more <span style="color: #292929; font-weight: normal;">({{children_ids | length}} remarks)</span></a>
     {% endif %}
 
-    <div id="edit-box-{{ parent.id }}" class="edit-box-div">
+    <details id="edit-box-{{ parent.id }}" class="edit-box-details">
+       <summary class="action toggle-summary"><span class="when-closed">edit</span><span class="when-open">hide</span></summary>
        {{ forms.edit(parent) }}
-    </div>
+    </details>
 
-    <div id="remark-box-{{ parent.id }}" class="remark-box-div">
+    <details id="remark-box-{{ parent.id }}" class="remark-box-details">
+       <summary class="remark toggle-summary"><span class="when-closed">remark</span><span class="when-open">hide</span></summary>
        {{ forms.reply(parent, request.root_node) }}
-    </div>
-    
+    </details>
+
     {#- nest children in this node's div for convo collapsing. -#}
-    <div id="node-children-{{ parent.id }}">
+    <details id="node-children-{{ parent.id }}" class="node-children-details" open>
+    <summary class="action link toggle-summary"><span class="when-closed">expand [+]</span><span class="when-open">collapse [-]</span></summary>
     {%- if children_ids %}
     {{ loop(children_ids) }}
     {% endif -%}
-    </div>
+    </details>
 
     {# close the class="node" div #}
     </div>

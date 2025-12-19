@@ -84,9 +84,7 @@
 
 {% macro button_remark(node, root_node) %}
     {% if root_node and not root_node.locked %}
-    <a href="{{ request.link_prefix }}/{{ node.id }}"
-       onclick="toggle('remark-box-{{ node.id }}', 'remark-link-{{ node.id }}', 'remark', 'hide'); document.getElementById('textarea-{{ node.id }}').focus(); return false;"
-       id="remark-link-{{ node.id }}" class="remark">remark</a>
+    <a href="{{ request.link_prefix }}/{{ node.id }}" id="remark-link-{{ node.id }}" class="remark toggle-fallback">remark</a>
     {% endif %}
 {% endmacro %}
 
@@ -99,9 +97,6 @@
 {% endmacro %}
 
 {% macro button_collapse(node) %}
-    <button
-       onclick="toggle('node-children-{{ node.id }}', 'collapse-link-{{ node.id }}', 'expand [+]', 'collapse [-]');"
-       id="collapse-link-{{ node.id }}" class="action link js-only">collapse [-]</button>
 {% endmacro %}
 
 {% macro permalinks(node, parent_node=None, root_node=None) %}
@@ -211,8 +206,7 @@
       {{ enable_node(node=node) }} &nbsp;
     {% else %}
       <a href="{{ request.link_prefix }}/{{ node.id }}/edit"
-          onclick="toggle('edit-box-{{ node.id }}', 'edit-link-{{ node.id }}', 'edit', 'hide'); document.getElementById('edit-textarea-{{ node.id }}').focus(); return false;"
-          id="edit-link-{{ node.id }}" class="action">edit</a>
+          id="edit-link-{{ node.id }}" class="action toggle-fallback">edit</a>
 
       {{ disable_node(node=node) }} &nbsp;
 
