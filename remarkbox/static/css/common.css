@@ -552,9 +552,10 @@ form.node-action {
 }
 
 .common-textarea {
-  min-height: calc(2rem * var(--line-height));
-  height: calc(5rem * var(--line-height));
+  min-height: calc(3rem * var(--line-height));
+  max-height: 400px;
   resize: vertical;
+  overflow-y: auto;
 }
 
 .monospace {
