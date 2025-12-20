@@ -50,10 +50,21 @@ function toggle(target, button, off_text, on_text) {
     // Handle node-children collapse (visible by default, toggle to hide)
     if (target.indexOf('node-children-') === 0) {
         if (el.classList.contains('toggle-collapsed')) {
+            // Expanding: set max-height to scrollHeight, animate, then remove classes
+            el.classList.add('toggle-expanding');
+            el.style.maxHeight = el.scrollHeight + 'px';
             el.classList.remove('toggle-collapsed');
             btn.textContent = on_text;
+            setTimeout(function() {
+                el.classList.remove('toggle-expanding');
+                el.style.maxHeight = '';
+            }, 800);
         } else {
+            // Collapsing: set max-height to current height, then collapse
+            el.style.maxHeight = el.scrollHeight + 'px';
+            el.offsetHeight; // force reflow
             el.classList.add('toggle-collapsed');
+            el.style.maxHeight = '';
             btn.textContent = off_text;
         }
         return;

@@ -453,14 +453,15 @@ form.node-action {
 }
 
 /* Node children collapse/expand animation */
-[id^="node-children-"] {
+[id^="node-children-"].toggle-collapsed {
   overflow: hidden;
-  max-height: 10000px;
+  max-height: 0;
   transition: max-height 0.8s ease-out;
 }
 
-[id^="node-children-"].toggle-collapsed {
-  max-height: 0;
+[id^="node-children-"].toggle-expanding {
+  overflow: hidden;
+  transition: max-height 0.8s ease-out;
 }
 
 .my-namespaces-div {
