@@ -225,12 +225,12 @@ We should build a Remarkbox to matrix bridge. I bet it is a lot like working wit
 Sat Apr  3 10:40:05 PM EDT 2021
 =====================================
 
-this is a useful SQL query to SELECT users who want to pay and also gave a credit card.
+this is a useful SQL query to SELECT users who have paid.
 
 ::
- SELECT * FROM rb_pay_what_you_can
-   INNER JOIN rb_user ON rb_user.id = rb_pay_what_you_can.user_id
- WHERE amount > 0 and rb_user.stripe_id is not null;
+ SELECT * FROM rb_payment
+   INNER JOIN rb_user ON rb_user.id = rb_payment.user_id
+ WHERE status = 'completed';
 
 
 

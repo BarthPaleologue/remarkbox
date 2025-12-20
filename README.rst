@@ -173,9 +173,9 @@ To list paying customers, execute:
 
 .. code-block:: sql
 
-    SELECT * FROM rb_pay_what_you_can
-        INNER JOIN rb_user ON rb_user.id = rb_pay_what_you_can.user_id
-        WHERE amount > 0 AND rb_user.stripe_id IS NOT NULL;
+    SELECT * FROM rb_payment
+        INNER JOIN rb_user ON rb_user.id = rb_payment.user_id
+        WHERE status = 'completed';
 
 Python Pyramid Shell
 ==============================================
