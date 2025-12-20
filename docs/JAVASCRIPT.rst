@@ -9,36 +9,38 @@ Standalone JavaScript Files
 remarkbox/static/js/custom.js
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Main application JavaScript containing core functionality.
+Main application JavaScript containing core functionality. No external
+dependencies (jQuery was removed).
 
 **previewAjax()** (Lines 5-20)
     Debounced preview function with 800ms timer. Escapes HTML in raw mode
     to prevent XSS, then calls sendPreview().
 
-**sendPreview()** (Lines 22-38)
-    AJAX request to ``/preview-post`` endpoint for Markdown rendering.
+**sendPreview()** (Lines 22-41)
+    Fetch request to ``/preview-post`` endpoint for Markdown rendering.
+    Includes ``X-Requested-With: XMLHttpRequest`` header required by server.
     Optionally triggers MathJax re-rendering.
 
-**toggle()** (Lines 41-57)
+**toggle()** (Lines 43-66)
     CSS-based toggle animation. Adds/removes ``toggle-open`` and
     ``toggle-closing`` classes. Updates button text after 800ms animation.
+    Triggers textarea auto-grow on open if content exists.
 
-**Details close animation** (Lines 60-75)
+**Details close animation** (Lines 68-83)
     Event listener for ``.preview-toggle`` clicks. Animates ``<details>``
     element closure over 800ms using ``closing`` class.
 
-**Document ready handler** (Lines 77-103)
+**autoGrow()** (Lines 85-89)
+    Auto-grows textarea height based on content, capped at 400px.
+
+**Document ready handler** (Lines 91-130)
+    - Binds input handlers for textarea auto-grow
     - Binds vote-up/vote-down button click handlers
     - Fades in alert elements over 2 seconds
     - Highlights URL fragment targets with ``focused`` class
 
-**sendVote()** (Lines 105-118)
-    AJAX request to ``/vote-post`` endpoint. Updates vote count on success.
-
-remarkbox/static/js/jquery-2.1.3.min.js
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-jQuery library for DOM manipulation and AJAX.
+**sendVote()** (Lines 132-151)
+    Fetch request to ``/vote-post`` endpoint. Updates vote count on success.
 
 remarkbox/static/js/iframe-resizer/
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,17 +81,17 @@ Triggers debounced Markdown preview on textarea input.
 **snippets/forms.j2** (Line 21)
     Reply textarea with raw preview::
 
-        previewAjax('textarea-{{ node.id }}', 'preview-{{ node.id }}', show_raw=true, mathjax={{ request.mathjax }})
+        previewAjax('textarea-{{ node.id }}', 'preview-{{ node.id }}', true, {{ request.mathjax }})
 
 **snippets/forms.j2** (Line 63)
     Edit textarea without raw preview::
 
-        previewAjax('edit-textarea-{{ node.id }}', 'node-data-{{ node.id }}', show_raw=false, mathjax={{ request.mathjax }})
+        previewAjax('edit-textarea-{{ node.id }}', 'node-data-{{ node.id }}', false, {{ request.mathjax }})
 
 **snippets/create.j2** (Line 14)
     Thread creation textarea::
 
-        previewAjax('thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }})
+        previewAjax('thread_data_textarea', 'preview', true, {{ request.mathjax }})
 
 Toggle Functionality
 ~~~~~~~~~~~~~~~~~~~~
@@ -145,10 +147,10 @@ snippets/javascript-includes.j2
 
         var csrf_token = "{{ request.session.get_csrf_token() }}";
 
-**Google Analytics v4** (Lines 12-18)
-    Conditional loading based on namespace configuration.
+**Google Analytics v4** (Lines 10-18)
+    Conditional loading based on namespace configuration (gtag.js).
 
-**MathJax** (Lines 25-27)
+**MathJax** (Lines 20-27)
     Mathematical formula rendering. Loaded from CDN when enabled.
 
 embed-iframe.txt.j2
@@ -168,11 +170,6 @@ snippets/stripe.j2
 
 **Payment form handling** (Lines 83-132)
     Stripe card element initialization, validation, and token creation.
-
-snippets/google-analytics.j2
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Legacy Universal Analytics (ga.js) for backward compatibility.
 
 
 CSS Classes Managed by JavaScript
@@ -194,4 +191,15 @@ Remarkbox functions without JavaScript:
   (e.g., ``/{node_id}/edit``, ``/{node_id}/reply``)
 - Forms submit normally without AJAX
 - ``<details>`` elements work natively for preview toggle
+- Textareas remain fixed size (no auto-grow)
 - Voting requires JavaScript (AJAX-only)
+
+
+Removed Dependencies
+--------------------
+
+The following were removed to reduce bundle size:
+
+- **jQuery 2.1.3** (84KB) - Replaced with vanilla JS (fetch, addEventListener, querySelectorAll)
+- **Legacy Google Analytics** (ga.js) - Using gtag v4 instead
+- **IE8 polyfills** - IE8 is no longer supported
