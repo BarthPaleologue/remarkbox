@@ -1,6 +1,6 @@
 import unittest
 
-import mock
+from unittest import mock
 
 from remarkbox.models.user import User, is_user_name_valid
 
