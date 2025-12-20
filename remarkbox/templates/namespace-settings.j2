@@ -39,6 +39,11 @@
 If checked, hide new comments until approved by a moderator.
 <br>
 <br>
+<label>Allow Anonymous Comments:</label>
+<input type="checkbox" name="allow-anonymous-checkbox" id="allow-anonymous-checkbox" {% if request.namespace.allow_anonymous %}checked{% endif %}></input>
+If checked, allow comments without email verification. Commenters enter a display name only. They cannot edit comments or receive reply notifications.
+<br>
+<br>
 <label>Enable Link Protection:</label>
 <input type="checkbox" name="link-protection-checkbox" id="link-protection-checkbox" {% if request.namespace.link_protection %}checked{% endif %}></input>
 If checked, replace all links in comments with <code>[link removed]</code>.

@@ -7,7 +7,9 @@ from remarkbox.models import (
     get_tm_session,
     get_or_create_user_by_email,
     get_user_by_email,
+    get_or_create_namespace,
     NodeEventNotification,
+    UserSurrogate,
 )
 
 from remarkbox.models.meta import Base
@@ -477,3 +479,270 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         redirect_res = self.testapp.get("/billing/success", status=302)
         res = redirect_res.follow()
         self.assertIn(b"Missing session information", res.body)
+
+
+class AnonymousCommentingFunctionalTests(FunctionalTests):
+    """Tests for anonymous commenting feature."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        # Create a namespace with allow_anonymous enabled
+        anon_ns = get_or_create_namespace(
+            self.dbsession, "anon-test.example.com"
+        )
+        anon_ns.allow_anonymous = True
+        self.dbsession.add(anon_ns)
+
+        # Create a namespace with allow_anonymous disabled (default)
+        regular_ns = get_or_create_namespace(
+            self.dbsession, "regular-test.example.com"
+        )
+        regular_ns.allow_anonymous = False
+        self.dbsession.add(regular_ns)
+
+        # Create a test user for namespace ownership
+        test_user = get_or_create_user_by_email(
+            self.dbsession, "anon-test@remarkbox.com"
+        )
+        self.raw_otp = test_user.new_password()
+        self.dbsession.add(test_user)
+
+        self.dbsession.flush()
+
+        # Store IDs and names before commit
+        self.anon_namespace_id = anon_ns.id
+        self.anon_namespace_name = str(anon_ns.name)
+        self.regular_namespace_id = regular_ns.id
+        self.regular_namespace_name = str(regular_ns.name)
+
+        self.tm.commit()
+
+        self.test_creds = ("anon-test@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(AnonymousCommentingFunctionalTests, self).tearDown()
+        # Clean up surrogates created during tests
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id.in_([
+                self.anon_namespace_id,
+                self.regular_namespace_id
+            ])
+        ).delete(synchronize_session=False)
+        # Requery user before delete
+        user = get_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_anonymous_reply_creates_surrogate(self):
+        """Test that anonymous reply creates a UserSurrogate."""
+        # First create a thread with an authenticated user
+        self._log_in_test_user()
+
+        # Create a root node in the anonymous namespace
+        from remarkbox.models import create_root_node
+        anon_ns = get_or_create_namespace(self.dbsession, self.anon_namespace_name)
+        user = get_or_create_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = anon_ns
+        root.user = user
+        root.verified = True
+        root.title = "Test Thread"
+        root.set_data("Test content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        # Log out
+        self.testapp.get("/log-out")
+
+        # Post anonymous reply (no email, just name)
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(root_id),
+            {
+                "thread_data": "Anonymous comment here",
+                "anonymous_name": "TestAnon",
+            },
+            status=302,
+        )
+
+        # Should redirect to the thread (not to login)
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)
+
+        # Verify a surrogate was created
+        surrogate = self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.name == "TestAnon",
+            UserSurrogate.namespace_id == self.anon_namespace_id
+        ).first()
+        self.assertIsNotNone(surrogate)
+
+    def test_anonymous_reply_default_name(self):
+        """Test that anonymous reply without name uses 'Anonymous'."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        anon_ns = get_or_create_namespace(self.dbsession, self.anon_namespace_name)
+        user = get_or_create_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = anon_ns
+        root.user = user
+        root.verified = True
+        root.title = "Test Thread 2"
+        root.set_data("Test content 2")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        self.testapp.get("/log-out")
+
+        # Post without anonymous_name
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(root_id),
+            {
+                "thread_data": "Anonymous comment without name",
+            },
+            status=302,
+        )
+
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)
+
+        # Verify surrogate with default name
+        surrogate = self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.name == "Anonymous",
+            UserSurrogate.namespace_id == self.anon_namespace_id
+        ).first()
+        self.assertIsNotNone(surrogate)
+
+    def test_regular_namespace_requires_email(self):
+        """Test that non-anonymous namespace still requires email."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        regular_ns = get_or_create_namespace(self.dbsession, self.regular_namespace_name)
+        user = get_or_create_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = regular_ns
+        root.user = user
+        root.verified = True
+        root.title = "Regular Thread"
+        root.set_data("Regular content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        self.testapp.get("/log-out")
+
+        # Try to post without email on regular namespace
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(root_id),
+            {
+                "thread_data": "This should fail",
+                "anonymous_name": "ShouldFail",
+            },
+            status=302,
+        )
+
+        res = redirect_res.follow()
+        self.assertIn(b"Press the back button to fix your email address", res.body)
+
+    def test_anonymous_comment_is_verified(self):
+        """Test that anonymous comments are marked as verified."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        anon_ns = get_or_create_namespace(self.dbsession, self.anon_namespace_name)
+        user = get_or_create_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = anon_ns
+        root.user = user
+        root.verified = True
+        root.title = "Verified Test Thread"
+        root.set_data("Verified test content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = root.id
+        self.tm.commit()
+
+        self.testapp.get("/log-out")
+
+        self.testapp.post(
+            "/{}/reply".format(root_id),
+            {
+                "thread_data": "Anonymous verified comment",
+                "anonymous_name": "VerifiedAnon",
+            },
+            status=302,
+        )
+
+        # Check the node is verified
+        child = self.dbsession.query(Node).filter(
+            Node.parent_id == root_id
+        ).first()
+        self.assertIsNotNone(child)
+        self.assertTrue(child.verified)
+        self.assertIsNotNone(child.user_surrogate)
+        self.assertIsNone(child.user)
+
+    def test_namespace_settings_toggle(self):
+        """Test that namespace owner can toggle allow_anonymous setting."""
+        self._log_in_test_user()
+
+        # Make user owner of namespace
+        from remarkbox.models import Namespace
+        anon_ns = get_or_create_namespace(self.dbsession, self.anon_namespace_name)
+        user = get_or_create_user_by_email(self.dbsession, "anon-test@remarkbox.com")
+
+        anon_ns.set_role_for_user(user, "owner")
+        self.dbsession.add(anon_ns)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        # Toggle off
+        self.testapp.post(
+            "/ns/{}/settings".format(self.anon_namespace_name),
+            {
+                "csrf_token": self.csrf,
+                # Not including allow-anonymous-checkbox means it's unchecked
+            },
+        )
+
+        ns = self.dbsession.query(Namespace).filter(
+            Namespace.id == self.anon_namespace_id
+        ).first()
+        self.assertFalse(ns.allow_anonymous)
+
+        # Toggle on
+        self.testapp.post(
+            "/ns/{}/settings".format(self.anon_namespace_name),
+            {
+                "csrf_token": self.csrf,
+                "allow-anonymous-checkbox": "on",
+            },
+        )
+
+        self.dbsession.expire(ns)
+        self.assertTrue(ns.allow_anonymous)

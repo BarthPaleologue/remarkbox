@@ -12,6 +12,7 @@ from . import (
 )
 
 from remarkbox.lib.notify import schedule_notifications
+from remarkbox.models import get_or_create_user_surrogate_by_name
 
 try:
     unicode("")
@@ -27,6 +28,7 @@ except:
 def reply_node(request):
     """handle posting of reply form from show-node pages."""
     thread_data = request.params.get("thread_data", "")
+    anonymous_name = request.params.get("anonymous_name", "").strip()
 
     # return early if spam attribute is truthy.
     if request.spam:
@@ -43,8 +45,17 @@ def reply_node(request):
         request.session.flash(("No remarks for the disabled.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
-    # flash error and return early if user is None.
-    if request.user is None:
+    # Handle anonymous mode vs regular mode
+    user_surrogate = None
+    if request.namespace.allow_anonymous and not request.user:
+        # Anonymous mode: create or get a surrogate
+        if not anonymous_name:
+            anonymous_name = "Anonymous"
+        user_surrogate = get_or_create_user_surrogate_by_name(
+            request.dbsession, anonymous_name, request.namespace
+        )
+    elif request.user is None:
+        # Regular mode: require email/user
         request.session.flash(
             ("Press the back button to fix your email address", "error")
         )
@@ -72,16 +83,30 @@ def reply_node(request):
 
     # STEP 2: attach a brand new child node to parent node.
     child = parent.new_child()
-    child.user = request.user
     child.ip_address = unicode(request.client_addr)
-    child.verified = request.user.authenticated
     child.set_data(thread_data, namespace=request.namespace)
-    child_event = child.new_event(request.user, "commented")
+
+    # Handle anonymous vs authenticated user
+    if user_surrogate:
+        # Anonymous mode: attach surrogate, mark as verified (no email to verify)
+        child.user_surrogate = user_surrogate
+        child.verified = True
+        child_event = None  # No notifications for anonymous comments
+        request.dbsession.add(user_surrogate)
+    else:
+        # Normal mode: attach user
+        child.user = request.user
+        child.verified = request.user.authenticated
+        child_event = child.new_event(request.user, "commented")
 
     if request.namespace.hide_unless_approved:
         # by default comments are approved, unless Namespace hide_unless_approved
         # is enabled, moderators nodes are always auto approved.
-        child.approved = request.namespace.is_moderator(request.user)
+        if request.user:
+            child.approved = request.namespace.is_moderator(request.user)
+        else:
+            # Anonymous users are never auto-approved when moderation is on
+            child.approved = False
 
     # STEP 3: update root's changed timestamp.
     # TODO: maybe we should find a better way to "bump" a thread.
@@ -90,20 +115,20 @@ def reply_node(request):
     parent._invalidate_cache()
 
     # STEP 4: commit to database.
-    request.dbsession.add(request.user)
+    if request.user:
+        request.dbsession.add(request.user)
     request.dbsession.add(child)
-    request.dbsession.add(child_event)
+    if child_event:
+        request.dbsession.add(child_event)
     request.dbsession.add(parent)
     request.dbsession.add(parent.root)
     request.dbsession.flush()
 
-    schedule_notifications(request, child_event)
+    if child_event:
+        schedule_notifications(request, child_event)
 
     msg = ("Your post was successful!", "success")
     request.session.flash(msg)
-
-    ### TODO: everything below this is pretty much crap code...
-    #         and likely deserves a flowchart...
 
     # set return_to URI.
     if request.mode == "embed":
@@ -111,8 +136,8 @@ def reply_node(request):
     else:
         return_to = get_node_route_uri(request, child.root, child.id)
 
-    if child.verified == True:
-        # Redirect to new node if user and new node is verified.
+    # Anonymous users are always verified, redirect immediately
+    if user_surrogate or child.verified:
         return HTTPFound(return_to)
 
     set_node_to_pending_in_session(request, child)
