@@ -251,36 +251,3 @@ class TestPaymentModel(unittest.TestCase):
         payment.mark_failed()
 
         self.assertEqual(payment.status, "failed")
-
-
-class TestPayWhatYouCanModel(unittest.TestCase):
-    """Unit tests for PayWhatYouCan model."""
-
-    @patch("remarkbox.models.user.is_user_name_available", MagicMock(return_value=True))
-    def setUp(self):
-        self.user = User("test@example.com")
-
-    def test_pay_what_you_can_creation(self):
-        """Test creating a PayWhatYouCan preference."""
-        from remarkbox.models import PayWhatYouCan
-
-        pwc = PayWhatYouCan(self.user, "yearly", 100)
-
-        self.assertEqual(pwc.frequency, "yearly")
-        self.assertEqual(pwc.amount, 100)
-        # contributions defaults to 0 in DB but may be None before flush
-        self.assertIn(pwc.contributions, [0, None])
-        self.assertIsNotNone(pwc.created_timestamp)
-
-    def test_pay_what_you_can_update(self):
-        """Test updating PayWhatYouCan preferences."""
-        from remarkbox.models import PayWhatYouCan
-
-        pwc = PayWhatYouCan(self.user, "once", 50)
-        original_timestamp = pwc.updated_timestamp
-
-        pwc.update("yearly", 100)
-
-        self.assertEqual(pwc.frequency, "yearly")
-        self.assertEqual(pwc.amount, 100)
-        self.assertGreaterEqual(pwc.updated_timestamp, original_timestamp)

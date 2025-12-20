@@ -409,73 +409,8 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         """Test that the billing page loads for authenticated users."""
         self._log_in_test_user(self.test_creds1)
         res = self.testapp.get("/billing", status=200)
-        self.assertIn(b"Pay What You Can", res.body)
-        self.assertIn(b"Annual Subscription", res.body)
-        self.assertIn(b"Top Up", res.body)
-
-    def test_pay_what_you_can_preference(self):
-        """Test saving pay-what-you-can preferences."""
-        self._log_in_test_user(self.test_creds1)
-
-        # Save preferences
-        redirect_res = self.testapp.post(
-            "/pay-what-you-can",
-            {
-                "frequency": "yearly",
-                "amount": "50",
-                "csrf_token": self.csrf,
-            },
-            status=302,
-        )
-        res = redirect_res.follow()
-        self.assertIn(b"Your contribution preferences have been saved", res.body)
-
-        # Verify billing page loads successfully
-        billing_res = self.testapp.get("/billing", status=200)
-        self.assertIn(b"Pay What You Can", billing_res.body)
-
-    def test_pay_what_you_can_update_preference(self):
-        """Test updating pay-what-you-can preferences."""
-        self._log_in_test_user(self.test_creds1)
-
-        # Set initial preferences
-        self.testapp.post(
-            "/pay-what-you-can",
-            {
-                "frequency": "once",
-                "amount": "25",
-                "csrf_token": self.csrf,
-            },
-        )
-
-        # Update preferences
-        redirect_res = self.testapp.post(
-            "/pay-what-you-can",
-            {
-                "frequency": "yearly",
-                "amount": "100",
-                "csrf_token": self.csrf,
-            },
-            status=302,
-        )
-        res = redirect_res.follow()
-        self.assertIn(b"Your contribution preferences have been saved", res.body)
-
-    def test_pay_what_you_can_missing_fields(self):
-        """Test pay-what-you-can with missing fields."""
-        self._log_in_test_user(self.test_creds1)
-
-        # Missing amount
-        redirect_res = self.testapp.post(
-            "/pay-what-you-can",
-            {
-                "frequency": "yearly",
-                "csrf_token": self.csrf,
-            },
-            status=302,
-        )
-        res = redirect_res.follow()
-        self.assertIn(b"You must set both frequency and amount", res.body)
+        self.assertIn(b"Make a Payment", res.body)
+        self.assertIn(b"Pay with Stripe", res.body)
 
     @patch("remarkbox.stripe.checkout.stripe.checkout.Session.create")
     def test_create_checkout_redirects_to_stripe(self, mock_create):

@@ -9,7 +9,6 @@ def includeme(config):
 
     # stripe: payment processing via Stripe Checkout
     config.add_route("billing", "/billing")
-    config.add_route("pay-what-you-can", "/pay-what-you-can")
     config.add_route("create-checkout", "/billing/checkout")
     config.add_route("billing-success", "/billing/success")
     config.add_route("stripe-webhook", "/webhook/stripe")

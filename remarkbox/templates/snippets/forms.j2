@@ -73,29 +73,3 @@
 
 {% endmacro %}
 
-{% macro pay_what_you_can() %}
-<form method="post" action="/pay-what-you-can" onsubmit="submit.disabled = true; return true;">
-<fieldset style="text-align: left;">
-    <legend>Pay What You Can</legend>
-    Safely adjust frequency or amount anytime.
-    <br>
-    <br>
-    <input type="radio" name="frequency" value="once" {% if request.user.pay_what_you_can.frequency == "once"%}checked="checked"{% endif %} required><b>Once</b><br>
-    <input type="radio" name="frequency" value="yearly" {% if request.user.pay_what_you_can.frequency == "yearly"%}checked="checked"{% endif %} required><b>Yearly</b><br>
-    <br>
-    <input type="text" id="amount" name="amount" placeholder="Amount: $USD" style="width: 94%;" {% if request.user.pay_what_you_can.amount %}value="{{ request.user.pay_what_you_can.amount }}"{% endif %} required>
-    <br>
-    <br>
-    We charge cards on the <b>1st</b> of each month to prevent double charges.
-    <br>
-    <br>
-    <b>Once</b> is <b>cumulative</b>, for example let's say you configured amount to $15 and months later adjust to $25, on the 1st of the next month you will be charged $10.
-    <br>
-    <br>
-    <b>Yearly</b> acts similar but also reoccurs each anniversary.
-    <br>
-    {% include 'snippets/csrf.j2' %}
-    <input type="submit" value="Save" style="float: right;">
-</fieldset>
-</form>
-{% endmacro %}

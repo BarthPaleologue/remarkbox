@@ -19,7 +19,7 @@ from remarkbox.stripe.checkout import (
     retrieve_checkout_session,
     verify_webhook_signature,
 )
-from remarkbox.models import Payment, PayWhatYouCan, get_payment_by_session_id, create_payment
+from remarkbox.models import Payment, get_payment_by_session_id, create_payment
 
 import logging
 
@@ -41,25 +41,6 @@ def billing(request):
         "the_title": "Billing",
         "payments": payments,
     }
-
-
-@view_config(route_name="pay-what-you-can", request_method="POST")
-@user_required()
-def pay_what_you_can(request):
-    """Save user's pay-what-you-can preferences (frequency and amount)."""
-    frequency = request.params.get("frequency", None)
-    amount = request.params.get("amount", None)
-
-    if frequency is None or amount is None:
-        request.session.flash(("You must set both frequency and amount.", "error"))
-    elif request.user.pay_what_you_can:
-        request.user.pay_what_you_can.update(frequency, amount)
-        request.session.flash(("Your contribution preferences have been saved.", "success"))
-    else:
-        request.user.pay_what_you_can = PayWhatYouCan(request.user, frequency, amount)
-        request.session.flash(("Your contribution preferences have been saved.", "success"))
-
-    return HTTPFound("/billing")
 
 
 @view_config(route_name="create-checkout", request_method="POST")
