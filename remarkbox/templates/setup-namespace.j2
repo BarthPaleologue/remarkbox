@@ -115,14 +115,9 @@ There's no obligation to pay anything.  : )
 
 <br>
 
-<div>
-{% if request.stripe_active_card %}
-  {{ stripe.active_card(change_card=True) }}
-{% else %}
-  {{ stripe.new_card() }}
-{% endif %}
-</div>
+<a href="{{ request.link_prefix }}/billing" class="button green-button">Go to Billing</a>
 
+<br>
 <br>
 
 Or PayPal <a href="https://www.paypal.me/russellbal/" target="_blank">@russellbal</a>
