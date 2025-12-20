@@ -160,6 +160,7 @@ class User(RBase, Base):
         lazy="dynamic",
         back_populates="user",
         order_by="desc(Payment.created_timestamp)",
+        cascade="save-update, merge, delete",
     )
 
     @property
