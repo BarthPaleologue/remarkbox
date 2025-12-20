@@ -417,16 +417,39 @@ form.node-action {
 
 .remark-box-div {
   display: none;
-  /* this is needed to prevent "jumping" jquery bug. */
   overflow: hidden;
   margin-top: 10px;
 }
 
 .edit-box-div {
   display: none;
-  /* this is needed to prevent "jumping" jquery bug. */
   overflow: hidden;
   margin-top: 15px;
+}
+
+/* CSS animation when toggled open via JS */
+.remark-box-div.toggle-open,
+.edit-box-div.toggle-open {
+  display: block;
+  overflow: hidden;
+  max-height: 1000px;
+  animation: slideDown 0.8s ease-out forwards;
+}
+
+.remark-box-div.toggle-closing,
+.edit-box-div.toggle-closing {
+  display: block;
+  max-height: 1000px;
+  animation: slideUp 0.8s ease-out forwards;
+}
+
+@keyframes slideDown {
+  from {
+    max-height: 0;
+  }
+  to {
+    max-height: 1000px;
+  }
 }
 
 .my-namespaces-div {
@@ -434,10 +457,64 @@ form.node-action {
   position: absolute;
   background-color: #ffffff;
   z-index: 1;
-  /* this is needed to prevent "jumping" jquery bug. */
   overflow: hidden;
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+.my-namespaces-div.toggle-open {
+  display: block;
+  animation: slideDown 0.8s ease-out;
+}
+
+/* Preview toggle with CSS animation */
+.preview-details {
+  overflow: hidden;
+}
+
+.preview-details[open] > .preview {
+  overflow: hidden;
+  animation: slideDown 0.8s ease-out forwards;
+}
+
+.preview-details.closing > .preview {
+  overflow: hidden;
+  max-height: 1000px;
+  animation: slideUp 0.8s ease-out forwards;
+}
+
+@keyframes slideUp {
+  from {
+    max-height: 1000px;
+  }
+  to {
+    max-height: 0;
+  }
+}
+
+.preview-toggle {
+  cursor: pointer;
+  list-style: none;
+}
+
+.preview-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.preview-toggle .when-open {
+  display: inline;
+}
+
+.preview-toggle .when-closed {
+  display: none;
+}
+
+.preview-details:not([open]) .when-open {
+  display: none;
+}
+
+.preview-details:not([open]) .when-closed {
+  display: inline;
 }
 
 #remarkbox-footer {
@@ -475,9 +552,10 @@ form.node-action {
 }
 
 .common-textarea {
-  min-height: calc(2rem * var(--line-height));
-  height: calc(5rem * var(--line-height));
+  min-height: calc(3rem * var(--line-height));
+  max-height: 400px;
   resize: vertical;
+  overflow-y: auto;
 }
 
 .monospace {
