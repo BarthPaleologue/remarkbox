@@ -409,7 +409,7 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         """Test that the billing page loads for authenticated users."""
         self._log_in_test_user(self.test_creds1)
         res = self.testapp.get("/billing", status=200)
-        self.assertIn(b"Make a Payment", res.body)
+        self.assertIn(b"Support Remarkbox", res.body)
         self.assertIn(b"Pay with Stripe", res.body)
 
     @patch("remarkbox.stripe.checkout.stripe.checkout.Session.create")
