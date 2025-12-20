@@ -1,5 +1,4 @@
 {% extends request.base_funnel_template -%}
-{%- import 'snippets/stripe.j2' as stripe with context -%}
 {% import 'snippets/forms.j2' as forms with context %}
 
 {% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
@@ -9,36 +8,131 @@
 <h4>{{ the_title }}</h4>
 </center>
 
+<p>Support Remarkbox with a contribution. Set your preferences below, then pay when you're ready.</p>
+
 <br>
 
+{# Pay What You Can Preferences #}
 {{ forms.pay_what_you_can() }}
 
 <br>
+
+{# Pay Now Button - uses saved preferences or custom amount #}
+<form method="post" action="/billing/checkout">
+<fieldset>
+    <legend>Pay Now</legend>
+    {% if request.user.pay_what_you_can and request.user.pay_what_you_can.amount %}
+    <p>Pay your configured amount of <strong>${{ request.user.pay_what_you_can.amount }}</strong> now.</p>
+    <input type="hidden" name="payment_type" value="pay_what_you_want">
+    <input type="hidden" name="amount" value="{{ request.user.pay_what_you_can.amount }}">
+    <input type="hidden" name="duration_months" value="{% if request.user.pay_what_you_can.frequency == 'yearly' %}12{% else %}0{% endif %}">
+    {% include 'snippets/csrf.j2' %}
+    <button type="submit" class="green-button">Pay ${{ request.user.pay_what_you_can.amount }} Now</button>
+    {% else %}
+    <p>Set your contribution amount above first, or enter a custom amount:</p>
+    <input type="hidden" name="payment_type" value="pay_what_you_want">
+    <input type="hidden" name="duration_months" value="0">
+    <label for="custom-amount">Amount (USD)</label>
+    <input type="text"
+           id="custom-amount"
+           name="amount"
+           placeholder="$10.00"
+           required
+           style="width: 100%; max-width: 200px;">
+    <br><br>
+    {% include 'snippets/csrf.j2' %}
+    <button type="submit" class="green-button">Pay Now</button>
+    {% endif %}
+</fieldset>
+</form>
+
 <br>
 
-<label>Active Card</label>
-{{ stripe.active_card() }}
+{# Annual Subscription #}
+<form method="post" action="/billing/checkout">
+<fieldset>
+    <legend>Annual Subscription</legend>
+    <p>Support Remarkbox with a yearly contribution.</p>
+
+    <input type="hidden" name="payment_type" value="annual">
+    <input type="hidden" name="duration_months" value="12">
+
+    <label for="annual-amount">Annual Amount (USD)</label>
+    <select id="annual-amount" name="amount" style="width: 100%; max-width: 200px;">
+        <option value="36">$36/year ($3/month)</option>
+        <option value="60">$60/year ($5/month)</option>
+        <option value="120" selected>$120/year ($10/month)</option>
+        <option value="240">$240/year ($20/month)</option>
+        <option value="360">$360/year ($30/month)</option>
+    </select>
+
+    <br><br>
+    {% include 'snippets/csrf.j2' %}
+    <button type="submit" class="green-button">Subscribe Annually</button>
+</fieldset>
+</form>
 
 <br>
 
-{{ stripe.saved_cards() }}
+{# Top Up #}
+<form method="post" action="/billing/checkout">
+<fieldset>
+    <legend>Top Up</legend>
+    <p>Make an additional contribution anytime.</p>
 
-<label>New credit or debit card</label>
-<section class="new-card">
-<br>
-{{ stripe.new_card() }}
-</section>
+    <input type="hidden" name="payment_type" value="top_up">
+    <input type="hidden" name="duration_months" value="0">
+
+    <label for="topup-amount">Amount (USD)</label>
+    <input type="text"
+           id="topup-amount"
+           name="amount"
+           placeholder="$25.00"
+           required
+           style="width: 100%; max-width: 200px;">
+
+    <br><br>
+    {% include 'snippets/csrf.j2' %}
+    <button type="submit" class="green-button">Top Up</button>
+</fieldset>
+</form>
 
 <br>
-<br>
 
-Or PayPal <a href="https://www.paypal.me/russellbal/" target="_blank">@russellbal</a>
+{# Payment History #}
+{% if payments %}
+<fieldset>
+    <legend>Payment History</legend>
+    <table style="width: 100%;">
+        <thead>
+            <tr>
+                <th style="text-align: left;">Date</th>
+                <th style="text-align: left;">Type</th>
+                <th style="text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for payment in payments %}
+            <tr>
+                <td>{{ payment.human_created_date }}</td>
+                <td>{{ payment.payment_type | replace("_", " ") | title }}</td>
+                <td style="text-align: right;">${{ "%.2f" | format(payment.amount_dollars) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</fieldset>
+<br>
+{% endif %}
 
-<br>
-<br>
+<center>
+<p>
+    <small>
+        Payments are securely processed by <a href="https://stripe.com" target="_blank">Stripe</a>.
+        <br>
+        Or PayPal <a href="https://www.paypal.me/russellbal/" target="_blank">@russellbal</a>
+    </small>
+</p>
+</center>
 
-<b>Thank you so much!</b>
-
-<br>
-<br>
 {%- endblock -%}

@@ -407,36 +407,6 @@ def main(global_config, **settings):
             and request.app_domain == request.namespace.name
         )
 
-    def add_stripe(request):
-        """Attach a stripe object with creds to request."""
-        import stripe
-
-        stripe.api_key = request.app.get("stripe.secret")
-        return stripe
-
-    def add_stripe_customer(request):
-        if request.user:
-            if not request.user.stripe_id:
-                # create a new stripe customer.
-                customer = request.stripe.Customer.create(email=request.user.email)
-                request.user.stripe_id = customer.id
-                request.dbsession.add(request.user)
-                request.dbsession.flush()
-            return request.stripe.Customer.retrieve(request.user.stripe_id)
-        return None
-
-    def add_stripe_saved_cards(request):
-        if request.user and request.user.stripe_id:
-            return request.stripe_customer.sources
-        return []
-
-    def add_stripe_active_card(request):
-        if request.user and request.user.stripe_id:
-            if request.stripe_customer.default_source:
-                return request.stripe_customer.sources.retrieve(
-                    request.stripe_customer.default_source
-                )
-        return None
 
     def add_avatar_size(request):
         """Attach avatar size or default."""
@@ -579,10 +549,6 @@ def main(global_config, **settings):
     config.add_request_method(add_marketing_domain, "marketing_domain", reify=True)
     config.add_request_method(add_faq_home, "faq_home", reify=True)
     config.add_request_method(add_saas_home, "saas_home", reify=True)
-    config.add_request_method(add_stripe, "stripe", reify=True)
-    config.add_request_method(add_stripe_customer, "stripe_customer", reify=True)
-    config.add_request_method(add_stripe_saved_cards, "stripe_saved_cards", reify=True)
-    config.add_request_method(add_stripe_active_card, "stripe_active_card", reify=True)
     config.add_request_method(add_stand_alone_mode, "stand_alone_mode", reify=True)
     config.add_request_method(add_avatar_size, "avatar_size", reify=True)
     config.add_request_method(add_theme, "theme", reify=True)

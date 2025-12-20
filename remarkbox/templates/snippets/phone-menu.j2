@@ -14,9 +14,7 @@
      {%- if request.user.authenticated %}
        <span class="avoidwrap"><li>{{ snippets.user_link(request.user) }} <a href="/log-out">[log out]</a></li></span>
        <li><a href="{{ request.link_prefix }}/u/settings">account settings</a></li>
-       {% if request.user.stripe_id %}
-       <li><a href="{{ request.link_prefix }}/billing">payment preferences</a></li>
-       {% endif %}
+       <li><a href="{{ request.link_prefix }}/billing">billing</a></li>
      {% else %}
      <li><a href="{{ request.app_url }}/join-or-log-in?return-to={{ request.path_url }}">join-or-log-in</a></li>
      {% endif %}

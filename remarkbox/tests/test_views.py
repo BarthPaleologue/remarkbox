@@ -1,7 +1,6 @@
 import transaction
 import unittest
 import webtest
-import stripe
 
 from remarkbox.models import (
     Node,
@@ -17,8 +16,8 @@ from remarkbox.lib.notify import deliver_scheduled_notifications
 
 from pyramid.paster import get_appsettings
 
-import mock
-from mock import patch, call
+from unittest import mock
+from unittest.mock import patch, call
 import re
 
 try:
@@ -80,7 +79,7 @@ class UnauthenticatedFunctionalTests(FunctionalTests):
     def test_billing_redirects(self):
         redirect_res = self.testapp.get("/billing", status=302)
         res = redirect_res.follow()
-        self.assertTrue(b"Thank you for helping us out, Please verify your email in the form below!" in res.body)
+        self.assertTrue(b"Please verify your email to access billing." in res.body)
 
     def test_user_settings_redirects(self):
         redirect_res = self.testapp.get("/u/settings", status=302)
@@ -158,8 +157,6 @@ class AuthenticatedFunctionalTests(FunctionalTests):
             # Python 3.
             FunctionalTests.setUpClass.__func__(cls)
 
-        stripe.api_key = cls.settings["app.stripe.secret"]
-
     def setUp(self):
         # create test_user1
         self.test_user1 = get_or_create_user_by_email(
@@ -195,9 +192,6 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         self.test_creds2 = ("test2@remarkbox.com", self.raw_otp2)
 
     def _clean_up_test_user(self, user):
-        if user.stripe_id:
-            # delete remote test Customer object on Stripe's test API.
-            stripe.Customer.retrieve(user.stripe_id).delete()
         self.dbsession.delete(user)
 
     def tearDown(self):
@@ -287,72 +281,6 @@ class AuthenticatedFunctionalTests(FunctionalTests):
 
         self.dbsession.refresh(namespace_request)
         self.assertTrue(namespace_request.verified)
-
-    ## the only reason we need to patch is because of temporary operator email.
-    #@patch("smtplib.SMTP")
-    #def test_billing(self, mock_smtp):
-
-    #    self._log_in_test_user(self.test_creds1)
-
-    #    billing_response = self.testapp.post(
-    #        "/billing/add-card",
-    #        {
-    #            "email": "test@remarkbox.com",
-    #            "csrf_token": self.csrf,
-    #            "stripeToken": "tok_visa",
-    #        },
-    #    )
-
-    #    self.dbsession.refresh(self.test_user1)
-    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-    #    self.assertEqual(
-    #        customer.sources.retrieve(customer.default_source).brand, "Visa"
-    #    )
-
-    #    self.testapp.post(
-    #        "/billing/add-card",
-    #        {
-    #            "email": "test@remarkbox.com",
-    #            "csrf_token": self.csrf,
-    #            "stripeToken": "tok_amex",
-    #        },
-    #    )
-
-    #    for source in customer.sources.list():
-    #        if source.brand == "Visa":
-    #            visa = source
-    #        if source.brand == "American Express":
-    #            amex = source
-
-    #    self.testapp.post(
-    #        "/billing/update-card",
-    #        {
-    #            "email": "test@remarkbox.com",
-    #            "csrf_token": self.csrf,
-    #            "action": "make-card-active",
-    #            "card_id": amex.id,
-    #        },
-    #    )
-
-    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-    #    self.assertEqual(
-    #        customer.sources.retrieve(customer.default_source).brand, "American Express"
-    #    )
-
-    #    self.testapp.post(
-    #        "/billing/update-card",
-    #        {
-    #            "email": "test@remarkbox.com",
-    #            "csrf_token": self.csrf,
-    #            "action": "delete-card",
-    #            "card_id": amex.id,
-    #        },
-    #    )
-
-    #    customer = stripe.Customer.retrieve(self.test_user1.stripe_id)
-    #    self.assertEqual(
-    #        customer.sources.retrieve(customer.default_source).brand, "Visa"
-    #    )
 
     @patch("smtplib.SMTP")
     def test_notifications(self, mock_smtp):
@@ -476,3 +404,141 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         # make sure our daily notification was sent.
         self.assertEqual(notifications[0].frequency, "daily")
         self.assertTrue(notifications[0].sent)
+
+    def test_billing_page_loads(self):
+        """Test that the billing page loads for authenticated users."""
+        self._log_in_test_user(self.test_creds1)
+        res = self.testapp.get("/billing", status=200)
+        self.assertIn(b"Pay What You Can", res.body)
+        self.assertIn(b"Annual Subscription", res.body)
+        self.assertIn(b"Top Up", res.body)
+
+    def test_pay_what_you_can_preference(self):
+        """Test saving pay-what-you-can preferences."""
+        self._log_in_test_user(self.test_creds1)
+
+        # Save preferences
+        redirect_res = self.testapp.post(
+            "/pay-what-you-can",
+            {
+                "frequency": "yearly",
+                "amount": "50",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Your contribution preferences have been saved", res.body)
+
+        # Verify billing page loads successfully
+        billing_res = self.testapp.get("/billing", status=200)
+        self.assertIn(b"Pay What You Can", billing_res.body)
+
+    def test_pay_what_you_can_update_preference(self):
+        """Test updating pay-what-you-can preferences."""
+        self._log_in_test_user(self.test_creds1)
+
+        # Set initial preferences
+        self.testapp.post(
+            "/pay-what-you-can",
+            {
+                "frequency": "once",
+                "amount": "25",
+                "csrf_token": self.csrf,
+            },
+        )
+
+        # Update preferences
+        redirect_res = self.testapp.post(
+            "/pay-what-you-can",
+            {
+                "frequency": "yearly",
+                "amount": "100",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Your contribution preferences have been saved", res.body)
+
+    def test_pay_what_you_can_missing_fields(self):
+        """Test pay-what-you-can with missing fields."""
+        self._log_in_test_user(self.test_creds1)
+
+        # Missing amount
+        redirect_res = self.testapp.post(
+            "/pay-what-you-can",
+            {
+                "frequency": "yearly",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"You must set both frequency and amount", res.body)
+
+    @patch("remarkbox.stripe.checkout.stripe.checkout.Session.create")
+    def test_create_checkout_redirects_to_stripe(self, mock_create):
+        """Test that create-checkout redirects to Stripe."""
+        mock_session = mock.MagicMock()
+        mock_session.id = "cs_test_123"
+        mock_session.url = "https://checkout.stripe.com/pay/cs_test_123"
+        mock_create.return_value = mock_session
+
+        self._log_in_test_user(self.test_creds1)
+
+        redirect_res = self.testapp.post(
+            "/billing/checkout",
+            {
+                "payment_type": "pay_what_you_want",
+                "amount": "25",
+                "duration_months": "0",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+
+        # Should redirect to Stripe Checkout
+        self.assertIn("checkout.stripe.com", redirect_res.location)
+
+    def test_create_checkout_minimum_amount(self):
+        """Test that checkout enforces minimum amount."""
+        self._log_in_test_user(self.test_creds1)
+
+        redirect_res = self.testapp.post(
+            "/billing/checkout",
+            {
+                "payment_type": "pay_what_you_want",
+                "amount": "0.50",
+                "duration_months": "0",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Minimum payment is $1.00", res.body)
+
+    def test_create_checkout_invalid_amount(self):
+        """Test checkout with invalid amount."""
+        self._log_in_test_user(self.test_creds1)
+
+        redirect_res = self.testapp.post(
+            "/billing/checkout",
+            {
+                "payment_type": "pay_what_you_want",
+                "amount": "not-a-number",
+                "duration_months": "0",
+                "csrf_token": self.csrf,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Invalid amount specified", res.body)
+
+    def test_billing_success_missing_session(self):
+        """Test billing success without session_id."""
+        self._log_in_test_user(self.test_creds1)
+
+        redirect_res = self.testapp.get("/billing/success", status=302)
+        res = redirect_res.follow()
+        self.assertIn(b"Missing session information", res.body)

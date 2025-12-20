@@ -14,6 +14,11 @@ def timestamp_to_date_string(timestamp):
     return timestamp_to_datetime(timestamp).strftime("%b %d, %Y %I:%M %P")
 
 
+def timestamp_to_date(timestamp):
+    """Accepts a timestamp and returns a short date string (e.g., 'Dec 19, 2024')"""
+    return timestamp_to_datetime(timestamp).strftime("%b %d, %Y")
+
+
 def timestamp_to_ago_string(timestamp):
     """Accepts a timestamp and returns a human readable string"""
     return human(timestamp_to_datetime(timestamp), 2, abbreviate=True)

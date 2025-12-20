@@ -120,9 +120,6 @@ class User(RBase, Base):
         default='auto',
         nullable=False,
     )
-    # example: cus_12345678AbCdEF but may be null.
-    stripe_id = Column(Unicode(18), unique=True, nullable=True)
-
     votes = relationship(argument="Vote", backref="user", order_by="desc(Vote.created)")
 
     # lazy='dynamic' returns a query object instead of collection.
@@ -156,6 +153,15 @@ class User(RBase, Base):
 
     # 1-to-1 relationships.
     pay_what_you_can = relationship(argument="PayWhatYouCan", uselist=False, lazy="joined")
+
+    # Payment history
+    payments = relationship(
+        argument="Payment",
+        lazy="dynamic",
+        back_populates="user",
+        order_by="desc(Payment.created_timestamp)",
+        cascade="save-update, merge, delete",
+    )
 
     @property
     def node_watchers(self):

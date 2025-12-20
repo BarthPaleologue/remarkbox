@@ -63,8 +63,8 @@ requests[security]
 # request library pins this dependency too low.
 # idna==2.6
 
-# credit card storage and processing.
-stripe==3.5.0
+# Stripe Checkout payment processing.
+stripe>=5.0.0
 
 # slack: bot notifications.
 slacker
