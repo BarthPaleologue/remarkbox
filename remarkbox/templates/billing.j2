@@ -15,27 +15,18 @@
 <fieldset>
     <legend>Make a Payment</legend>
 
-    <label>Payment Type</label>
-    <select name="payment_type" id="payment-type" style="width: 100%; max-width: 300px;">
-        <option value="pay_what_you_want" selected>One-time (Pay What You Want)</option>
-        <option value="annual">Annual Subscription</option>
-        <option value="top_up">Top Up</option>
-    </select>
-
-    <br><br>
+    <input type="hidden" name="payment_type" value="pay_what_you_want">
+    <input type="hidden" name="duration_months" value="0">
 
     <label for="amount">Amount (USD)</label>
     <input type="text"
            id="amount"
            name="amount"
            placeholder="$10.00"
-           {% if request.user.pay_what_you_can and request.user.pay_what_you_can.amount %}value="{{ request.user.pay_what_you_can.amount }}"{% endif %}
            required
            style="width: 100%; max-width: 300px;">
 
     <br><br>
-
-    <input type="hidden" name="duration_months" value="12">
     {% include 'snippets/csrf.j2' %}
     <button type="submit" class="green-button">Pay with Stripe</button>
 </fieldset>
