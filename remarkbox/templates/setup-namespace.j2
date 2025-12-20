@@ -111,7 +111,13 @@ There's no obligation to pay anything.  : )
 <br>
 <br>
 
-<a href="{{ request.link_prefix }}/billing" class="button green-button">Go to Billing</a>
+<form method="post" action="/billing/checkout" style="display: inline;">
+    <input type="hidden" name="payment_type" value="pay_what_you_want">
+    <input type="hidden" name="duration_months" value="0">
+    {% include 'snippets/csrf.j2' %}
+    $<input type="text" name="amount" placeholder="10" required style="width: 60px; text-align: center;">
+    <button type="submit" class="green-button">Pay with Stripe</button>
+</form>
 
 <br>
 <br>
