@@ -39,6 +39,7 @@ CLASS_TO_TABLE = {
     "NodeEvent": "rb_node_event",
     "NodeEventNotification": "rb_node_event_notification",
     "PayWhatYouCan": "rb_pay_what_you_can",
+    "Payment": "rb_payment",
 }
 
 # node (threads), namespace (forum)

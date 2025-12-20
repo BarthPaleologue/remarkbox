@@ -1,0 +1,34 @@
+{% extends request.base_funnel_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<center>
+<h4>{{ the_title }}</h4>
+</center>
+
+<br>
+
+<div style="text-align: center; padding: 20px;">
+    <div style="font-size: 48px; color: #4CAF50;">&#10003;</div>
+    <h3>Thank You!</h3>
+
+    {% if payment %}
+    <p>Your payment of <strong>${{ "%.2f" | format(payment.amount_dollars) }}</strong> has been received.</p>
+
+    {% if payment.payment_type == "annual" %}
+    <p>Your annual subscription is now active.</p>
+    {% elif payment.payment_type == "top_up" %}
+    <p>Your subscription has been extended by {{ payment.duration_months }} month(s).</p>
+    {% else %}
+    <p>Your contribution helps keep Remarkbox running. We truly appreciate your support!</p>
+    {% endif %}
+    {% else %}
+    <p>Your payment has been processed successfully.</p>
+    {% endif %}
+
+    <br>
+    <a href="/billing" class="button green-button">Back to Billing</a>
+</div>
+
+{%- endblock -%}

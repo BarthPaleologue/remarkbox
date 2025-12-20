@@ -7,14 +7,12 @@ def includeme(config):
     config.add_route("embed-iframe", "/embed-iframe.txt")
     config.add_route("embed-iframe-min", "/embed-iframe-min.txt")
 
-    # stripe: credit card storage and processing.
+    # stripe: payment processing via Stripe Checkout
     config.add_route("billing", "/billing")
-    config.add_route("add-card", "/billing/add-card")
-    config.add_route(
-        "confirm-update-card", "/billing/confirm-update-card/{action}/{card_id}"
-    )
-    config.add_route("update-card", "/billing/update-card")
     config.add_route("pay-what-you-can", "/pay-what-you-can")
+    config.add_route("create-checkout", "/billing/checkout")
+    config.add_route("billing-success", "/billing/success")
+    config.add_route("stripe-webhook", "/webhook/stripe")
 
     # slack: bot notifications and oauth.
     config.add_route("oauth-slack", "/oauth/slack")

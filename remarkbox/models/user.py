@@ -157,6 +157,14 @@ class User(RBase, Base):
     # 1-to-1 relationships.
     pay_what_you_can = relationship(argument="PayWhatYouCan", uselist=False, lazy="joined")
 
+    # Payment history
+    payments = relationship(
+        argument="Payment",
+        lazy="dynamic",
+        back_populates="user",
+        order_by="desc(Payment.created_timestamp)",
+    )
+
     @property
     def node_watchers(self):
         return self.watchers.filter(Watcher.type == "node")
