@@ -1,7 +1,6 @@
 import transaction
 import unittest
 import webtest
-import stripe
 
 from remarkbox.models import (
     Node,
@@ -158,8 +157,6 @@ class AuthenticatedFunctionalTests(FunctionalTests):
             # Python 3.
             FunctionalTests.setUpClass.__func__(cls)
 
-        stripe.api_key = cls.settings["app.stripe.secret"]
-
     def setUp(self):
         # create test_user1
         self.test_user1 = get_or_create_user_by_email(
@@ -195,9 +192,6 @@ class AuthenticatedFunctionalTests(FunctionalTests):
         self.test_creds2 = ("test2@remarkbox.com", self.raw_otp2)
 
     def _clean_up_test_user(self, user):
-        if user.stripe_id:
-            # delete remote test Customer object on Stripe's test API.
-            stripe.Customer.retrieve(user.stripe_id).delete()
         self.dbsession.delete(user)
 
     def tearDown(self):

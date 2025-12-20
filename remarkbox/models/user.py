@@ -120,9 +120,6 @@ class User(RBase, Base):
         default='auto',
         nullable=False,
     )
-    # example: cus_12345678AbCdEF but may be null.
-    stripe_id = Column(Unicode(18), unique=True, nullable=True)
-
     votes = relationship(argument="Vote", backref="user", order_by="desc(Vote.created)")
 
     # lazy='dynamic' returns a query object instead of collection.
