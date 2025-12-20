@@ -37,19 +37,39 @@ function sendPreview(textarea, div, mathjax=false){
     }
 }
 
+// CSS-based toggle for smoother animations.
+function toggle(target, button, off_text, on_text="hide"){
+    var el = document.getElementById(target);
+    var btn = document.getElementById(button);
+    if (el.classList.contains('toggle-open')) {
+        // Animate close, then update text
+        el.classList.add('toggle-closing');
+        setTimeout(function() {
+            el.classList.remove('toggle-open');
+            el.classList.remove('toggle-closing');
+            btn.textContent = off_text;
+        }, 800);
+    } else {
+        // Update text immediately when opening
+        btn.textContent = on_text;
+        el.classList.add('toggle-open');
+    }
+}
 
-// Auto-focus textarea when details element opens (progressive enhancement).
-// Falls back gracefully if browser doesn't support the required APIs.
+// Animate <details> close for preview-details elements.
 if (typeof document.addEventListener === 'function') {
-  document.addEventListener('toggle', function(e) {
-    var details = e.target;
-    if (details.tagName !== 'DETAILS' || !details.open) return;
-
-    // Find textarea inside the details element and focus it.
-    var textarea = details.querySelector('textarea');
-    if (textarea && typeof textarea.focus === 'function') {
-      // Small delay to let the CSS transition start.
-      setTimeout(function() { textarea.focus(); }, 50);
+  document.addEventListener('click', function(e) {
+    var summary = e.target.closest('.preview-toggle');
+    if (!summary) return;
+    var details = summary.parentElement;
+    if (!details || !details.classList.contains('preview-details')) return;
+    if (details.open && !details.classList.contains('closing')) {
+      e.preventDefault();
+      details.classList.add('closing');
+      setTimeout(function() {
+        details.open = false;
+        details.classList.remove('closing');
+      }, 800);
     }
   }, true);
 }

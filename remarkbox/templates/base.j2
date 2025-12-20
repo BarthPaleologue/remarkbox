@@ -35,9 +35,10 @@
     {{ snippets.namespace_home_uri(request.namespace) }} &nbsp;
 
     {%- if request.mode != 'embed' and request.user.authenticated and request.user.namespaces %}
-    <details id="my-namespaces-details" class="my-namespaces-details">
-    <summary class="toggle-summary" id="my-namespaces-link">(switch)</summary>
-    <div class="my-namespaces-content">
+    <a href="{{ domain_app }}/u/namespaces" onclick="toggle('my-namespaces-div', 'my-namespaces-link', '(switch)', '(switch)'); return false;" id="my-namespaces-link">(switch)</a>
+
+    <div id="my-namespaces-div" class="my-namespaces-div">
+
     {% for namespace in request.user.namespaces %}
       {% if namespace != request.namespace %}
       {{ snippets.namespace_home_uri(namespace) }}
@@ -50,7 +51,6 @@
       <a href="{{ domain_app }}/setup" class="button">setup</a>
       </center>
     </div>
-    </details>
     &nbsp;
     {%- endif %}
 

@@ -46,19 +46,13 @@ page: {{ request.page_number }}
   {{ snippets.actions(node) }}
 </div>
 
-<details id="edit-box-{{ node.id }}" class="edit-box-details">
-   <summary class="action toggle-summary"><span class="when-closed">edit</span><span class="when-open">hide</span></summary>
-   <div class="details-content"><div class="details-content-inner">
+<div id="edit-box-{{ node.id }}" class="edit-box-div">
    {{ forms.edit(node) }}
-   </div></div>
-</details>
+</div>
 
-<details id="remark-box-{{ node.id }}" class="remark-box-details">
-   <summary class="remark toggle-summary"><span class="when-closed">remark</span><span class="when-open">hide</span></summary>
-   <div class="details-content"><div class="details-content-inner">
+<div id="remark-box-{{ node.id }}" class="remark-box-div">
    {{ forms.reply(node, node) }}
-   </div></div>
-</details>
+</div>
 
 {% endfor -%}
 

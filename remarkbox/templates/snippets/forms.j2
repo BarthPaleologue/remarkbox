@@ -1,4 +1,5 @@
 {% macro reply(node, root) %}
+
 {% if root.locked %}
 <br>
 <p>This thread was locked to prevent additional comments.</p>
@@ -25,8 +26,8 @@
   {% set submit_button_value = 'save message' %}
   {% include 'submit.j2' %}
 
-  <details open>
-  <summary class="action link" float="right">hide preview</summary>
+  <details class="preview-details" open>
+  <summary class="action link preview-toggle"><span class="when-open">hide preview ▲</span><span class="when-closed">show preview ▼</span></summary>
   <div id='preview-{{ node.id }}' name='preview' class='preview js-only'></div>
   </details>
 
@@ -38,9 +39,11 @@
 </form>
 
 {% endif %}
+
 {% endmacro %}
 
 {% macro edit(node) %}
+
 <form method="post" action="{{ request.link_prefix }}/{{ node.id }}/edit" onsubmit="submit.disabled = true; return true;">
 
     {% if node.title %}
@@ -67,6 +70,7 @@
 {% set submit_button_value = 'save message' %}
 {% include 'submit.j2' %}
 </form>
+
 {% endmacro %}
 
 {% macro pay_what_you_can() %}
