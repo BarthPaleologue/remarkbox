@@ -68,6 +68,7 @@ def includeme(config):
 
     config.add_route("embed-namespace-nodes", "/embed/ns/{namespace}/nodes")
     config.add_route("embed-namespace-settings", "/embed/ns/{namespace}/settings")
+    config.add_route("embed-namespace-import-comments", "/embed/ns/{namespace}/import-comments")
     config.add_route(
         "embed-namespace-stylesheet", "/embed/ns/{namespace}/{filename}.css"
     )
@@ -99,6 +100,7 @@ def includeme(config):
 
     config.add_route("basic-namespace-nodes", "/ns/{namespace}/nodes")
     config.add_route("basic-namespace-settings", "/ns/{namespace}/settings")
+    config.add_route("basic-namespace-import-comments", "/ns/{namespace}/import-comments")
     config.add_route("basic-namespace-stats-json", "/ns/{namespace}/stats.json")
     config.add_route("basic-namespace-stylesheet", "/ns/{namespace}/{filename}.css")
     config.add_route("basic-namespace-threads-rss", "/ns/{namespace}.threads.xml")

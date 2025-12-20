@@ -107,6 +107,9 @@ class Namespace(RBase, Base):
     reverse_order = Column(Boolean, default=False)
     # should we group conversations and limit to nesting 2 deep?
     group_conversations = Column(Boolean, default=False)
+    # the group postfix used for imports (e.g., "rb" creates "Anonymous-rb")
+    # Once set, this becomes permanent for all imported surrogates
+    import_group_postfix = Column(Unicode(6), default=None, nullable=True)
     # the type of subscription of this Namespace.
     subscription_type = Column(
         Enum(*SUBSCRIPTION_TYPES, name="subscription_type"),
