@@ -5,32 +5,16 @@
 
 <center>
 <h4>{{ the_title }}</h4>
-</center>
+<p>Support Remarkbox with a contribution.</p>
 
-<p>Support Remarkbox with a contribution. Choose an amount and pay securely with Stripe.</p>
-
-<br>
-
-<form method="post" action="/billing/checkout">
-<fieldset>
-    <legend>Make a Payment</legend>
-
+<form method="post" action="/billing/checkout" style="display: inline;">
     <input type="hidden" name="payment_type" value="pay_what_you_want">
     <input type="hidden" name="duration_months" value="0">
-
-    <label for="amount">Amount (USD)</label>
-    <input type="text"
-           id="amount"
-           name="amount"
-           placeholder="$10.00"
-           required
-           style="width: 100%; max-width: 300px;">
-
-    <br><br>
     {% include 'snippets/csrf.j2' %}
+    $<input type="text" name="amount" placeholder="10" required style="width: 60px; text-align: center;">
     <button type="submit" class="green-button">Pay with Stripe</button>
-</fieldset>
 </form>
+</center>
 
 <br>
 
