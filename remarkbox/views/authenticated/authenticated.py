@@ -60,6 +60,7 @@ def namespace_settings(request):
         )
 
         hide_unless_approved_checkbox = p.get("hide-unless-approved-checkbox", "off")
+        allow_anonymous_checkbox = p.get("allow-anonymous-checkbox", "off")
         link_protection_checkbox = p.get("link-protection-checkbox", "off")
         reverse_order_checkbox = p.get("reverse-order-checkbox", "off")
         group_conversations_checkbox = p.get("group-conversations-checkbox", "off")
@@ -68,6 +69,7 @@ def namespace_settings(request):
         hide_powered_by_checkbox = p.get("hide-powered-by-checkbox", "off")
 
         hide_unless_approved = checkbox_to_bool(hide_unless_approved_checkbox)
+        allow_anonymous = checkbox_to_bool(allow_anonymous_checkbox)
         link_protection = checkbox_to_bool(link_protection_checkbox)
         reverse_order = checkbox_to_bool(reverse_order_checkbox)
         group_conversations = checkbox_to_bool(group_conversations_checkbox)
@@ -141,6 +143,17 @@ def namespace_settings(request):
                 (
                     "You turned {} hide_unless_approved".format(
                         hide_unless_approved_checkbox
+                    ),
+                    "success",
+                )
+            )
+
+        if allow_anonymous != request.namespace.allow_anonymous:
+            request.namespace.allow_anonymous = allow_anonymous
+            request.session.flash(
+                (
+                    "You turned {} allow_anonymous".format(
+                        allow_anonymous_checkbox
                     ),
                     "success",
                 )

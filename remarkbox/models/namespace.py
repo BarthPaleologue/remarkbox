@@ -52,6 +52,7 @@ PROTECTED_ATTRIBUTES = {
     "google_analytics_id": None,
     "hide_unverified": False,
     "hide_unless_approved": False,
+    "allow_anonymous": False,
     "hide_powered_by": False,
     "mathjax": False,
     "link_protection": False,
@@ -92,6 +93,8 @@ class Namespace(RBase, Base):
     hide_unverified = Column(Boolean, default=False)
     # should a node be hidden until approved by a moderator?
     hide_unless_approved = Column(Boolean, default=False)
+    # allow anonymous commenting (name only, no email required)
+    allow_anonymous = Column(Boolean, default=False)
     # should we hide the poweredby Remarkbox logo?
     hide_powered_by = Column(Boolean, default=False)
     # should the list of root nodes in this namespace be public or hidden?

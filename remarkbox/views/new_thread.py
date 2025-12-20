@@ -4,7 +4,7 @@ from pyramid.csrf import check_csrf_token
 
 from pyramid.httpexceptions import HTTPFound
 
-from remarkbox.models import create_root_node
+from remarkbox.models import create_root_node, get_or_create_user_surrogate_by_name
 
 from . import get_referer_or_home, get_node_route_uri, set_node_to_pending_in_session
 
@@ -21,6 +21,7 @@ def new_thread(request):
     """Display new page and handle posting of form."""
     thread_title = request.params.get("thread_title", "")
     thread_data = request.params.get("thread_data", "")
+    anonymous_name = request.params.get("anonymous_name", "").strip()
 
     if request.spam:
         return request.spam
@@ -32,59 +33,76 @@ def new_thread(request):
     if thread_title and thread_data:
         # handle the submitted form new/create form.
 
-        if request.user is None:
+        # Handle anonymous mode vs regular mode
+        user_surrogate = None
+        if request.namespace.allow_anonymous and not request.user:
+            # Anonymous mode: create or get a surrogate
+            if not anonymous_name:
+                anonymous_name = "Anonymous"
+            user_surrogate = get_or_create_user_surrogate_by_name(
+                request.dbsession, anonymous_name, request.namespace
+            )
+        elif request.user is None:
+            # Regular mode: require email/user
             request.session.flash(
                 ("Press the back button to fix your email address", "error")
             )
             return HTTPFound(get_referer_or_home(request))
 
-        else:
-            # create a new root node.
-            node = create_root_node()
+        # create a new root node.
+        node = create_root_node()
+        node.namespace = request.namespace
+        node.ip_address = unicode(request.client_addr)
+        node.title = thread_title
+        node.set_data(thread_data)
 
+        # Handle anonymous vs authenticated user
+        if user_surrogate:
+            # Anonymous mode: attach surrogate, mark as verified
+            node.user_surrogate = user_surrogate
+            node.verified = True
+            node_event = None  # No notifications for anonymous posts
+            request.dbsession.add(user_surrogate)
+        else:
+            # Normal mode: attach user
             node.user = request.user
             node.verified = request.user.authenticated
-            node.namespace = request.namespace
-            node.ip_address = unicode(request.client_addr)
-
-            node.title = thread_title
-            node.set_data(thread_data)
-
             node_event = node.new_event(request.user, "created")
-
-            request.dbsession.add(node)
-            request.dbsession.add(node_event)
             request.dbsession.add(request.user)
-            request.dbsession.add(node.namespace)
-            request.dbsession.flush()
 
+        request.dbsession.add(node)
+        if node_event:
+            request.dbsession.add(node_event)
+        request.dbsession.add(node.namespace)
+        request.dbsession.flush()
+
+        if node_event:
             # TODO: schedule_notification expects the request to have a node.
             request.node = node
-
             schedule_notifications(request, node_event)
 
-            msg = ("Your post was successful!", "success")
-            request.session.flash(msg)
+        msg = ("Your post was successful!", "success")
+        request.session.flash(msg)
 
-            # set return_to to the node's URI.
-            return_to = get_node_route_uri(request, node)
+        # set return_to to the node's URI.
+        return_to = get_node_route_uri(request, node)
 
-            if node.verified == True:
-                # Redirect to new node if verified.
-                return HTTPFound(return_to)
+        # Anonymous users are always verified, redirect immediately
+        if user_surrogate or node.verified:
+            return HTTPFound(return_to)
 
-            set_node_to_pending_in_session(request, node)
+        set_node_to_pending_in_session(request, node)
 
-            # Redirect to join-or-log-in, posting email and submit.
-            uri = request.route_url(
-                route_name="basic-join-or-log-in",
-                _query={
-                    "email": request.user.email,
-                    "return-to": return_to,
-                    "submit": True,
-                },
-            )
-            return HTTPFound(uri)
+        # Redirect to join-or-log-in, posting email and submit.
+        uri = request.route_url(
+            route_name="basic-join-or-log-in",
+            _query={
+                "email": request.user.email,
+                "return-to": return_to,
+                "submit": True,
+            },
+        )
+        return HTTPFound(uri)
 
     return {
         "title": "Create a new thread",
