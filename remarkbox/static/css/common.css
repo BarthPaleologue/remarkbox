@@ -452,6 +452,17 @@ form.node-action {
   }
 }
 
+/* Node children collapse/expand animation */
+[id^="node-children-"] {
+  overflow: hidden;
+  max-height: 10000px;
+  transition: max-height 0.8s ease-out;
+}
+
+[id^="node-children-"].toggle-collapsed {
+  max-height: 0;
+}
+
 .my-namespaces-div {
   display: none;
   position: absolute;

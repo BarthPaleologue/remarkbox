@@ -46,6 +46,19 @@ function toggle(target, button, off_text, on_text) {
     if (typeof on_text === 'undefined') on_text = 'hide';
     var el = document.getElementById(target);
     var btn = document.getElementById(button);
+
+    // Handle node-children collapse (visible by default, toggle to hide)
+    if (target.indexOf('node-children-') === 0) {
+        if (el.classList.contains('toggle-collapsed')) {
+            el.classList.remove('toggle-collapsed');
+            btn.textContent = on_text;
+        } else {
+            el.classList.add('toggle-collapsed');
+            btn.textContent = off_text;
+        }
+        return;
+    }
+
     if (el.classList.contains('toggle-open')) {
         // Animate close, then update text
         el.classList.add('toggle-closing');
