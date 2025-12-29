@@ -64,7 +64,4 @@ pypi-twine:
   only:
     - tags
   script:
-    #- pip install --upgrade pip
-    #- pip install twine
-    - python3 setup.py sdist bdist_wheel
-    - twine upload dist/*
+    - make twine-upload

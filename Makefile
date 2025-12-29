@@ -125,6 +125,25 @@ http: venv
 	$(PYTHON) -m http.server 8000
 
 # -----------------------------------------------------------------------------
+# Twine Upload Target (uses /tmp venv to avoid system python)
+# -----------------------------------------------------------------------------
+
+TWINE_VENV = /tmp/twine-venv
+TWINE = $(TWINE_VENV)/bin/twine
+
+$(TWINE_VENV)/bin/twine:
+	@echo "Creating twine virtualenv in $(TWINE_VENV)..."
+	python3 -m venv $(TWINE_VENV)
+	$(TWINE_VENV)/bin/pip install --upgrade pip twine
+
+twine-venv: $(TWINE_VENV)/bin/twine
+
+twine-upload: twine-venv
+	@echo "Building and uploading to PyPI..."
+	python3 setup.py sdist bdist_wheel
+	$(TWINE) upload dist/*
+
+# -----------------------------------------------------------------------------
 # Cleanup Target
 # -----------------------------------------------------------------------------
 
