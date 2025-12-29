@@ -40,7 +40,7 @@ with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
 
 setup(
     name="remarkbox",
-    version="1.0.4",
+    version="1.0.5",
     description="remarkbox",
     long_description=long_description,
     author="Russell Ballestrini",
@@ -85,6 +85,7 @@ setup(
         "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: 3.13",
         "Programming Language :: Python :: 3.14",
+        "Programming Language :: Python :: 3.15",
         "Programming Language :: Python",
         "Framework :: Pyramid",
         "Topic :: Internet :: WWW/HTTP",
