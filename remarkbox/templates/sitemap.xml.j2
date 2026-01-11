@@ -5,7 +5,7 @@
         <loc>{{ request.host_url }}{{ node.path }}</loc>
         <changefreq>weekly</changefreq>
         <priority>0.8</priority>
-	<lastmod>{{ node.changed_datetime.isoformat() }}</lastmod>
+	<lastmod>{{ node.changed_datetime.strftime('%Y-%m-%d') }}</lastmod>
     </url>
 {% endfor %}
 </urlset>
