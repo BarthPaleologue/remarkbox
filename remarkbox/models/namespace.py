@@ -86,6 +86,8 @@ class Namespace(RBase, Base):
     owner_request_timestamp = Column(BigInteger, nullable=True)
     # optional google analytics id for stand alone mode.
     google_analytics_id = Column(Unicode(18), nullable=True)
+    # optional google site verification code for stand alone mode.
+    google_site_verification = Column(Unicode(128), nullable=True)
     # allow anyone to edit the root node. (not implemented yet)
     wiki = Column(Boolean, default=False)
     # by default we show all nodes but a Namespace can change this behavior.

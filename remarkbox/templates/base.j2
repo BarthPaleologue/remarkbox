@@ -9,6 +9,9 @@
   <!-- this makes mobile pretty...  -->
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#D40000">
+{% if request.path == '/' and request.namespace.google_site_verification %}
+  <meta name="google-site-verification" content="{{ request.namespace.google_site_verification }}" />
+{% endif %}
 
 {% include 'snippets/stylesheet-includes.j2' %}
 

@@ -58,6 +58,9 @@ def namespace_settings(request):
         google_analytics_id = p.get(
             "google-analytics-id", request.namespace.google_analytics_id
         )
+        google_site_verification = p.get(
+            "google-site-verification", request.namespace.google_site_verification
+        )
 
         hide_unless_approved_checkbox = p.get("hide-unless-approved-checkbox", "off")
         allow_anonymous_checkbox = p.get("allow-anonymous-checkbox", "off")
@@ -133,6 +136,17 @@ def namespace_settings(request):
             request.session.flash(
                 (
                     "Success, you changed the Google Analytics ID for stand alone mode.",
+                    "success",
+                )
+            )
+
+        if google_site_verification != request.namespace.google_site_verification and (
+            google_site_verification or request.namespace.google_site_verification
+        ):
+            request.namespace.google_site_verification = google_site_verification
+            request.session.flash(
+                (
+                    "Success, you changed the Google Site Verification code for stand alone mode.",
                     "success",
                 )
             )

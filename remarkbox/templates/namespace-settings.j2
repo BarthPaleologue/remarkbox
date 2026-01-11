@@ -125,6 +125,12 @@ You can host your own CSS file and link it here.
 <br>
 <br>
 
+<label>Google Site Verification:</label>
+<input type="text" name="google-site-verification" id="google-site-verification" value="{% if request.namespace.google_site_verification %}{{ request.namespace.google_site_verification }}{% endif %}" class="common-text-input" placeholder="Google Site Verification code for Stand-alone Mode"></input>
+
+<br>
+<br>
+
 {% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
