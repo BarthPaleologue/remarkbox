@@ -114,10 +114,9 @@ activate:
 	@echo "  source $(VENV_DIR)/bin/activate"
 
 # Run the test suite (installs test dependencies if needed)
-# Run the test suite (installs test dependencies if needed)
 test: install-source-dev-and-test
-	@echo "Running tests..."
-	$(VENV_DIR)/bin/py.test
+	@echo "Running tests in parallel..."
+	$(VENV_DIR)/bin/py.test -n auto
 
 # Start a simple HTTP server (for serving static files like index.html)
 http: venv
