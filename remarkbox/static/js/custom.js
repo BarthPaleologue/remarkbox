@@ -90,7 +90,7 @@ function toggle(target, button, off_text, on_text) {
     }
 }
 
-// Animate <details> close for preview-details elements.
+// Animate <details> close for preview-details elements and persist state in localStorage.
 if (typeof document.addEventListener === 'function') {
     document.addEventListener('click', function(e) {
         var summary = e.target.closest('.preview-toggle');
@@ -100,10 +100,13 @@ if (typeof document.addEventListener === 'function') {
         if (details.open && !details.classList.contains('closing')) {
             e.preventDefault();
             details.classList.add('closing');
+            localStorage.setItem('remarkbox-preview-hidden', 'true');
             setTimeout(function() {
                 details.open = false;
                 details.classList.remove('closing');
             }, 800);
+        } else if (!details.open) {
+            localStorage.removeItem('remarkbox-preview-hidden');
         }
     }, true);
 }
@@ -117,6 +120,13 @@ function autoGrow(el) {
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
+
+    // Restore preview state from localStorage
+    if (localStorage.getItem('remarkbox-preview-hidden') === 'true') {
+        document.querySelectorAll('.preview-details').forEach(function(details) {
+            details.open = false;
+        });
+    }
 
     // Auto-grow textareas on input
     document.querySelectorAll('.common-textarea').forEach(function(textarea) {
