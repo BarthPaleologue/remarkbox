@@ -26,7 +26,7 @@
   {% set submit_button_value = 'save message' %}
   {% include 'submit.j2' %}
 
-  <details class="preview-details" open>
+  <details class="preview-details js-only" open>
   <summary class="action link preview-toggle"><span class="when-open">hide preview ▲</span><span class="when-closed">show preview ▼</span></summary>
   <div id='preview-{{ node.id }}' name='preview' class='preview js-only'></div>
   </details>
