@@ -415,7 +415,7 @@
 			var
 				hash     = location.split('#')[1] || location, //Remove # if present
 				hashData = decodeURIComponent(hash),
-				target   = document.getElementById(hashData) || document.getElementsByName(hashData)[0];
+				target   = hashData ? (document.getElementById(hashData) || document.getElementsByName(hashData)[0]) : null;
 
 			if (undefined !== target){
 				jumpToTarget(target);

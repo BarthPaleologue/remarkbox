@@ -413,7 +413,7 @@
 			var
 				hash     = location.split('#')[1] || '',
 				hashData = decodeURIComponent(hash),
-				target   = document.getElementById(hashData) || document.getElementsByName(hashData)[0];
+				target   = hashData ? (document.getElementById(hashData) || document.getElementsByName(hashData)[0]) : null;
 
 			if (target){
 				jumpToTarget();
