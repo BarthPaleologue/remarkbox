@@ -411,8 +411,22 @@ form.node-action {
   opacity: 0.8 !important;
 }
 
-.remark-box-div-main {
+.comments-section {
   margin-top: 3rem;
+}
+
+.comments-divider {
+  margin-bottom: 1rem;
+}
+
+.comments-header {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.remark-box-div-main {
   margin-bottom: 35px;
 }
 

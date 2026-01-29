@@ -79,6 +79,10 @@
    {{ forms.edit(request.node) }}
 </div>
 
+<section class="comments-section">
+<hr class="comments-divider">
+<h3 class="comments-header">Comments</h3>
+
 <div id="remark-box-{{ request.node.id }}" class="remark-box-div-main not-hidden-remark-box-div">
    {{ forms.reply(request.node, request.root_node) }}
 </div>
@@ -187,5 +191,6 @@
 </center>
 </div>
 {% endif %}
+</section>
 
 {% endblock %}
