@@ -120,12 +120,26 @@ def merge_users(dbsession, keep_user, delete_user, dry_run=False):
     if updated:
         print(f"    Transferred {updated} votes")
 
-    # Update watchers
-    updated = dbsession.query(Watcher).filter(Watcher.user_id == delete_id).update(
-        {Watcher.user_id: keep_id}, synchronize_session=False
-    )
-    if updated:
-        print(f"    Transferred {updated} watchers")
+    # Handle watchers (may have duplicates watching same node/namespace)
+    keep_watcher_keys = {
+        (w.node_id, w.namespace_id, w.type)
+        for w in dbsession.query(Watcher).filter(Watcher.user_id == keep_id)
+    }
+    delete_watchers = dbsession.query(Watcher).filter(Watcher.user_id == delete_id).all()
+    transferred_w = 0
+    deleted_w = 0
+    for watcher in delete_watchers:
+        key = (watcher.node_id, watcher.namespace_id, watcher.type)
+        if key in keep_watcher_keys:
+            dbsession.delete(watcher)
+            deleted_w += 1
+        else:
+            watcher.user_id = keep_id
+            transferred_w += 1
+    if transferred_w:
+        print(f"    Transferred {transferred_w} watchers")
+    if deleted_w:
+        print(f"    Deleted {deleted_w} duplicate watchers")
 
     # Update notifications
     updated = dbsession.query(NodeEventNotification).filter(NodeEventNotification.user_id == delete_id).update(
@@ -134,19 +148,44 @@ def merge_users(dbsession, keep_user, delete_user, dry_run=False):
     if updated:
         print(f"    Transferred {updated} notifications")
 
-    # Update namespace_user associations
-    updated = dbsession.query(NamespaceUser).filter(NamespaceUser.user_id == delete_id).update(
-        {NamespaceUser.user_id: keep_id}, synchronize_session=False
-    )
-    if updated:
-        print(f"    Transferred {updated} namespace associations")
+    # Handle namespace_user associations (unique constraint on user_id, namespace_id)
+    keep_namespace_ids = {
+        nu.namespace_id for nu in dbsession.query(NamespaceUser).filter(NamespaceUser.user_id == keep_id)
+    }
+    delete_ns_users = dbsession.query(NamespaceUser).filter(NamespaceUser.user_id == delete_id).all()
+    transferred_ns = 0
+    deleted_ns = 0
+    for ns_user in delete_ns_users:
+        if ns_user.namespace_id in keep_namespace_ids:
+            # Keep user already has this namespace, delete duplicate
+            dbsession.delete(ns_user)
+            deleted_ns += 1
+        else:
+            ns_user.user_id = keep_id
+            transferred_ns += 1
+    if transferred_ns:
+        print(f"    Transferred {transferred_ns} namespace associations")
+    if deleted_ns:
+        print(f"    Deleted {deleted_ns} duplicate namespace associations")
 
-    # Update namespace requests
-    updated = dbsession.query(NamespaceRequest).filter(NamespaceRequest.user_id == delete_id).update(
-        {NamespaceRequest.user_id: keep_id}, synchronize_session=False
-    )
-    if updated:
-        print(f"    Transferred {updated} namespace requests")
+    # Handle namespace requests (may have unique constraints)
+    keep_ns_request_ids = {
+        nr.namespace_id for nr in dbsession.query(NamespaceRequest).filter(NamespaceRequest.user_id == keep_id)
+    }
+    delete_ns_requests = dbsession.query(NamespaceRequest).filter(NamespaceRequest.user_id == delete_id).all()
+    transferred_nr = 0
+    deleted_nr = 0
+    for ns_request in delete_ns_requests:
+        if ns_request.namespace_id in keep_ns_request_ids:
+            dbsession.delete(ns_request)
+            deleted_nr += 1
+        else:
+            ns_request.user_id = keep_id
+            transferred_nr += 1
+    if transferred_nr:
+        print(f"    Transferred {transferred_nr} namespace requests")
+    if deleted_nr:
+        print(f"    Deleted {deleted_nr} duplicate namespace requests")
 
     # Update oauth records
     updated = dbsession.query(Oauth).filter(Oauth.user_id == delete_id).update(
