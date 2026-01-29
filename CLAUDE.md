@@ -44,3 +44,17 @@ tmux-hosts
 ```
 
 **Important**: This is for read-only investigation only. Do not make changes to production systems.
+
+## Deployment Status
+
+Check GitLab pipeline status after pushing:
+
+```bash
+# Get pipeline status via API (replace PIPELINE_ID)
+curl -s "https://git.unturf.com/api/v4/projects/engineering%2Fremarkbox%2Fremarkbox/pipelines/PIPELINE_ID"
+
+# Or view in browser:
+# https://git.unturf.com/engineering/remarkbox/remarkbox/-/pipelines
+```
+
+The pipeline status will show `"status":"success"` when deployment is complete.
