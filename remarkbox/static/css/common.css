@@ -415,6 +415,14 @@ form.node-action {
   margin-bottom: 35px;
 }
 
+.thread {
+  margin-top: 2rem;
+}
+
+.no-comments {
+  margin-top: 2rem;
+}
+
 .remark-box-div {
   display: none;
   overflow: hidden;
