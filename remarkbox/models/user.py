@@ -279,7 +279,7 @@ class User(RBase, Base):
         self.name = unicode(generate_password(size=8))
         self.created = now_timestamp()
         self.id = uuid.uuid1()
-        self.email = unicode(email)
+        self.email = unicode(email.lower())
 
         # TODO: this field was never used & should be sunset.
         self.email_id = unicode(generate_password(size=8))
@@ -417,7 +417,7 @@ def get_user_by_id(dbsession, user_id):
 def get_user_by_email(dbsession, email):
     """Try to get User object by email or return None"""
     if email:
-        return dbsession.query(User).filter(User.email == unicode(email)).one_or_none()
+        return dbsession.query(User).filter(func.lower(User.email) == unicode(email.lower())).one_or_none()
 
 
 def get_or_create_user_by_email(dbsession, email):

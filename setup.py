@@ -67,6 +67,7 @@ setup(
             "remarkbox_json_import = remarkbox.scripts.json_import:main",
             "remarkbox_json_import2 = remarkbox.scripts.json_import2:main",
             "remarkbox_merge_dupes = remarkbox.scripts.merge_dupes:main",
+            "remarkbox_merge_duplicate_email_users = remarkbox.scripts.merge_duplicate_email_users:main",
             "remarkbox_invalidate_node_cache = remarkbox.scripts.invalidate_node_cache:main",
             "remarkbox_recompute_node_depths = remarkbox.scripts.recompute_node_depths:main",
             "remarkbox_safe_approve_all_nodes = remarkbox.scripts.safe_approve_all_nodes:main",

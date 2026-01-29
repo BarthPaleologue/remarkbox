@@ -746,3 +746,105 @@ class AnonymousCommentingFunctionalTests(FunctionalTests):
 
         self.dbsession.expire(ns)
         self.assertTrue(ns.allow_anonymous)
+
+
+class EmailCaseInsensitivityTests(FunctionalTests):
+    """
+    Tests to prevent duplicate accounts from case-insensitive email addresses.
+
+    Regression test for issue where users 'G' and 'Groupr' both had emails
+    'grop3r@protonmail.com' and 'Grop3r@protonmail.com' causing duplicate notifications.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def tearDown(self):
+        super(EmailCaseInsensitivityTests, self).tearDown()
+        # Clean up any test users created
+        for email in ["casetest@example.com", "CASETEST@EXAMPLE.COM", "CaseTest@Example.com"]:
+            user = get_user_by_email(self.dbsession, email)
+            if user:
+                self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_get_user_by_email_case_insensitive(self):
+        """get_user_by_email should find users regardless of email case."""
+        # Create user with lowercase email
+        user = get_or_create_user_by_email(self.dbsession, "casetest@example.com")
+        self.dbsession.add(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        # Should find with different cases
+        found_lower = get_user_by_email(self.dbsession, "casetest@example.com")
+        found_upper = get_user_by_email(self.dbsession, "CASETEST@EXAMPLE.COM")
+        found_mixed = get_user_by_email(self.dbsession, "CaseTest@Example.com")
+
+        self.assertIsNotNone(found_lower)
+        self.assertIsNotNone(found_upper)
+        self.assertIsNotNone(found_mixed)
+        self.assertEqual(found_lower.id, found_upper.id)
+        self.assertEqual(found_lower.id, found_mixed.id)
+
+    def test_get_or_create_returns_existing_regardless_of_case(self):
+        """get_or_create_user_by_email should return existing user regardless of email case."""
+        # Create user with lowercase email
+        user1 = get_or_create_user_by_email(self.dbsession, "casetest@example.com")
+        self.dbsession.add(user1)
+        self.dbsession.flush()
+        user1_id = user1.id
+        self.tm.commit()
+
+        # Try to get/create with uppercase - should return same user
+        user2 = get_or_create_user_by_email(self.dbsession, "CASETEST@EXAMPLE.COM")
+        self.assertEqual(user1_id, user2.id)
+
+        # Try to get/create with mixed case - should return same user
+        user3 = get_or_create_user_by_email(self.dbsession, "CaseTest@Example.com")
+        self.assertEqual(user1_id, user3.id)
+
+    def test_new_user_email_stored_lowercase(self):
+        """New user emails should be normalized to lowercase."""
+        user = get_or_create_user_by_email(self.dbsession, "CASETEST@EXAMPLE.COM")
+        self.dbsession.add(user)
+        self.dbsession.flush()
+        user_id = user.id
+        self.tm.commit()
+
+        # Requery to avoid detached instance error
+        user = get_user_by_email(self.dbsession, "casetest@example.com")
+        # Email should be stored lowercase
+        self.assertEqual(user.email, "casetest@example.com")
+
+    def test_no_duplicate_accounts_from_case_variations(self):
+        """Ensure case variations don't create duplicate accounts."""
+        # Create first user
+        user1 = get_or_create_user_by_email(self.dbsession, "casetest@example.com")
+        self.dbsession.add(user1)
+        self.dbsession.flush()
+        user1_id = user1.id
+        self.tm.commit()
+
+        # Attempt to create with different cases - should all return same user
+        user2 = get_or_create_user_by_email(self.dbsession, "CASETEST@EXAMPLE.COM")
+        user3 = get_or_create_user_by_email(self.dbsession, "CaseTest@Example.com")
+        user4 = get_or_create_user_by_email(self.dbsession, "casetest@EXAMPLE.COM")
+
+        # All should be the same user
+        self.assertEqual(user1_id, user2.id)
+        self.assertEqual(user1_id, user3.id)
+        self.assertEqual(user1_id, user4.id)
+
+        # Verify only one user exists with this email (case-insensitive)
+        from remarkbox.models.user import User
+        from sqlalchemy import func
+        count = self.dbsession.query(User).filter(
+            func.lower(User.email) == "casetest@example.com"
+        ).count()
+        self.assertEqual(count, 1)

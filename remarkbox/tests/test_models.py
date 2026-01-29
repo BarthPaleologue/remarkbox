@@ -36,6 +36,18 @@ class TestUser(unittest.TestCase):
     def test_email_set(self):
         self.assertEqual(self.user.email, "russell@ballestrini.net")
 
+    @mock.patch("remarkbox.models.user.is_user_name_available", mock_always_true)
+    def test_email_normalized_to_lowercase(self):
+        """Emails should be stored lowercase to prevent case-sensitive duplicates."""
+        user = User("Russell@Ballestrini.NET")
+        self.assertEqual(user.email, "russell@ballestrini.net")
+
+    @mock.patch("remarkbox.models.user.is_user_name_available", mock_always_true)
+    def test_email_mixed_case_normalized(self):
+        """Mixed case emails should be normalized to lowercase."""
+        user = User("Grop3r@Protonmail.com")
+        self.assertEqual(user.email, "grop3r@protonmail.com")
+
     def test_new_password(self):
         raw_password = self.user.new_password()
         self.assertEqual(len(raw_password), 6)
