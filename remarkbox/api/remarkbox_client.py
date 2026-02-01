@@ -175,6 +175,16 @@ class RemarkboxClient:
                 body = {"error": raw}
             raise RemarkboxError(e.code, body)
 
+    # ----- Version -----
+
+    def version(self):
+        """Get the deployed version (git commit hash).
+
+        Returns:
+            dict with key: version
+        """
+        return self._request("GET", "/api/v1/version")
+
     # ----- Threads -----
 
     def list_threads(self, namespace, page=1):

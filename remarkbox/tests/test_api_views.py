@@ -851,6 +851,17 @@ class TestAPINamespaceOptOut(APIFunctionalTests):
         self.assertEqual(res.status_int, 403)
 
 
+class TestAPIVersion(APIFunctionalTests):
+    """Test the version endpoint."""
+
+    def test_version_returns_commit(self):
+        res = self.testapp.get("/api/v1/version")
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("version", res.json)
+        self.assertIsInstance(res.json["version"], str)
+        self.assertGreater(len(res.json["version"]), 0)
+
+
 class TestAPIClientDownload(APIFunctionalTests):
     """Test the client download endpoint."""
 

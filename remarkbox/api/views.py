@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -49,6 +50,37 @@ def get_param(request, key, default=None):
     if key in body:
         return body[key]
     return request.params.get(key, default)
+
+
+def _get_git_commit():
+    """Read the current git commit hash, once at import time."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+
+_GIT_COMMIT = _get_git_commit()
+
+
+# ---------------------------------------------------------------------------
+# Version
+# ---------------------------------------------------------------------------
+
+
+@view_config(
+    route_name="api-version",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_version(request):
+    """Return the deployed version (git commit)."""
+    return {"version": _GIT_COMMIT}
 
 
 # ---------------------------------------------------------------------------

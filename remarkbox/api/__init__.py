@@ -1,4 +1,5 @@
 def includeme(config):
+    config.add_route("api-version", "/api/v1/version")
     config.add_route("api-threads-list", "/api/v1/threads")
     config.add_route("api-thread-detail", "/api/v1/threads/{node_id}")
     config.add_route("api-thread-replies", "/api/v1/threads/{node_id}/replies")

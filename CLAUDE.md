@@ -47,7 +47,17 @@ tmux-hosts
 
 ## Deployment Status
 
-Check GitLab pipeline status after pushing:
+After pushing, check if the deploy is live by hitting the version endpoint:
+
+```bash
+curl -s https://my.remarkbox.com/api/v1/version
+# {"version": "5a10e15"}
+```
+
+Compare the returned commit hash against `git rev-parse --short HEAD` to confirm
+the latest code is deployed.
+
+You can also check GitLab pipeline status:
 
 ```bash
 # Get pipeline status via API (replace PIPELINE_ID)
