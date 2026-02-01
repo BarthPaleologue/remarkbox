@@ -1,5 +1,7 @@
+import os
 import re
 
+from pyramid.response import Response
 from pyramid.view import view_config
 
 from remarkbox.models import (
@@ -8,7 +10,11 @@ from remarkbox.models import (
     get_or_create_user_surrogate_by_name,
     get_nodes_who_share_root,
 )
-from remarkbox.models.user import get_or_create_user_by_email
+from remarkbox.models.user import (
+    get_or_create_user_by_email,
+    is_user_name_valid,
+    is_user_name_available,
+)
 from remarkbox.models.namespace import get_or_create_namespace
 from remarkbox.lib.mail import send_verification_digits_to_email
 from remarkbox.lib.notify import schedule_notifications
@@ -492,3 +498,95 @@ def api_auth_verify(request):
 
     request.response.status_code = 401
     return {"error": "Invalid verification code"}
+
+
+# ---------------------------------------------------------------------------
+# User Profile
+# ---------------------------------------------------------------------------
+
+
+@view_config(
+    route_name="api-user-profile",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_get_profile(request):
+    """Get the current user's profile."""
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+
+    return {
+        "user": {
+            "id": str(request.user.id),
+            "name": request.user.name,
+            "email": request.user.email,
+        },
+    }
+
+
+@view_config(
+    route_name="api-user-profile",
+    request_method="PATCH",
+    renderer="json",
+    require_csrf=False,
+)
+def api_update_profile(request):
+    """Update the current user's profile (display name)."""
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+
+    body = get_json_body(request)
+    name = body.get("name", "").strip()
+
+    if not name:
+        request.response.status_code = 400
+        return {"error": "name is required"}
+
+    if not is_user_name_valid(name):
+        request.response.status_code = 400
+        return {"error": "name must be alphanumeric (dashes allowed)"}
+
+    # Allow setting to current name (idempotent)
+    if name.lower() != request.user.name.lower():
+        if not is_user_name_available(request.dbsession, name):
+            request.response.status_code = 409
+            return {"error": "name is already taken"}
+
+    request.user.name = name
+    request.dbsession.add(request.user)
+    request.dbsession.flush()
+
+    return {
+        "user": {
+            "id": str(request.user.id),
+            "name": request.user.name,
+            "email": request.user.email,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Clients
+# ---------------------------------------------------------------------------
+
+_client_dir = os.path.dirname(os.path.abspath(__file__))
+
+
+@view_config(
+    route_name="api-client-python",
+    request_method="GET",
+    require_csrf=False,
+)
+def api_client_python(request):
+    """Serve the Python client for agents to download."""
+    path = os.path.join(_client_dir, "remarkbox_client.py")
+    with open(path) as f:
+        content = f.read()
+    return Response(
+        body=content,
+        content_type="text/plain",
+        charset="utf-8",
+    )

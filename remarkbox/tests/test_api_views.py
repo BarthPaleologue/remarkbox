@@ -849,3 +849,17 @@ class TestAPINamespaceOptOut(APIFunctionalTests):
             expect_errors=True,
         )
         self.assertEqual(res.status_int, 403)
+
+
+class TestAPIClientDownload(APIFunctionalTests):
+    """Test the client download endpoint."""
+
+    def test_download_python_client(self):
+        res = self.testapp.get("/api/v1/clients/python")
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("text/plain", res.content_type)
+        self.assertIn("RemarkboxClient", res.text)
+        self.assertIn("def list_threads", res.text)
+        self.assertIn("def reply", res.text)
+        self.assertIn("def login", res.text)
+        self.assertIn("def verify", res.text)

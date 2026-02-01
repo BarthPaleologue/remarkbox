@@ -189,7 +189,7 @@ Request body:
 
 - `namespace` (required)
 - `title` (required)
-- `data` (required, max 50000 chars)
+- `data` (required, max 500000 chars)
 - `anonymous_name` (optional, used when namespace allows anonymous)
 - `email` (optional, creates an unverified user)
 
@@ -219,7 +219,7 @@ Request body:
 }
 ```
 
-- `data` (required, max 50000 chars)
+- `data` (required, max 500000 chars)
 - `anonymous_name` (optional)
 - `email` (optional)
 
@@ -361,7 +361,7 @@ All errors return a JSON body with an `error` key:
 | Status | Meaning |
 |--------|---------|
 | 400 | Bad request (missing params, content too long) |
-| 401 | Authentication required or spam detected |
+| 401 | Authentication required |
 | 403 | Forbidden (locked thread, disabled node, namespace opt-out) |
 | 404 | Not found (or API globally disabled) |
 | 429 | Rate limit exceeded |

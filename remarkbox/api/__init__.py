@@ -5,4 +5,6 @@ def includeme(config):
     config.add_route("api-node-detail", "/api/v1/nodes/{node_id}")
     config.add_route("api-auth-login", "/api/v1/auth/login")
     config.add_route("api-auth-verify", "/api/v1/auth/verify")
+    config.add_route("api-user-profile", "/api/v1/user/profile")
+    config.add_route("api-client-python", "/api/v1/clients/python")
     config.scan("remarkbox.api.views")
