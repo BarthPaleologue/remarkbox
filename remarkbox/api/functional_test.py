@@ -304,19 +304,25 @@ def run(url, namespace, email, otp=None, display_name=None, journey_id=None):
     # ---------------------------------------------------------------
     print("\nPhase 6: Update journey thread")
 
-    j.note("---")
-    j.blank()
-    j.note(j.summary_line())
-    j.blank()
-    j.note("_Run at {} by `remarkbox_client.py`._".format(now))
+    # +1 to count the update_journey step we're about to do
+    final_passed = j.passed + 1
+    final_total = j.total + 1
 
-    # Build new body: keep existing content, append this run's section
+    # Update the "Latest:" line in the thread body without rewriting the narrative
     existing_body = readback["thread"]["data"]
-    run_header = "\n\n## Run: {}\n\n".format(now)
-    updated_body = existing_body.rstrip() + run_header + j.render()
+    import re as _re
+    updated_body = _re.sub(
+        r"\*\*Latest: .+?\*\*",
+        "**Latest: {}/{} passed**".format(final_passed, final_total),
+        existing_body,
+    )
+    if updated_body == existing_body:
+        # No "Latest:" line found -- append one
+        updated_body = existing_body.rstrip() + "\n\n**Latest: {}/{} passed**\n".format(
+            final_passed, final_total)
 
     client.edit_node(journey_id, data=updated_body)
-    j.log("update_journey", True, "appended run section")
+    j.log("update_journey", True, "{}/{} passed".format(final_passed, final_total))
 
     print("\n  Journey: {}/api/v1/threads/{}".format(url, journey_id))
 
