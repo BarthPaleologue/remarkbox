@@ -1,6 +1,7 @@
 import os
 import re
 import subprocess
+import sys
 
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -53,11 +54,31 @@ def get_param(request, key, default=None):
 
 
 def _get_git_commit():
-    """Read the current git commit hash, once at import time."""
+    """Read the current git commit hash, once at import time.
+
+    Checks commit-hash.txt (written by CI build) first,
+    then falls back to git rev-parse for dev environments.
+    """
+    # CI build writes commit-hash.txt as a build artifact
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
+    for candidate in [
+        os.path.join(_this_dir, "..", "..", "commit-hash.txt"),  # repo root
+        os.path.join(sys.prefix, "commit-hash.txt"),  # inside virtualenv
+        "/opt/remarkbox/commit-hash.txt",
+    ]:
+        try:
+            with open(candidate) as f:
+                sha = f.read().strip()
+                if sha:
+                    return sha[:7]
+        except OSError:
+            pass
+
+    # Dev environment: read from git
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
+            cwd=_this_dir,
             stderr=subprocess.DEVNULL,
         ).decode().strip()
     except Exception:

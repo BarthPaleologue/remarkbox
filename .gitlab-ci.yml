@@ -37,6 +37,8 @@ build:
     - sha512sum env.tar.gz >> env.tar.gz.hash
     # Create commit-hash.txt to track this build's git commit hash.
     - echo $CI_COMMIT_SHA >> commit-hash.txt
+    # Also place it inside the virtualenv so the deployed app can read it.
+    - cp commit-hash.txt /opt/remarkbox/env/commit-hash.txt
   artifacts:
     paths:
       - env.tar.gz
