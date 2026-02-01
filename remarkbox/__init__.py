@@ -573,8 +573,16 @@ def main(global_config, **settings):
     config.add_request_method(add_mathjax, "mathjax", reify=True)
     config.add_request_method(add_theme_mode, "theme_mode", reify=True)
 
+    # API routes must be included before .routes because
+    # basic-show-node2 (/{node_id}/{slug:.*}) is a catch-all
+    # that would match /api/v1/* paths otherwise.
+    config.include("remarkbox.api")
+
     # all of the web application routes.
     config.include(".routes")
+
+    # Rate limiting tween for API endpoints.
+    config.add_tween("remarkbox.api.rate_limit.rate_limit_tween_factory")
 
     # Scan for views.
     config.scan()

@@ -74,6 +74,11 @@ If checked, allow beautiful math equations with <a href="https://www.mathjax.org
 <label>Disable Powered By Remarkbox:</label>
 <input type="checkbox" name="hide-powered-by-checkbox" id="hide-powered-by-checkbox" {% if request.namespace.hide_powered_by %}checked{% endif %}></input>
 If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_powered_by %}.. <b>bummer.</b>{% endif %}
+<br>
+<br>
+<label>Allow API Access:</label>
+<input type="checkbox" name="api-access-checkbox" id="api-access-checkbox" {% if request.namespace.api_access %}checked{% endif %}></input>
+If checked, allow JSON API access to this namespace for agents and integrations. Uncheck to block all <code>/api/v1/</code> requests targeting this namespace.
 
 <br>
 <br>

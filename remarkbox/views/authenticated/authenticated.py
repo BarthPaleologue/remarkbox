@@ -70,6 +70,7 @@ def namespace_settings(request):
         mathjax_checkbox = p.get("mathjax-checkbox", "off")
         ignore_query_string_checkbox = p.get("ignore-query-string-checkbox", "off")
         hide_powered_by_checkbox = p.get("hide-powered-by-checkbox", "off")
+        api_access_checkbox = p.get("api-access-checkbox", "off")
 
         hide_unless_approved = checkbox_to_bool(hide_unless_approved_checkbox)
         allow_anonymous = checkbox_to_bool(allow_anonymous_checkbox)
@@ -79,6 +80,7 @@ def namespace_settings(request):
         mathjax = checkbox_to_bool(mathjax_checkbox)
         ignore_query_string = checkbox_to_bool(ignore_query_string_checkbox)
         hide_powered_by = checkbox_to_bool(hide_powered_by_checkbox)
+        api_access = checkbox_to_bool(api_access_checkbox)
 
         if stylesheet_embed != request.namespace.stylesheet_embed and (
             stylesheet_embed or request.namespace.stylesheet_embed
@@ -226,6 +228,15 @@ def namespace_settings(request):
             request.namespace.mathjax = mathjax
             request.session.flash(
                 ("You turned {} MathJax".format(mathjax_checkbox), "success")
+            )
+
+        if api_access != request.namespace.api_access:
+            request.namespace.api_access = api_access
+            request.session.flash(
+                (
+                    "You turned {} api_access".format(api_access_checkbox),
+                    "success",
+                )
             )
 
         request.dbsession.add(request.namespace)

@@ -1,0 +1,8 @@
+def includeme(config):
+    config.add_route("api-threads-list", "/api/v1/threads")
+    config.add_route("api-thread-detail", "/api/v1/threads/{node_id}")
+    config.add_route("api-thread-replies", "/api/v1/threads/{node_id}/replies")
+    config.add_route("api-node-detail", "/api/v1/nodes/{node_id}")
+    config.add_route("api-auth-login", "/api/v1/auth/login")
+    config.add_route("api-auth-verify", "/api/v1/auth/verify")
+    config.scan("remarkbox.api.views")
