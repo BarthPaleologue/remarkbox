@@ -113,6 +113,7 @@ def includeme(config):
     config.add_route("basic-verification-challenge", "/verification-challenge")
 
     config.add_route("basic-namespace-nodes", "/ns/{namespace}/nodes")
+    config.add_route("basic-namespace-spam-bulk", "/ns/{namespace}/spam-bulk")
     config.add_route("basic-namespace-delete", "/ns/{namespace}/delete")
     config.add_route("basic-namespace-settings", "/ns/{namespace}/settings")
     config.add_route("basic-namespace-import-comments", "/ns/{namespace}/import-comments")

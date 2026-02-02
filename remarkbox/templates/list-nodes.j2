@@ -28,6 +28,57 @@ page: {{ request.page_number }}
 
 <h3>{{ the_title }}</h3>
 
+{% if 'spam' in request.params and nodes %}
+<form method="POST" action="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/spam-bulk">
+<input type="hidden" name="csrf_token" value="{{ request.session.get_csrf_token() }}" />
+
+<div class="remarkbox-sub-menu" style="margin-bottom: 1em;">
+  <label><input type="checkbox" onclick="var boxes = document.querySelectorAll('input[name=node_ids]'); for(var i=0;i<boxes.length;i++){boxes[i].checked=this.checked;}"> select all</label>
+  &nbsp;
+  <button type="submit" name="bulk_action" value="approve">approve selected</button>
+  <button type="submit" name="bulk_action" value="disable">disable selected</button>
+</div>
+
+{%- for node in nodes %}
+
+<br>
+
+<a class="anchor" id="{{ node.id }}"></a>
+<div id="node-{{ node.id }}" class="node" style="border-left: 3px solid #c44; padding-left: 0.5em;">
+  <input type="checkbox" name="node_ids" value="{{ node.id }}" style="float: left; margin-right: 0.5em; margin-top: 0.3em;">
+  {{ snippets.node_avatar(node) }}
+  {{ snippets.author_and_date(node) }}
+  {{ snippets.status(node) }}
+
+  {% if node.spam_reason %}
+  <div class="status" style="margin: 0.3em 0; padding: 0.3em 0.5em; background: #fff8f0; border: 1px solid #e0d0c0;">
+    <b>Hermes:</b> {{ node.spam_reason }}
+  </div>
+  {% elif node.spam_score is not none %}
+  <div class="status" style="margin: 0.3em 0; padding: 0.3em 0.5em; background: #fff8f0; border: 1px solid #e0d0c0;">
+    <b>Spam score:</b> {{ "%.1f"|format(node.spam_score) }}
+  </div>
+  {% endif %}
+
+  <div id="node-data-{{ node.id }}">
+  {{ node.data_html | safe }}
+  </div>
+
+  {{ snippets.permalinks(node) }}
+  {{ snippets.actions(node) }}
+</div>
+
+{% endfor -%}
+
+<br>
+<div class="remarkbox-sub-menu">
+  <button type="submit" name="bulk_action" value="approve">approve selected</button>
+  <button type="submit" name="bulk_action" value="disable">disable selected</button>
+</div>
+</form>
+
+{% else %}
+
 {%- for node in nodes %}
 
 <br>
@@ -55,5 +106,7 @@ page: {{ request.page_number }}
 </div>
 
 {% endfor -%}
+
+{% endif %}
 
 {%- endblock -%}

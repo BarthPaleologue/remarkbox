@@ -130,6 +130,8 @@ class Namespace(RBase, Base):
     # T8: nesting depth settings
     max_nesting_depth = Column(Integer, default=None, nullable=True)
     collapse_depth = Column(Integer, default=None, nullable=True)
+    # Spam filter: namespace owners can disable Hermes LLM checks.
+    spam_filter_enabled = Column(Boolean, default=True)
     # the type of subscription of this Namespace.
     subscription_type = Column(
         Enum(*SUBSCRIPTION_TYPES, name="subscription_type"),
@@ -328,6 +330,12 @@ class Namespace(RBase, Base):
     def unapproved_nodes(self):
         return self.nodes.filter(
             or_(Node.approved == False, Node.approved.is_(None)), Node.disabled == False
+        )
+
+    @property
+    def spam_nodes(self):
+        return self.nodes.filter(
+            Node.spam_score >= 0.5, Node.disabled == False
         )
 
     @property

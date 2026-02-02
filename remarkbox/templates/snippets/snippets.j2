@@ -76,6 +76,8 @@
 <span class="status">
 {% if node.disabled %}
 <span>(waiting for deletion)</span>
+{% elif node.spam_score is not none and node.spam_score >= 0.5 %}
+<span title="{{ node.spam_reason or 'Flagged by automated spam filter' }}">(spam)</span>
 {% elif request.namespace.hide_unless_approved and not node.approved %}
 <span title="Only you can see a hidden node.">(hidden: waiting for approval)</span>
 {% endif %}
@@ -245,6 +247,7 @@
     {% set namespace_unapproved_node_count = namespace.unapproved_nodes.count() %}
     {% set namespace_approved_node_count = namespace.approved_nodes.count() %}
     {% set namespace_disabled_node_count = namespace.disabled_nodes.count() %}
+    {% set namespace_spam_node_count = namespace.spam_nodes.count() %}
 
     <div class="remarkbox-sub-menu hidden-on-phone">
 
@@ -259,6 +262,9 @@
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?approved">approved nodes ({{ namespace_approved_node_count }})</a> |
     {% else %}
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes">nodes ({{ namespace_all_node_count }})</a> |
+    {% endif %}
+    {% if namespace_spam_node_count > 0 %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?spam">spam ({{ namespace_spam_node_count }})</a> |
     {% endif %}
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?disabled">disabled nodes ({{ namespace_disabled_node_count }})</a>
 

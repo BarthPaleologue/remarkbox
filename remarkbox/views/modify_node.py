@@ -2,6 +2,8 @@ from pyramid.view import view_config
 
 from pyramid.httpexceptions import HTTPFound
 
+from remarkbox.models.node import Node
+
 from . import get_referer_or_home, get_node_route_uri, get_embed_route_uri
 
 
@@ -98,3 +100,48 @@ def deny_node(request):
         request.dbsession.add(request.node)
         request.dbsession.flush()
     return HTTPFound(_node_route_uri(request))
+
+
+@view_config(route_name="basic-namespace-spam-bulk", request_method="POST")
+def spam_bulk_action(request):
+    """Bulk approve or disable spam-flagged nodes."""
+    if not request.user or not request.user.authenticated:
+        request.session.flash(("You must log in to access that.", "error"))
+        return HTTPFound(get_referer_or_home(request))
+
+    is_mod = (request.user in request.namespace.moderators
+              or getattr(request.user, "is_superuser", False))
+    if not is_mod:
+        request.session.flash(("You must be a moderator.", "error"))
+        return HTTPFound(get_referer_or_home(request))
+
+    action = request.params.get("bulk_action", "")
+    node_ids = request.params.getall("node_ids")
+    count = 0
+
+    for node_id in node_ids:
+        node = request.dbsession.query(Node).filter(
+            Node.id == node_id,
+            Node.namespace_id == request.namespace.id,
+        ).first()
+        if node is None:
+            continue
+        if action == "approve":
+            node.approved = True
+            node.spam_score = 0.0
+            node.spam_reason = None
+            request.dbsession.add(node)
+            count += 1
+        elif action == "disable":
+            node.disable()
+            request.dbsession.add(node)
+            count += 1
+
+    request.dbsession.flush()
+    request.session.flash(
+        ("{} node(s) {}d.".format(count, action), "success")
+    )
+    return HTTPFound(
+        request.route_url("basic-namespace-nodes", namespace=request.namespace.name)
+        + "?spam"
+    )

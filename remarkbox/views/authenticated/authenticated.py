@@ -84,6 +84,7 @@ def namespace_settings(request):
         ignore_query_string_checkbox = p.get("ignore-query-string-checkbox", "off")
         hide_powered_by_checkbox = p.get("hide-powered-by-checkbox", "off")
         api_access_checkbox = p.get("api-access-checkbox", "off")
+        spam_filter_enabled_checkbox = p.get("spam-filter-enabled-checkbox", "off")
 
         hide_unless_approved = checkbox_to_bool(hide_unless_approved_checkbox)
         allow_anonymous = checkbox_to_bool(allow_anonymous_checkbox)
@@ -94,6 +95,7 @@ def namespace_settings(request):
         ignore_query_string = checkbox_to_bool(ignore_query_string_checkbox)
         hide_powered_by = checkbox_to_bool(hide_powered_by_checkbox)
         api_access = checkbox_to_bool(api_access_checkbox)
+        spam_filter_enabled = checkbox_to_bool(spam_filter_enabled_checkbox)
 
         if stylesheet_embed != request.namespace.stylesheet_embed and (
             stylesheet_embed or request.namespace.stylesheet_embed
@@ -248,6 +250,17 @@ def namespace_settings(request):
             request.session.flash(
                 (
                     "You turned {} api_access".format(api_access_checkbox),
+                    "success",
+                )
+            )
+
+        if spam_filter_enabled != (request.namespace.spam_filter_enabled is not False):
+            request.namespace.spam_filter_enabled = spam_filter_enabled
+            request.session.flash(
+                (
+                    "You turned {} spam_filter (Hermes AI)".format(
+                        spam_filter_enabled_checkbox
+                    ),
                     "success",
                 )
             )

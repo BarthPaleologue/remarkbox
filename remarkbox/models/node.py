@@ -4,7 +4,7 @@ from collections import (
 )
 
 from sqlalchemy import (
-    BigInteger, Boolean, Column, Integer, Unicode, UnicodeText, or_, func
+    BigInteger, Boolean, Column, Float, Integer, Unicode, UnicodeText, or_, func
 )
 
 from sqlalchemy.orm import relationship, backref
@@ -84,6 +84,9 @@ class Node(RBase, Base):
     locked = Column(Boolean, default=False)
     # by default comments are approved. unless Namespace hide_unless_approved.
     approved = Column(Boolean, default=True)
+    # Spam detection: score (0.0-1.0) and human-readable reason from Hermes LLM.
+    spam_score = Column(Float, default=None)
+    spam_reason = Column(UnicodeText, default=None)
     # is there a related Uri model to this node?
     has_uri = Column(Boolean, default=False, nullable=False)
     ip_address = Column(Unicode(45), default=None)

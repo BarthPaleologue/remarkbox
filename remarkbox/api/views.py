@@ -64,20 +64,28 @@ def get_param(request, key, default=None):
 
 def check_spam(request, data, user=None, namespace=None, title=None,
                parent_node=None):
-    """Check content for spam. Returns error dict or None.
+    """Check content for spam. Always returns a result dict.
 
-    - Hard threshold: reject with 403.
-    - Soft threshold: returns {"spam_held": True} so caller can set approved=False.
-    - LLM relevance check: if enabled and basic score is suspicious, ask the LLM
-      whether the content is relevant to its context.
-    - Superusers bypass all checks.
+    Returns dict with keys:
+        action: None (clean), "held", or "rejected"
+        spam_score: float 0.0-1.0
+        signals: list of signal strings
+        spam_reason: human-readable LLM explanation or None
+        error: present only when action == "rejected"
+
+    - Hard threshold: action="rejected", sets 403 on response.
+    - Soft threshold: action="held", caller should set approved=False.
+    - Below thresholds: action=None, spam data still returned for storage.
+    - Superusers bypass all checks (returns score 0.0).
     """
     settings = request.registry.settings
+    result = {"action": None, "spam_score": 0.0, "signals": [], "spam_reason": None}
+
     if settings.get("spam.enabled", "true").strip().lower() not in ("true", "1", "yes"):
-        return None
+        return result
 
     if user and getattr(user, "is_superuser", False):
-        return None
+        return result
 
     hard_threshold = float(settings.get("spam.hard_threshold", 0.8))
     soft_threshold = float(settings.get("spam.soft_threshold", 0.5))
@@ -90,26 +98,41 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         settings=settings,
     )
 
-    # LLM relevance check: runs on every message when spam.llm.enabled is set
-    if settings.get("spam.llm.enabled", "false").strip().lower() in ("true", "1", "yes"):
+    spam_reason = None
+
+    # LLM relevance check: runs when globally enabled AND namespace allows it
+    llm_globally_enabled = settings.get(
+        "spam.llm.enabled", "false"
+    ).strip().lower() in ("true", "1", "yes")
+    ns_filter_enabled = True
+    if namespace and hasattr(namespace, "spam_filter_enabled"):
+        ns_filter_enabled = namespace.spam_filter_enabled is not False
+
+    if llm_globally_enabled and ns_filter_enabled:
         relevant, explanation = _llm_relevance_check(
             settings, data, title=title, namespace=namespace,
             parent_node=parent_node,
         )
+        if explanation:
+            spam_reason = explanation
         if relevant is False:
             spam_score = min(spam_score + 0.4, 1.0)
             signals.append("llm_irrelevant")
             if explanation:
                 signals.append("llm_reason:{}".format(explanation[:80]))
 
+    result["spam_score"] = spam_score
+    result["signals"] = signals
+    result["spam_reason"] = spam_reason
+
     if spam_score >= hard_threshold:
         request.response.status_code = 403
-        return {"error": "Content flagged as spam", "spam_score": spam_score}
+        result["action"] = "rejected"
+        result["error"] = "Content flagged as spam"
+    elif spam_score >= soft_threshold:
+        result["action"] = "held"
 
-    if spam_score >= soft_threshold:
-        return {"spam_held": True, "spam_score": spam_score, "signals": signals}
-
-    return None
+    return result
 
 
 def _llm_relevance_check(settings, data, title=None, namespace=None,
@@ -489,9 +512,8 @@ def api_create_thread(request):
     # Spam check (before creating anything)
     spam_result = check_spam(request, data, user=user, namespace=namespace,
                              title=title)
-    if spam_result and "error" in spam_result:
-        return spam_result
-    spam_held = spam_result and spam_result.get("spam_held")
+    if spam_result.get("action") == "rejected":
+        return {"error": spam_result["error"], "spam_score": spam_result["spam_score"]}
 
     if namespace.allow_anonymous and not user:
         if not anonymous_name:
@@ -569,8 +591,12 @@ def api_create_thread(request):
         node_event = node.new_event(user, "created")
         request.dbsession.add(user)
 
-    if spam_held:
+    if spam_result.get("action") == "held":
         node.approved = False
+
+    # Store spam data on node for moderation UI
+    node.spam_score = spam_result.get("spam_score")
+    node.spam_reason = spam_result.get("spam_reason")
 
     request.dbsession.add(node)
     if node_event:
@@ -659,9 +685,8 @@ def api_reply(request):
     # Spam check (before creating anything)
     spam_result = check_spam(request, data, user=user, namespace=namespace,
                              parent_node=parent)
-    if spam_result and "error" in spam_result:
-        return spam_result
-    spam_held = spam_result and spam_result.get("spam_held")
+    if spam_result.get("action") == "rejected":
+        return {"error": spam_result["error"], "spam_score": spam_result["spam_score"]}
 
     if namespace.allow_anonymous and not user:
         if not anonymous_name:
@@ -688,13 +713,17 @@ def api_reply(request):
         child.verified = user.authenticated
         child_event = child.new_event(user, "commented")
 
-    if spam_held:
+    if spam_result.get("action") == "held":
         child.approved = False
     elif namespace.hide_unless_approved:
         if user:
             child.approved = namespace.is_moderator(user)
         else:
             child.approved = False
+
+    # Store spam data on node for moderation UI
+    child.spam_score = spam_result.get("spam_score")
+    child.spam_reason = spam_result.get("spam_reason")
 
     # Bump thread
     parent.root.changed = child.changed

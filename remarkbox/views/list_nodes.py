@@ -68,43 +68,39 @@ def namespace(request):
 def namespace_nodes(request):
     # TODO: the way I'm currently protecting views (or in this case certain urls)
     #       is causing a lot of copy and paste and even confusing conditional logic.
-    if request.namespace.hide_unless_approved:
-        if "disabled" in request.params or "pending" in request.params:
-            # TODO: maybe dry this out and turn it into a decorator?
-            if not request.user or not request.user.authenticated:
-                request.session.flash(("You must log in to access that area.", "error"))
-                return HTTPFound(get_join_or_log_in_route_uri(request))
 
-            # TODO: maybe dry this out and turn it into a decorator?
-            if request.user not in request.namespace.moderators:
-                request.session.flash(
-                    ("You must be a moderator in to access that area.", "error")
-                )
-                return HTTPFound(get_join_or_log_in_route_uri(request))
+    # Spam, disabled, and pending views require moderator access.
+    mod_views = ("disabled", "pending", "spam")
+    if any(v in request.params for v in mod_views):
+        if not request.user or not request.user.authenticated:
+            request.session.flash(("You must log in to access that area.", "error"))
+            return HTTPFound(get_join_or_log_in_route_uri(request))
 
-            if "disabled" in request.params:
-                # TODO: pagination.
-                state = "disabled"
-                nodes = request.namespace.disabled_nodes
-            elif "pending" in request.params:
-                # TODO: pagination.
-                state = "pending"
-                nodes = request.namespace.unapproved_nodes
-        else:
-            state = "active"
-            nodes = request.namespace.page_nodes(
-                limit=request.page_size, offset=request.page_offset
+        is_mod = (request.user in request.namespace.moderators
+                  or getattr(request.user, "is_superuser", False))
+        if not is_mod:
+            request.session.flash(
+                ("You must be a moderator to access that area.", "error")
             )
+            return HTTPFound(get_join_or_log_in_route_uri(request))
+
+    if "spam" in request.params:
+        state = "spam"
+        nodes = request.namespace.spam_nodes
+    elif "disabled" in request.params:
+        state = "disabled"
+        nodes = request.namespace.disabled_nodes
+    elif "pending" in request.params and request.namespace.hide_unless_approved:
+        state = "pending"
+        nodes = request.namespace.unapproved_nodes
+    elif "approved" in request.params and request.namespace.hide_unless_approved:
+        state = "active"
+        nodes = request.namespace.approved_nodes
     else:
-        if "disabled" in request.params:
-            # TODO: pagination.
-            state = "disabled"
-            nodes = request.namespace.disabled_nodes
-        else:
-            state = "active"
-            nodes = request.namespace.page_nodes(
-                limit=request.page_size, offset=request.page_offset
-            )
+        state = "active"
+        nodes = request.namespace.page_nodes(
+            limit=request.page_size, offset=request.page_offset
+        )
     return {
         "nodes": nodes,
         "the_title": "{} - {} nodes".format(request.namespace.name, state),
