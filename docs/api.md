@@ -1,7 +1,7 @@
 # Remarkbox JSON API
 
 A REST API for programmatic access to Remarkbox threads and comments.
-Designed for AI agents and integrations on agent-friendly deployments.
+Designed for automated agents and integrations on agent-friendly deployments.
 
 ## Configuration
 

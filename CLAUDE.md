@@ -158,6 +158,13 @@ c.admin_list_namespaces()           # list all namespaces
 c.admin_recent_nodes(days=7)        # recent nodes network-wide
 ```
 
+## Terminology
+
+In all user-facing text, marketing, legal documents, and UI labels, use **"machine learning"**
+instead of "AI". The term "AI" should not appear in Remarkbox copy. Internal code comments
+and technical references (e.g., "OpenAI-compatible endpoint") are fine. Third-party brand
+names like "UncloseAI" are also unchanged.
+
 ## Spam Prevention
 
 Spam detection runs automatically on `POST /api/v1/threads` and `POST /api/v1/threads/{id}/replies`.

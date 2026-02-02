@@ -81,9 +81,9 @@ If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_power
 If checked, allow JSON API access to this namespace for agents and integrations. Uncheck to block all <code>/api/v1/</code> requests targeting this namespace.
 <br>
 <br>
-<label>Enable Spam Filter (Hermes AI):</label>
+<label>Enable Spam Filter (Hermes):</label>
 <input type="checkbox" name="spam-filter-enabled-checkbox" id="spam-filter-enabled-checkbox" {% if request.namespace.spam_filter_enabled is not sameas false %}checked{% endif %}></input>
-If checked, use AI to check whether comments are relevant to this namespace. Irrelevant or spammy posts will be labeled.
+If checked, use machine learning to check whether comments are relevant to this namespace. Irrelevant or spammy posts will be labeled.
 
 <br>
 <br>
