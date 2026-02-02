@@ -261,7 +261,10 @@ class User(RBase, Base):
             root_ids = self.dbsession.query(Node.id).filter(
                 Node.namespace_id == namespace.id
             )
-            query = query.filter(Node.root_id.in_(root_ids))
+            query = query.filter(or_(
+                Node.root_id.in_(root_ids),
+                Node.namespace_id == namespace.id,
+            ))
         return query
 
     def verified_nodes(self, namespace=None):
