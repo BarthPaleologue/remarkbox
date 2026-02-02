@@ -234,3 +234,7 @@ curl -s "https://git.unturf.com/api/v4/projects/engineering%2Fremarkbox%2Fremark
 ```
 
 The pipeline status will show `"status":"success"` when deployment is complete.
+
+## Style
+
+- **Never use "AI" — always say "machine learning."** We grow machine learning, not "AI." This term is forbidden in all permacomputer discourse, marketing, & documentation.
