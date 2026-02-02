@@ -550,8 +550,12 @@ def api_create_thread(request):
             node_event = node.new_event(user, "commented")
             request.dbsession.add(user)
 
-        if spam_held:
+        if spam_result.get("action") == "held":
             node.approved = False
+
+        # Store spam data on node for moderation UI
+        node.spam_score = spam_result.get("spam_score")
+        node.spam_reason = spam_result.get("spam_reason")
 
         # Bump thread
         root.changed = node.changed
