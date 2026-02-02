@@ -4,6 +4,7 @@ body {
   margin-right: 0px;
   margin-bottom: 16px;
   padding: 0 8px;
+  box-sizing: border-box;
 
   /* This is a hack for iOS to prevent overflow on ipads and phones */
   width: 1px;
