@@ -16,14 +16,26 @@ from alembic import op
 import sqlalchemy as sa
 
 
+def _column_exists(table, column):
+    """Check if a column exists in a SQLite table."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text("PRAGMA table_info('{}')".format(table)))
+    return any(row[1] == column for row in result)
+
+
 def upgrade():
     # T4: customizable button text and comment labels
-    op.add_column('rb_namespace', sa.Column('submit_button_text', sa.Unicode(length=256), nullable=True))
-    op.add_column('rb_namespace', sa.Column('comment_label_singular', sa.Unicode(length=256), nullable=True))
-    op.add_column('rb_namespace', sa.Column('comment_label_plural', sa.Unicode(length=256), nullable=True))
+    if not _column_exists('rb_namespace', 'submit_button_text'):
+        op.add_column('rb_namespace', sa.Column('submit_button_text', sa.Unicode(length=256), nullable=True))
+    if not _column_exists('rb_namespace', 'comment_label_singular'):
+        op.add_column('rb_namespace', sa.Column('comment_label_singular', sa.Unicode(length=256), nullable=True))
+    if not _column_exists('rb_namespace', 'comment_label_plural'):
+        op.add_column('rb_namespace', sa.Column('comment_label_plural', sa.Unicode(length=256), nullable=True))
     # T8: nesting depth settings
-    op.add_column('rb_namespace', sa.Column('max_nesting_depth', sa.Integer(), nullable=True))
-    op.add_column('rb_namespace', sa.Column('collapse_depth', sa.Integer(), nullable=True))
+    if not _column_exists('rb_namespace', 'max_nesting_depth'):
+        op.add_column('rb_namespace', sa.Column('max_nesting_depth', sa.Integer(), nullable=True))
+    if not _column_exists('rb_namespace', 'collapse_depth'):
+        op.add_column('rb_namespace', sa.Column('collapse_depth', sa.Integer(), nullable=True))
 
 
 def downgrade():

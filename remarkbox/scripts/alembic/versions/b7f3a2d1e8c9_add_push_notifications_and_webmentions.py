@@ -18,25 +18,44 @@ import sqlalchemy as sa
 from remarkbox.models.meta import UUIDType
 
 
+def _column_exists(table, column):
+    """Check if a column exists in a SQLite table."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text("PRAGMA table_info('{}')".format(table)))
+    return any(row[1] == column for row in result)
+
+
+def _table_exists(table):
+    """Check if a table exists in SQLite."""
+    conn = op.get_bind()
+    result = conn.execute(sa.text(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='{}'".format(table)
+    ))
+    return result.fetchone() is not None
+
+
 def upgrade():
     # T10: push notification preferences on user
-    op.add_column('rb_user', sa.Column('notification_preference', sa.Unicode(length=5), server_default='email', nullable=False))
-    op.add_column('rb_user', sa.Column('push_subscriptions', sa.UnicodeText(), nullable=True))
+    if not _column_exists('rb_user', 'notification_preference'):
+        op.add_column('rb_user', sa.Column('notification_preference', sa.Unicode(length=5), server_default='email', nullable=False))
+    if not _column_exists('rb_user', 'push_subscriptions'):
+        op.add_column('rb_user', sa.Column('push_subscriptions', sa.UnicodeText(), nullable=True))
 
     # T7: webmention table
-    op.create_table(
-        'rb_webmention',
-        sa.Column('id', UUIDType, primary_key=True, index=True),
-        sa.Column('source', sa.Unicode(2048), nullable=False),
-        sa.Column('target', sa.Unicode(2048), nullable=False),
-        sa.Column('node_id', UUIDType, sa.ForeignKey('rb_node.id'), index=True, nullable=True),
-        sa.Column('verified', sa.Boolean(), default=False, nullable=False),
-        sa.Column('author_name', sa.Unicode(256), nullable=True),
-        sa.Column('author_url', sa.Unicode(2048), nullable=True),
-        sa.Column('content', sa.UnicodeText(), nullable=True),
-        sa.Column('created_timestamp', sa.BigInteger(), nullable=False),
-        sa.Column('updated_timestamp', sa.BigInteger(), nullable=False),
-    )
+    if not _table_exists('rb_webmention'):
+        op.create_table(
+            'rb_webmention',
+            sa.Column('id', UUIDType, primary_key=True, index=True),
+            sa.Column('source', sa.Unicode(2048), nullable=False),
+            sa.Column('target', sa.Unicode(2048), nullable=False),
+            sa.Column('node_id', UUIDType, sa.ForeignKey('rb_node.id'), index=True, nullable=True),
+            sa.Column('verified', sa.Boolean(), default=False, nullable=False),
+            sa.Column('author_name', sa.Unicode(256), nullable=True),
+            sa.Column('author_url', sa.Unicode(2048), nullable=True),
+            sa.Column('content', sa.UnicodeText(), nullable=True),
+            sa.Column('created_timestamp', sa.BigInteger(), nullable=False),
+            sa.Column('updated_timestamp', sa.BigInteger(), nullable=False),
+        )
 
 
 def downgrade():
