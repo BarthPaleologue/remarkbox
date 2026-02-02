@@ -114,7 +114,7 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
 
         # Verify the URI record was created and linked
         from remarkbox.models.uri import get_uri_by_uri
-        uri = get_uri_by_uri(self.dbsession, "https://api-test.example.com/my-page")
+        uri = get_uri_by_uri(self.dbsession, "https://api-test.example.com/my-page/")
         self.assertIsNotNone(uri)
         self.assertEqual(str(uri.node.id), node_id)
 
@@ -771,6 +771,12 @@ class TestAPIAuthenticatedEditing(APIFunctionalTests):
             APIFunctionalTests.setUpClass.__func__(cls)
 
     def setUp(self):
+        # Ensure the namespace exists so api_create_thread doesn't 404
+        ns = get_or_create_namespace(self.dbsession, "localhost")
+        ns.api_access = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+
         self.test_user = get_or_create_user_by_email(
             self.dbsession, "api-edit@remarkbox.com"
         )
