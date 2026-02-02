@@ -56,7 +56,8 @@ def redirect_to_root(request):
 def preview_post(request):
     """AJAJ: Accept MarkDown data param, return HTML"""
     try:
-        return markdown_to_html(request.params["data"], request.namespace)
+        return markdown_to_html(request.params["data"], request.namespace,
+                                dbsession=request.dbsession)
     except:
         return "we could not create markdown to html preview."
 
