@@ -92,6 +92,25 @@ By default, when I watch a thread, notify me
 <br/>
 <br/>
 
+<label>Notification Delivery</label>
+
+How would you like to receive notifications?
+<select name="notification-preference">
+  <option value="email" {% if request.user.notification_preference == "email" %}selected{% endif %}>Email only</option>
+  <option value="push" {% if request.user.notification_preference == "push" %}selected{% endif %}>Browser push only</option>
+  <option value="both" {% if request.user.notification_preference == "both" %}selected{% endif %}>Email and browser push</option>
+  <option value="none" {% if request.user.notification_preference == "none" %}selected{% endif %}>None</option>
+</select>
+
+<div id="push-controls" style="margin-top: 8px;">
+  <button type="button" id="push-subscribe-btn" class="button button-small" style="display:none;" onclick="subscribePush()">Enable Push Notifications</button>
+  <button type="button" id="push-unsubscribe-btn" class="button button-small" style="display:none;" onclick="unsubscribePush()">Disable Push Notifications</button>
+  <span id="push-status"></span>
+</div>
+
+<br/>
+<br/>
+
 <label>Namespace Notifications</label>
 
 View and adjust your <a href="{{ request.link_prefix }}/u/watching">Namespace notification</a> settings.
@@ -103,6 +122,23 @@ View and adjust your <a href="{{ request.link_prefix }}/u/watching">Namespace no
 {% include 'snippets/submit.j2' %}
 
 </form>
+
+<br>
+<hr>
+<br>
+
+<h4>Your Data</h4>
+
+<label>Download My Data</label>
+<p>Export all your comments and profile information as a JSON file.</p>
+<a href="{{ request.link_prefix }}/u/export-data" class="button">Download My Data</a>
+
+<br>
+<br>
+
+<label>Delete My Account</label>
+<p>Permanently delete your account and anonymize all your comments. This action cannot be undone.</p>
+<a href="{{ request.link_prefix }}/u/delete-account" class="button">Delete My Account</a>
 
 <script>
 function previewTheme(mode) {
@@ -123,6 +159,85 @@ function previewTheme(mode) {
     }
   }
 }
+
+// --- Push notification support ---
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  var rawData = window.atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for (var i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+function initPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    document.getElementById('push-status').textContent = 'Push not supported in this browser.';
+    return;
+  }
+  navigator.serviceWorker.register('/static/js/push-sw.js').then(function(reg) {
+    reg.pushManager.getSubscription().then(function(sub) {
+      if (sub) {
+        document.getElementById('push-unsubscribe-btn').style.display = 'inline-block';
+        document.getElementById('push-status').textContent = 'Push notifications are active.';
+      } else {
+        document.getElementById('push-subscribe-btn').style.display = 'inline-block';
+      }
+    });
+  });
+}
+
+function subscribePush() {
+  fetch('/push/vapid-key').then(function(r){ return r.json(); }).then(function(data) {
+    if (!data.available) {
+      document.getElementById('push-status').textContent = data.reason || 'Push not available.';
+      return;
+    }
+    navigator.serviceWorker.ready.then(function(reg) {
+      reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(data.public_key)
+      }).then(function(sub) {
+        var subJSON = sub.toJSON();
+        fetch('/push/subscribe', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({subscription: subJSON})
+        }).then(function(r){ return r.json(); }).then(function(result) {
+          document.getElementById('push-subscribe-btn').style.display = 'none';
+          document.getElementById('push-unsubscribe-btn').style.display = 'inline-block';
+          document.getElementById('push-status').textContent = 'Push notifications enabled!';
+        });
+      });
+    });
+  });
+}
+
+function unsubscribePush() {
+  navigator.serviceWorker.ready.then(function(reg) {
+    reg.pushManager.getSubscription().then(function(sub) {
+      if (sub) {
+        var endpoint = sub.endpoint;
+        sub.unsubscribe().then(function() {
+          fetch('/push/unsubscribe', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({endpoint: endpoint})
+          }).then(function() {
+            document.getElementById('push-unsubscribe-btn').style.display = 'none';
+            document.getElementById('push-subscribe-btn').style.display = 'inline-block';
+            document.getElementById('push-status').textContent = 'Push notifications disabled.';
+          });
+        });
+      }
+    });
+  });
+}
+
+// Init push UI on page load.
+initPush();
 </script>
 
 {%- endblock -%}

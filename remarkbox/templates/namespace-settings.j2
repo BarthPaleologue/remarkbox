@@ -83,6 +83,39 @@ If checked, allow JSON API access to this namespace for agents and integrations.
 <br>
 <br>
 
+<hr>
+
+<h4>Button Text and Labels</h4>
+
+<label>Submit button text:</label>
+<input type="text" name="submit-button-text" id="submit-button-text" value="{% if request.namespace.submit_button_text %}{{ request.namespace.submit_button_text }}{% endif %}" class="common-text-input" placeholder="default: 'save message'"></input>
+<br>
+<br>
+<label>Comment label (singular):</label>
+<input type="text" name="comment-label-singular" id="comment-label-singular" value="{% if request.namespace.comment_label_singular %}{{ request.namespace.comment_label_singular }}{% endif %}" class="common-text-input" placeholder="default: 'remark'"></input>
+<br>
+<br>
+<label>Comment label (plural):</label>
+<input type="text" name="comment-label-plural" id="comment-label-plural" value="{% if request.namespace.comment_label_plural %}{{ request.namespace.comment_label_plural }}{% endif %}" class="common-text-input" placeholder="default: 'remarks'"></input>
+<br>
+<br>
+
+<hr>
+
+<h4>Nesting Depth</h4>
+
+<label>Max nesting depth:</label>
+<input type="number" name="max-nesting-depth" id="max-nesting-depth" value="{% if request.namespace.max_nesting_depth is not none %}{{ request.namespace.max_nesting_depth }}{% endif %}" class="common-text-input" placeholder="default: unlimited" min="1"></input>
+Leave blank for unlimited nesting.
+<br>
+<br>
+<label>Collapse depth:</label>
+<input type="number" name="collapse-depth" id="collapse-depth" value="{% if request.namespace.collapse_depth is not none %}{{ request.namespace.collapse_depth }}{% endif %}" class="common-text-input" placeholder="default: never collapse" min="1"></input>
+Show a "load more" button at this depth instead of displaying replies inline. Leave blank to never collapse.
+
+<br>
+<br>
+
 {% set submit_button_classes = 'button-right green-button' %}
 {% set submit_button_value = 'save changes' %}
 {% include 'snippets/submit.j2' %}
@@ -304,5 +337,18 @@ Import comments and threads using the <a href="https://github.com/russellballest
 <br>
 <br>
 <a href="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/import-comments" class="button">Import Comments</a>
+
+<br>
+<br>
+
+<hr>
+
+<br>
+
+<h4>Danger Zone</h4>
+
+<label>Delete Namespace</label>
+<p>Permanently delete this namespace and all associated threads, comments, and settings. This action cannot be undone.</p>
+<a href="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/delete" class="button">Delete Namespace</a>
 
 {%- endblock -%}

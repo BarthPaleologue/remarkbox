@@ -118,6 +118,90 @@ function autoGrow(el) {
     el.style.height = newHeight + 'px';
 }
 
+// Thread title typeahead for duplicate prevention (T9).
+var threadSearchTimer = null;
+
+function initThreadTitleTypeahead() {
+    var titleInput = document.getElementById('thread_title_input');
+    if (!titleInput) return;
+
+    // Create the suggestions container right after the title input.
+    var suggestionsDiv = document.createElement('div');
+    suggestionsDiv.id = 'thread-title-suggestions';
+    suggestionsDiv.className = 'thread-title-suggestions';
+    suggestionsDiv.style.display = 'none';
+    titleInput.parentNode.insertBefore(suggestionsDiv, titleInput.nextSibling);
+
+    titleInput.addEventListener('input', function() {
+        var query = titleInput.value.trim();
+        if (query.length < 2) {
+            suggestionsDiv.style.display = 'none';
+            suggestionsDiv.innerHTML = '';
+            return;
+        }
+        if (threadSearchTimer) {
+            clearTimeout(threadSearchTimer);
+        }
+        threadSearchTimer = setTimeout(function() {
+            searchThreads(query, suggestionsDiv);
+        }, 400);
+    });
+
+    // Hide suggestions when clicking outside.
+    document.addEventListener('click', function(e) {
+        if (e.target !== titleInput && !suggestionsDiv.contains(e.target)) {
+            suggestionsDiv.style.display = 'none';
+        }
+    });
+
+    // Show suggestions again on focus if they have content.
+    titleInput.addEventListener('focus', function() {
+        if (suggestionsDiv.innerHTML) {
+            suggestionsDiv.style.display = '';
+        }
+    });
+}
+
+function searchThreads(query, suggestionsDiv) {
+    // Derive namespace from the current page URL or a data attribute.
+    var namespace = document.body.getAttribute('data-namespace') || '';
+    if (!namespace) return;
+
+    var url = '/api/v1/threads/search?q=' + encodeURIComponent(query) +
+              '&namespace=' + encodeURIComponent(namespace);
+
+    fetch(url, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (!data.threads || data.threads.length === 0) {
+            suggestionsDiv.style.display = 'none';
+            suggestionsDiv.innerHTML = '';
+            return;
+        }
+
+        var html = '<div class="suggestions-header">Existing threads:</div>';
+        data.threads.forEach(function(thread) {
+            html += '<a href="' + thread.path + '" class="suggestion-item">' +
+                    escapeHtml(thread.title) +
+                    '<span class="suggestion-meta"> &mdash; ' + thread.created_ago + '</span>' +
+                    '</a>';
+        });
+        suggestionsDiv.innerHTML = html;
+        suggestionsDiv.style.display = '';
+    })
+    .catch(function() {
+        suggestionsDiv.style.display = 'none';
+    });
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+}
+
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -165,6 +249,9 @@ document.addEventListener('DOMContentLoaded', function() {
             fragment.classList.add('focused');
         }
     }
+
+    // Initialize thread title typeahead for duplicate prevention (T9).
+    initThreadTitleTypeahead();
 
 });
 

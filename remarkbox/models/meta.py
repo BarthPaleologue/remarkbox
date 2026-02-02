@@ -40,6 +40,7 @@ CLASS_TO_TABLE = {
     "NodeEventNotification": "rb_node_event_notification",
     "PayWhatYouCan": "rb_pay_what_you_can",
     "Payment": "rb_payment",
+    "Webmention": "rb_webmention",
 }
 
 # node (threads), namespace (forum)
@@ -47,7 +48,7 @@ WATCHER_TYPES = {"reply", "node", "namespace"}
 
 NOTIFICATION_FREQUENCIES = {"never", "immediately", "daily", "weekly"}
 
-NOTIFICATION_METHODS = {"email"}
+NOTIFICATION_METHODS = {"email", "push"}
 
 NODE_EVENT_ACTIONS = {
     "enabled",

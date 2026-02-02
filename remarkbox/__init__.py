@@ -521,6 +521,19 @@ def main(global_config, **settings):
         # Final fallback to light
         return "light"
 
+    def add_webmentions(request):
+        """Return verified webmentions for the current thread, or empty list."""
+        from remarkbox.models.webmention import get_verified_webmentions_for_node
+        if request.node and request.node.is_root:
+            return get_verified_webmentions_for_node(
+                request.dbsession, request.node.id
+            )
+        elif request.node:
+            return get_verified_webmentions_for_node(
+                request.dbsession, request.node.root_id
+            )
+        return []
+
     # register functions to app config as request methods.
     # each request instance will run these functions and attach results.
     # cache result with `reify=True` to prevent multiple db lookups.
@@ -572,6 +585,7 @@ def main(global_config, **settings):
     config.add_request_method(add_node_order, "node_order", reify=True)
     config.add_request_method(add_mathjax, "mathjax", reify=True)
     config.add_request_method(add_theme_mode, "theme_mode", reify=True)
+    config.add_request_method(add_webmentions, "webmentions", reify=True)
 
     # API routes must be included before .routes because
     # basic-show-node2 (/{node_id}/{slug:.*}) is a catch-all

@@ -848,3 +848,1172 @@ class EmailCaseInsensitivityTests(FunctionalTests):
             func.lower(User.email) == "casetest@example.com"
         ).count()
         self.assertEqual(count, 1)
+
+
+class UserProfileNamespaceIsolationTests(FunctionalTests):
+    """
+    Regression tests for T0: User profile leaks comments across namespaces.
+
+    Verifies that User.page_nodes() and related methods filter by namespace,
+    so a user's profile page on site A only shows comments from site A.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        # Create a user who comments on two different namespaces.
+        self.user = get_or_create_user_by_email(
+            self.dbsession, "crossns@example.com"
+        )
+        self.raw_otp = self.user.new_password()
+        self.dbsession.add(self.user)
+        self.dbsession.flush()
+
+        # Create two namespaces.
+        self.ns_a = get_or_create_namespace(self.dbsession, "site-a.example.com")
+        self.ns_b = get_or_create_namespace(self.dbsession, "site-b.example.com")
+
+        # Create root nodes in each namespace.
+        root_a = create_root_node()
+        root_a.namespace = self.ns_a
+        root_a.user = self.user
+        root_a.verified = True
+        root_a.title = "Thread on Site A"
+        root_a.set_data("Root content A")
+        self.dbsession.add(root_a)
+
+        root_b = create_root_node()
+        root_b.namespace = self.ns_b
+        root_b.user = self.user
+        root_b.verified = True
+        root_b.title = "Thread on Site B"
+        root_b.set_data("Root content B")
+        self.dbsession.add(root_b)
+        self.dbsession.flush()
+
+        # Create child comments in each namespace.
+        child_a = root_a.new_child()
+        child_a.user = self.user
+        child_a.verified = True
+        child_a.approved = True
+        child_a.set_data("Comment on site A")
+        self.dbsession.add(child_a)
+
+        child_b = root_b.new_child()
+        child_b.user = self.user
+        child_b.verified = True
+        child_b.approved = True
+        child_b.set_data("Comment on site B")
+        self.dbsession.add(child_b)
+
+        self.dbsession.flush()
+
+        self.root_a_id = root_a.id
+        self.root_b_id = root_b.id
+        self.child_a_id = child_a.id
+        self.child_b_id = child_b.id
+        self.ns_a_id = self.ns_a.id
+        self.ns_b_id = self.ns_b.id
+
+        self.tm.commit()
+
+        # Re-query after commit to avoid detached instances.
+        self.user = get_or_create_user_by_email(
+            self.dbsession, "crossns@example.com"
+        )
+        self.ns_a = get_or_create_namespace(self.dbsession, "site-a.example.com")
+        self.ns_b = get_or_create_namespace(self.dbsession, "site-b.example.com")
+
+    def tearDown(self):
+        super(UserProfileNamespaceIsolationTests, self).tearDown()
+        # Clean up nodes.
+        self.dbsession.query(Node).filter(
+            Node.root_id.in_([self.root_a_id, self.root_b_id])
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.id.in_([self.root_a_id, self.root_b_id])
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "crossns@example.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_page_nodes_without_namespace_returns_all(self):
+        """page_nodes() without namespace returns nodes from all namespaces."""
+        nodes = self.user.page_nodes()
+        if nodes:
+            node_ids = [n.id for n in nodes]
+            self.assertIn(self.child_a_id, node_ids)
+            self.assertIn(self.child_b_id, node_ids)
+
+    def test_page_nodes_with_namespace_filters(self):
+        """page_nodes(namespace=ns_a) only returns nodes from ns_a."""
+        nodes_a = list(self.user.page_nodes(namespace=self.ns_a))
+        node_ids_a = [n.id for n in nodes_a]
+        self.assertIn(self.child_a_id, node_ids_a)
+        self.assertNotIn(self.child_b_id, node_ids_a)
+
+        nodes_b = list(self.user.page_nodes(namespace=self.ns_b))
+        node_ids_b = [n.id for n in nodes_b]
+        self.assertIn(self.child_b_id, node_ids_b)
+        self.assertNotIn(self.child_a_id, node_ids_b)
+
+    def test_disabled_nodes_with_namespace_filters(self):
+        """disabled_nodes(namespace) only returns disabled nodes from that namespace."""
+        # Disable child_a only.
+        child_a = self.dbsession.query(Node).filter(Node.id == self.child_a_id).one()
+        child_a.disable()
+        self.dbsession.add(child_a)
+        self.dbsession.flush()
+
+        disabled_a = list(self.user.disabled_nodes(namespace=self.ns_a))
+        disabled_b = list(self.user.disabled_nodes(namespace=self.ns_b))
+
+        self.assertEqual(len(disabled_a), 1)
+        self.assertEqual(disabled_a[0].id, self.child_a_id)
+        self.assertEqual(len(disabled_b), 0)
+
+    def test_unverified_nodes_with_namespace_filters(self):
+        """unverified_nodes(namespace) only returns unverified nodes from that namespace."""
+        # Unverify child_b only.
+        child_b = self.dbsession.query(Node).filter(Node.id == self.child_b_id).one()
+        child_b.unverify()
+        self.dbsession.add(child_b)
+        self.dbsession.flush()
+
+        unverified_a = list(self.user.unverified_nodes(namespace=self.ns_a))
+        unverified_b = list(self.user.unverified_nodes(namespace=self.ns_b))
+
+        self.assertEqual(len(unverified_a), 0)
+        self.assertEqual(len(unverified_b), 1)
+        self.assertEqual(unverified_b[0].id, self.child_b_id)
+
+    def test_user_profile_view_filters_by_namespace(self):
+        """The user profile HTTP endpoint only shows same-namespace comments."""
+        user_name = self.user.name
+
+        # Request user profile under namespace site-a.
+        res_a = self.testapp.get(
+            "/embed/ns/site-a.example.com/u/{}".format(user_name),
+            status=200,
+        )
+        self.assertIn(b"Comment on site A", res_a.body)
+        self.assertNotIn(b"Comment on site B", res_a.body)
+
+        # Request user profile under namespace site-b.
+        res_b = self.testapp.get(
+            "/embed/ns/site-b.example.com/u/{}".format(user_name),
+            status=200,
+        )
+        self.assertIn(b"Comment on site B", res_b.body)
+        self.assertNotIn(b"Comment on site A", res_b.body)
+
+
+# ---------------------------------------------------------------------------
+# T4: Customizable button text and comment labels
+# ---------------------------------------------------------------------------
+
+
+class CustomButtonTextFunctionalTests(FunctionalTests):
+    """Functional tests for T4: custom button text and comment labels."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        # Create a test user and namespace
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "custom-text@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+        self.dbsession.flush()
+
+        # Create a namespace with custom text
+        self.ns_custom = get_or_create_namespace(
+            self.dbsession, "custom-text.example.com"
+        )
+        self.ns_custom.subscription_type = "production"
+        self.ns_custom.submit_button_text = "Post Comment"
+        self.ns_custom.comment_label_singular = "comment"
+        self.ns_custom.comment_label_plural = "comments"
+        self.dbsession.add(self.ns_custom)
+
+        # Create a namespace with defaults (None)
+        self.ns_default = get_or_create_namespace(
+            self.dbsession, "default-text.example.com"
+        )
+        self.ns_default.subscription_type = "production"
+        self.dbsession.add(self.ns_default)
+
+        self.dbsession.flush()
+
+        self.ns_custom_id = self.ns_custom.id
+        self.ns_custom_name = str(self.ns_custom.name)
+        self.ns_default_id = self.ns_default.id
+        self.ns_default_name = str(self.ns_default.name)
+
+        self.tm.commit()
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "custom-text@remarkbox.com"
+        )
+        self.test_creds = ("custom-text@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(CustomButtonTextFunctionalTests, self).tearDown()
+        # Clean up nodes in these namespaces
+        self.dbsession.query(Node).filter(
+            Node.namespace_id.in_([self.ns_custom_id, self.ns_default_id])
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "custom-text@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_embed_renders_custom_button_text(self):
+        """Embed page shows custom submit_button_text instead of 'save message'."""
+        self._log_in_test_user()
+
+        # Create a root node in the custom namespace
+        from remarkbox.models import create_root_node
+        ns = get_or_create_namespace(self.dbsession, self.ns_custom_name)
+        user = get_or_create_user_by_email(self.dbsession, "custom-text@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = ns
+        root.user = user
+        root.verified = True
+        root.title = "Custom Button Thread"
+        root.set_data("Test content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        # Visit the thread page (follows redirect from /{id} to /{id}/{slug})
+        redirect_res = self.testapp.get("/{}".format(root_id))
+        res = redirect_res.follow()
+        # Should contain the custom button text
+        self.assertIn(b"Post Comment", res.body)
+
+    def test_embed_renders_default_button_text_when_not_set(self):
+        """Embed page shows 'save message' when no custom text is set."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        ns = get_or_create_namespace(self.dbsession, self.ns_default_name)
+        user = get_or_create_user_by_email(self.dbsession, "custom-text@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = ns
+        root.user = user
+        root.verified = True
+        root.title = "Default Button Thread"
+        root.set_data("Test content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        redirect_res = self.testapp.get("/{}".format(root_id))
+        res = redirect_res.follow()
+        # Should contain the default text
+        self.assertIn(b"save message", res.body)
+
+    @patch("remarkbox.models.NamespaceRequest.scrape_target", mock_always_true)
+    def test_namespace_settings_saves_custom_button_text(self):
+        """Namespace settings form saves custom button text."""
+        self._log_in_test_user()
+
+        # Make user owner of namespace
+        ns = get_or_create_namespace(self.dbsession, self.ns_custom_name)
+        user = get_or_create_user_by_email(self.dbsession, "custom-text@remarkbox.com")
+        ns.set_role_for_user(user, "owner")
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        # Post updated settings
+        self.testapp.post(
+            "/ns/{}/settings".format(self.ns_custom_name),
+            {
+                "csrf_token": self.csrf,
+                "submit-button-text": "Submit Reply",
+                "comment-label-singular": "reply",
+                "comment-label-plural": "replies",
+            },
+        )
+
+        # Verify changes were saved
+        ns = get_or_create_namespace(self.dbsession, self.ns_custom_name)
+        self.dbsession.expire(ns)
+        self.assertEqual(ns.submit_button_text, "Submit Reply")
+        self.assertEqual(ns.comment_label_singular, "reply")
+        self.assertEqual(ns.comment_label_plural, "replies")
+
+
+# ---------------------------------------------------------------------------
+# T6: Mention notification integration test
+# ---------------------------------------------------------------------------
+
+
+class MentionNotificationFunctionalTests(FunctionalTests):
+    """Functional tests for T6: @mention notifications."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        # Create two test users
+        self.test_user1 = get_or_create_user_by_email(
+            self.dbsession, "mention-poster@remarkbox.com"
+        )
+        self.raw_otp1 = self.test_user1.new_password()
+
+        self.test_user2 = get_or_create_user_by_email(
+            self.dbsession, "mention-target@remarkbox.com"
+        )
+        self.raw_otp2 = self.test_user2.new_password()
+        # Store the name so we can @mention it
+        self.test_user2_name = str(self.test_user2.name)
+
+        self.dbsession.add(self.test_user1)
+        self.dbsession.add(self.test_user2)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        # Re-query
+        self.test_user1 = get_or_create_user_by_email(
+            self.dbsession, "mention-poster@remarkbox.com"
+        )
+        self.test_user2 = get_or_create_user_by_email(
+            self.dbsession, "mention-target@remarkbox.com"
+        )
+
+        self.test_creds1 = ("mention-poster@remarkbox.com", self.raw_otp1)
+        self.test_creds2 = ("mention-target@remarkbox.com", self.raw_otp2)
+
+    def tearDown(self):
+        super(MentionNotificationFunctionalTests, self).tearDown()
+        # Clean up notifications first
+        self.dbsession.query(NodeEventNotification).delete()
+        # Re-query users to avoid detached instance errors
+        user1 = get_user_by_email(self.dbsession, "mention-poster@remarkbox.com")
+        user2 = get_user_by_email(self.dbsession, "mention-target@remarkbox.com")
+        if user1:
+            self.dbsession.delete(user1)
+        if user2:
+            self.dbsession.delete(user2)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self, test_creds):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    @patch("smtplib.SMTP")
+    def test_mention_creates_notification(self, mock_smtp):
+        """Posting a comment with @mention creates a notification for the mentioned user."""
+        # Store user2 ID before any session operations
+        user2_id = self.test_user2.id
+
+        # First, log in as user2 to set up their notification preferences
+        self._log_in_test_user(self.test_creds2)
+        self.testapp.post(
+            "/u/settings",
+            {
+                "csrf_token": self.csrf,
+                "default-node-watcher-frequency": "immediately",
+                "reply-watcher-frequency": "immediately",
+            },
+        )
+        self.testapp.get("/log-out")
+
+        # Log in as user1 and create a thread
+        self._log_in_test_user(self.test_creds1)
+        self.testapp.post(
+            "/u/settings",
+            {
+                "csrf_token": self.csrf,
+                "default-node-watcher-frequency": "immediately",
+                "reply-watcher-frequency": "immediately",
+            },
+        )
+
+        new_resp = self.testapp.post(
+            "/new",
+            {
+                "thread_title": "Mention Test Thread",
+                "thread_data": "Initial content",
+                "csrf_token": self.csrf,
+            },
+        )
+
+        thread_url = new_resp.headers["location"]
+        root_id = re.search(r"\/([^/]*)\/[^/]*$", thread_url).group(1)
+
+        # Clear notifications from thread creation
+        self.dbsession.query(NodeEventNotification).delete()
+        self.dbsession.flush()
+        self.tm.commit()
+
+        # Post a reply mentioning user2
+        mention_text = "Hey @{} check this out!".format(self.test_user2_name)
+        self.testapp.post(
+            "/{}/reply".format(root_id),
+            {"csrf_token": self.csrf, "thread_data": mention_text},
+        )
+
+        # Check that a notification was created for the mentioned user
+        notifications = list(self.dbsession.query(NodeEventNotification).all())
+        # There should be at least one notification for the mentioned user
+        mentioned_user_notifs = [
+            n for n in notifications if n.user_id == user2_id
+        ]
+        self.assertGreaterEqual(len(mentioned_user_notifs), 1,
+            "Expected at least one notification for mentioned user @{}".format(
+                self.test_user2_name
+            ))
+
+
+# ---------------------------------------------------------------------------
+# T8: Nesting depth enforcement (web view)
+# ---------------------------------------------------------------------------
+
+
+class NestingDepthWebFunctionalTests(FunctionalTests):
+    """Functional tests for T8: max nesting depth enforcement in web views."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "depth-web@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+        self.dbsession.flush()
+
+        # Create namespace with max nesting depth = 1
+        self.ns = get_or_create_namespace(
+            self.dbsession, "depth-web-test.example.com"
+        )
+        self.ns.subscription_type = "production"
+        self.ns.max_nesting_depth = 1
+        self.dbsession.add(self.ns)
+        self.dbsession.flush()
+
+        self.ns_id = self.ns.id
+        self.ns_name = str(self.ns.name)
+        self.tm.commit()
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "depth-web@remarkbox.com"
+        )
+        self.test_creds = ("depth-web@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(NestingDepthWebFunctionalTests, self).tearDown()
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "depth-web@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_reply_within_max_depth_succeeds(self):
+        """Reply within max depth (root depth 0 < max_nesting_depth 1) succeeds."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        ns = get_or_create_namespace(self.dbsession, self.ns_name)
+        user = get_or_create_user_by_email(self.dbsession, "depth-web@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = ns
+        root.user = user
+        root.verified = True
+        root.title = "Depth Web Thread"
+        root.set_data("Test content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+        self.tm.commit()
+
+        # Reply to root (parent.depth=0 < max=1) - should succeed
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(root_id),
+            {"csrf_token": self.csrf, "thread_data": "Depth 1 reply"},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)
+
+    def test_reply_beyond_max_depth_is_rejected(self):
+        """Reply beyond max depth (parent depth 1 >= max 1) is rejected via web."""
+        self._log_in_test_user()
+
+        from remarkbox.models import create_root_node
+        ns = get_or_create_namespace(self.dbsession, self.ns_name)
+        user = get_or_create_user_by_email(self.dbsession, "depth-web@remarkbox.com")
+
+        root = create_root_node()
+        root.namespace = ns
+        root.user = user
+        root.verified = True
+        root.title = "Too Deep Web Thread"
+        root.set_data("Root content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        root_id = str(root.id)
+
+        # Create a child at depth 1
+        child = root.new_child()
+        child.user = user
+        child.verified = True
+        child.set_data("Depth 1 child")
+        self.dbsession.add(child)
+        self.dbsession.flush()
+        child_id = str(child.id)
+        self.tm.commit()
+
+        # Try to reply to child (parent.depth=1 >= max=1) - should be rejected
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(child_id),
+            {"csrf_token": self.csrf, "thread_data": "Too deep reply"},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Maximum nesting depth reached", res.body)
+
+    @patch("remarkbox.models.NamespaceRequest.scrape_target", mock_always_true)
+    def test_namespace_settings_saves_nesting_depth(self):
+        """Namespace settings form saves max_nesting_depth and collapse_depth."""
+        self._log_in_test_user()
+
+        ns = get_or_create_namespace(self.dbsession, self.ns_name)
+        user = get_or_create_user_by_email(self.dbsession, "depth-web@remarkbox.com")
+        ns.set_role_for_user(user, "owner")
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        self.testapp.post(
+            "/ns/{}/settings".format(self.ns_name),
+            {
+                "csrf_token": self.csrf,
+                "max-nesting-depth": "5",
+                "collapse-depth": "3",
+            },
+        )
+
+        ns = get_or_create_namespace(self.dbsession, self.ns_name)
+        self.dbsession.expire(ns)
+        self.assertEqual(ns.max_nesting_depth, 5)
+        self.assertEqual(ns.collapse_depth, 3)
+
+
+# ---------------------------------------------------------------------------
+# T0: Profile namespace isolation — moderation settings tests
+# ---------------------------------------------------------------------------
+
+
+class UserProfileModerationFilterTests(FunctionalTests):
+    """
+    Regression tests for T0: namespace moderation settings on profile page.
+
+    Verifies that hide_unless_approved and hide_unverified settings are
+    respected when filtering page_nodes with a namespace.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        self.user = get_or_create_user_by_email(
+            self.dbsession, "mod-filter@example.com"
+        )
+        self.raw_otp = self.user.new_password()
+        self.dbsession.add(self.user)
+        self.dbsession.flush()
+
+        # Namespace with hide_unless_approved enabled.
+        self.ns_strict = get_or_create_namespace(
+            self.dbsession, "strict-ns.example.com"
+        )
+        self.ns_strict.subscription_type = "production"
+        self.ns_strict.hide_unless_approved = True
+
+        # Create root and two children: one approved, one not.
+        root = create_root_node()
+        root.namespace = self.ns_strict
+        root.user = self.user
+        root.verified = True
+        root.title = "Strict thread"
+        root.set_data("Strict root content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+
+        approved_child = root.new_child()
+        approved_child.user = self.user
+        approved_child.verified = True
+        approved_child.approved = True
+        approved_child.set_data("Approved comment")
+        self.dbsession.add(approved_child)
+
+        unapproved_child = root.new_child()
+        unapproved_child.user = self.user
+        unapproved_child.verified = True
+        unapproved_child.approved = False
+        unapproved_child.set_data("Unapproved comment")
+        self.dbsession.add(unapproved_child)
+
+        self.dbsession.flush()
+
+        self.root_id = root.id
+        self.approved_id = approved_child.id
+        self.unapproved_id = unapproved_child.id
+        self.ns_strict_id = self.ns_strict.id
+
+        self.tm.commit()
+
+        self.user = get_or_create_user_by_email(
+            self.dbsession, "mod-filter@example.com"
+        )
+        self.ns_strict = get_or_create_namespace(
+            self.dbsession, "strict-ns.example.com"
+        )
+
+    def tearDown(self):
+        super(UserProfileModerationFilterTests, self).tearDown()
+        self.dbsession.query(Node).filter(
+            Node.root_id == self.root_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.id == self.root_id
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "mod-filter@example.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_page_nodes_respects_hide_unless_approved(self):
+        """page_nodes with hide_unless_approved namespace filters out unapproved nodes."""
+        nodes = list(self.user.page_nodes(namespace=self.ns_strict))
+        node_ids = [n.id for n in nodes]
+        self.assertIn(self.approved_id, node_ids)
+        self.assertNotIn(self.unapproved_id, node_ids)
+
+    def test_page_nodes_without_namespace_returns_all_approved(self):
+        """page_nodes without namespace returns all approved/verified nodes."""
+        nodes = list(self.user.page_nodes())
+        node_ids = [n.id for n in nodes]
+        self.assertIn(self.approved_id, node_ids)
+
+    def test_unapproved_nodes_with_namespace(self):
+        """unapproved_nodes(namespace) returns only unapproved nodes in that namespace."""
+        unapproved = list(self.user.unapproved_nodes(namespace=self.ns_strict))
+        unapproved_ids = [n.id for n in unapproved]
+        self.assertIn(self.unapproved_id, unapproved_ids)
+        self.assertNotIn(self.approved_id, unapproved_ids)
+
+
+# ---------------------------------------------------------------------------
+# T1: Case-insensitive namespace creation via setup (integration test)
+# ---------------------------------------------------------------------------
+
+
+class CaseInsensitiveNamespaceSetupTests(FunctionalTests):
+    """
+    Regression tests for T1: the setup_namespace view lowercases domain names.
+
+    When a user creates a namespace via /setup, the domain is lowercased.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "case-ns-setup@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "case-ns-setup@remarkbox.com"
+        )
+        self.test_creds = ("case-ns-setup@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(CaseInsensitiveNamespaceSetupTests, self).tearDown()
+        user = get_user_by_email(self.dbsession, "case-ns-setup@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    @patch("remarkbox.models.NamespaceRequest.scrape_target", mock_always_true)
+    def test_setup_lowercases_namespace_domain(self):
+        """The /setup view lowercases the namespace domain name."""
+        self._log_in_test_user()
+
+        self.testapp.post(
+            "/setup",
+            {
+                "namespace-domain": "MixedCase.Example.COM",
+                "csrf_token": self.csrf,
+            },
+        )
+
+        # The namespace should have been created with lowercase name.
+        from remarkbox.models.namespace import get_namespace_by_name
+        ns = get_namespace_by_name(self.dbsession, "mixedcase.example.com")
+        self.assertIsNotNone(ns, "Namespace should be found with lowercase name")
+
+
+# ---------------------------------------------------------------------------
+# T3: GDPR — Delete account and Export data (functional tests)
+# ---------------------------------------------------------------------------
+
+
+class GDPRDeleteAccountFunctionalTests(FunctionalTests):
+    """
+    Functional tests for T3: delete account flow.
+
+    Tests the /u/delete-account endpoint for account deletion and anonymization.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "gdpr-delete@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+        self.dbsession.flush()
+
+        # Create a root node owned by this user.
+        root = create_root_node()
+        root.namespace = get_or_create_namespace(self.dbsession, "gdpr.example.com")
+        root.user = self.test_user
+        root.verified = True
+        root.title = "GDPR Test Thread"
+        root.set_data("Root content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+
+        # Create a child comment by this user.
+        child = root.new_child()
+        child.user = self.test_user
+        child.verified = True
+        child.approved = True
+        child.set_data("User comment to be anonymized")
+        self.dbsession.add(child)
+        self.dbsession.flush()
+
+        self.root_id = root.id
+        self.child_id = child.id
+        self.user_id = self.test_user.id
+
+        self.tm.commit()
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "gdpr-delete@remarkbox.com"
+        )
+        self.test_creds = ("gdpr-delete@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(GDPRDeleteAccountFunctionalTests, self).tearDown()
+        try:
+            self.dbsession.query(Node).filter(
+                Node.root_id == self.root_id
+            ).delete(synchronize_session=False)
+            self.dbsession.query(Node).filter(
+                Node.id == self.root_id
+            ).delete(synchronize_session=False)
+            from remarkbox.models.user import User
+            user = self.dbsession.query(User).filter(User.id == self.user_id).one_or_none()
+            if user:
+                self.dbsession.delete(user)
+            self.dbsession.flush()
+            self.tm.commit()
+        except Exception:
+            self.tm.abort()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_1_delete_account_page_loads(self):
+        """GET /u/delete-account returns 200 for authenticated users."""
+        self._log_in_test_user()
+        res = self.testapp.get("/u/delete-account", status=200)
+        self.assertIn(b"Delete My Account", res.body)
+
+    def test_2_delete_account_requires_confirmation(self):
+        """POST without typing DELETE does not delete account."""
+        self._log_in_test_user()
+        res = self.testapp.post(
+            "/u/delete-account",
+            {"csrf_token": self.csrf, "confirm-delete": "wrong"},
+            status=200,
+        )
+        self.assertIn(b'You must type', res.body)
+
+        from remarkbox.models.user import User
+        user = self.dbsession.query(User).filter(User.id == self.user_id).one_or_none()
+        self.assertIsNotNone(user)
+
+    def test_3_delete_account_anonymizes_and_keeps_tombstone(self):
+        """POST with DELETE confirmation scrubs PII and keeps user as tombstone."""
+        self._log_in_test_user()
+        redirect_res = self.testapp.post(
+            "/u/delete-account",
+            {"csrf_token": self.csrf, "confirm-delete": "DELETE"},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Your account has been deleted", res.body)
+
+        # Expire cached objects so we get fresh data after the app committed.
+        self.dbsession.expire_all()
+
+        from remarkbox.models.user import User
+        user = self.dbsession.query(User).filter(User.id == self.user_id).one_or_none()
+        self.assertIsNotNone(user, "User record should be kept as tombstone")
+        self.assertTrue(user.name.startswith("deleted-"), "Name should be anonymized")
+        self.assertTrue(user.email.startswith("deleted-"), "Email should be anonymized")
+        self.assertTrue(user.disabled, "Tombstone user should be disabled")
+        self.assertIsNone(user.password, "Password should be scrubbed")
+
+        child = self.dbsession.query(Node).filter(Node.id == self.child_id).one_or_none()
+        self.assertIsNotNone(child, "Comment should still exist after deletion")
+        self.assertEqual(child.user_id, self.user_id, "user_id FK should still point to tombstone")
+        self.assertIsNone(child.ip_address, "IP address should be scrubbed")
+
+
+class GDPRExportDataFunctionalTests(FunctionalTests):
+    """
+    Functional tests for T3: export user data flow.
+
+    Tests the /u/export-data endpoint for JSON data export.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "gdpr-export@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+        self.dbsession.flush()
+
+        root = create_root_node()
+        root.namespace = get_or_create_namespace(self.dbsession, "export.example.com")
+        root.user = self.test_user
+        root.verified = True
+        root.title = "Export Test Thread"
+        root.set_data("Root content for export")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+
+        child = root.new_child()
+        child.user = self.test_user
+        child.verified = True
+        child.approved = True
+        child.set_data("Exportable comment")
+        self.dbsession.add(child)
+        self.dbsession.flush()
+
+        self.root_id = root.id
+        self.child_id = child.id
+
+        self.tm.commit()
+
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "gdpr-export@remarkbox.com"
+        )
+        self.test_creds = ("gdpr-export@remarkbox.com", self.raw_otp)
+
+    def tearDown(self):
+        super(GDPRExportDataFunctionalTests, self).tearDown()
+        self.dbsession.query(Node).filter(
+            Node.root_id == self.root_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.id == self.root_id
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "gdpr-export@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*self.test_creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_export_data_returns_json(self):
+        """GET /u/export-data returns JSON attachment with user's comments."""
+        self._log_in_test_user()
+        res = self.testapp.get("/u/export-data", status=200)
+        self.assertIn("application/json", res.content_type)
+        self.assertIn("attachment", res.content_disposition)
+
+        import json
+        data = json.loads(res.body)
+        self.assertIn("profile", data)
+        self.assertIn("comments", data)
+        self.assertEqual(data["profile"]["email"], "gdpr-export@remarkbox.com")
+        self.assertGreater(len(data["comments"]), 0)
+
+    def test_export_data_requires_auth(self):
+        """GET /u/export-data redirects when not authenticated."""
+        redirect_res = self.testapp.get("/u/export-data", status=302)
+        res = redirect_res.follow()
+        self.assertIn(b"You must log in", res.body)
+
+
+# ---------------------------------------------------------------------------
+# T5: Self-service namespace deletion (functional tests)
+# ---------------------------------------------------------------------------
+
+
+class NamespaceDeletionFunctionalTests(FunctionalTests):
+    """
+    Functional tests for T5: self-service namespace deletion.
+
+    Tests the /ns/{namespace}/delete endpoint.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        self.owner = get_or_create_user_by_email(
+            self.dbsession, "ns-delete-owner@remarkbox.com"
+        )
+        self.owner_otp = self.owner.new_password()
+        self.dbsession.add(self.owner)
+
+        self.non_owner = get_or_create_user_by_email(
+            self.dbsession, "ns-delete-notown@remarkbox.com"
+        )
+        self.non_owner_otp = self.non_owner.new_password()
+        self.dbsession.add(self.non_owner)
+
+        self.dbsession.flush()
+
+        self.ns = get_or_create_namespace(
+            self.dbsession, "deleteme.example.com"
+        )
+        self.ns.set_role_for_user(self.owner, "owner")
+        self.dbsession.add(self.ns)
+        self.dbsession.flush()
+
+        root = create_root_node()
+        root.namespace = self.ns
+        root.user = self.owner
+        root.verified = True
+        root.title = "Delete NS Thread"
+        root.set_data("Will be deleted")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+
+        child = root.new_child()
+        child.user = self.owner
+        child.verified = True
+        child.approved = True
+        child.set_data("Will also be deleted")
+        self.dbsession.add(child)
+        self.dbsession.flush()
+
+        self.ns_id = self.ns.id
+        self.ns_name = str(self.ns.name)
+        self.root_id = root.id
+        self.owner_id = self.owner.id
+        self.non_owner_id = self.non_owner.id
+
+        self.tm.commit()
+
+        self.owner = get_or_create_user_by_email(
+            self.dbsession, "ns-delete-owner@remarkbox.com"
+        )
+        self.non_owner = get_or_create_user_by_email(
+            self.dbsession, "ns-delete-notown@remarkbox.com"
+        )
+        self.owner_creds = ("ns-delete-owner@remarkbox.com", self.owner_otp)
+        self.non_owner_creds = ("ns-delete-notown@remarkbox.com", self.non_owner_otp)
+
+    def tearDown(self):
+        super(NamespaceDeletionFunctionalTests, self).tearDown()
+        from remarkbox.models.namespace import Namespace
+        ns = self.dbsession.query(Namespace).filter(
+            Namespace.id == self.ns_id
+        ).one_or_none()
+        if ns:
+            self.dbsession.query(Node).filter(
+                Node.namespace_id == self.ns_id
+            ).delete(synchronize_session=False)
+            # Also remove namespace-user associations before deleting ns.
+            ns.owners[:] = []
+            ns.moderators[:] = []
+            self.dbsession.delete(ns)
+        for email in ["ns-delete-owner@remarkbox.com", "ns-delete-notown@remarkbox.com"]:
+            user = get_user_by_email(self.dbsession, email)
+            if user:
+                self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in(self, creds):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*creds)
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def test_non_owner_cannot_delete_namespace(self):
+        """Non-owner gets redirected when trying to delete a namespace."""
+        self._log_in(self.non_owner_creds)
+        redirect_res = self.testapp.get(
+            "/ns/{}/delete".format(self.ns_name), status=302
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"You do not own that Namespace", res.body)
+
+    def test_delete_namespace_requires_typing_name(self):
+        """POST without typing the namespace name does not delete it."""
+        self._log_in(self.owner_creds)
+        res = self.testapp.post(
+            "/ns/{}/delete".format(self.ns_name),
+            {"csrf_token": self.csrf, "confirm-delete": "wrong-name"},
+            status=200,
+        )
+        self.assertIn(b"You must type the namespace name", res.body)
+
+        from remarkbox.models.namespace import Namespace
+        ns = self.dbsession.query(Namespace).filter(
+            Namespace.id == self.ns_id
+        ).one_or_none()
+        self.assertIsNotNone(ns)
+
+    def test_owner_can_delete_namespace(self):
+        """Owner typing the namespace name deletes it and all associated data."""
+        self._log_in(self.owner_creds)
+        redirect_res = self.testapp.post(
+            "/ns/{}/delete".format(self.ns_name),
+            {"csrf_token": self.csrf, "confirm-delete": self.ns_name},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"permanently deleted", res.body)
+
+        from remarkbox.models.namespace import Namespace
+        ns = self.dbsession.query(Namespace).filter(
+            Namespace.id == self.ns_id
+        ).one_or_none()
+        self.assertIsNone(ns, "Namespace should be deleted")
+
+        nodes = self.dbsession.query(Node).filter(
+            Node.root_id == self.root_id
+        ).all()
+        self.assertEqual(len(nodes), 0, "All nodes in namespace should be deleted")

@@ -1,11 +1,13 @@
 {% set number = request.node.stats["root"]["visible_count"] %}
+{% set label_singular = request.namespace.comment_label_singular or 'remark' %}
+{% set label_plural = request.namespace.comment_label_plural or 'remarks' %}
 
 {% if number == 0 %}
-{% set msg = "No remarks" %}
+{% set msg = "No " ~ label_plural %}
 {% elif number == 1 %}
-{% set msg = "1 remark" %}
+{% set msg = "1 " ~ label_singular %}
 {% else %}
-{% set msg = number ~ " remarks" %}
+{% set msg = number ~ " " ~ label_plural %}
 {% endif %}
 
 {% if request.node.uri %}

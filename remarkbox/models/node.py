@@ -312,11 +312,13 @@ class Node(RBase, Base):
     def enabled(self):
         return not self.disabled
 
-    def set_data(self, data, namespace=None):
+    def set_data(self, data, namespace=None, dbsession=None):
         if namespace is None:
             namespace = self.root.namespace
+        if dbsession is None:
+            dbsession = self.dbsession
         self.data = data
-        self.data_html = markdown_to_html(data, namespace)
+        self.data_html = markdown_to_html(data, namespace, dbsession=dbsession)
 
     def _invalidate_cache(self):
         if self.root.cache:
@@ -499,12 +501,49 @@ def get_nodes_who_share_roots(dbsession, root_nodes):
     return get_nodes_who_share_roots_query(dbsession, root_nodes).all()
 
 
-def get_nodes_who_share_root(dbsession, root_node, order="oldest-first"):
+def get_nodes_who_share_root(dbsession, root_node, order="oldest-first",
+                             limit=None, offset=None,
+                             exclude_root=False,
+                             visibility_filters=None):
+    """Return nodes sharing a root, with optional pagination and SQL-side filtering.
+
+    Args:
+        dbsession: SQLAlchemy session.
+        root_node: The root Node whose tree to query.
+        order: 'oldest-first' or 'newest-first'.
+        limit: Maximum number of rows to return (None = unlimited).
+        offset: Number of rows to skip (None = 0).
+        exclude_root: If True, exclude the root node itself from results.
+        visibility_filters: Optional dict of SQL visibility filters to apply.
+            Supported keys: disabled (bool), approved (bool), verified (bool).
+
+    Returns:
+        SQLAlchemy query object (call .all() to materialise).
+    """
     nodes = dbsession.query(Node).filter(Node.root_id == root_node.id)
+
+    if exclude_root:
+        nodes = nodes.filter(Node.id != root_node.id)
+
+    # Apply SQL-side visibility filters
+    if visibility_filters:
+        if "disabled" in visibility_filters:
+            nodes = nodes.filter(Node.disabled == visibility_filters["disabled"])
+        if "approved" in visibility_filters:
+            nodes = nodes.filter(Node.approved == visibility_filters["approved"])
+        if "verified" in visibility_filters:
+            nodes = nodes.filter(Node.verified == visibility_filters["verified"])
+
     if order == "oldest-first":
         nodes = nodes.order_by(Node.created)
     elif order == "newest-first":
         nodes = nodes.order_by(Node.created.desc())
+
+    if offset is not None:
+        nodes = nodes.offset(offset)
+    if limit is not None:
+        nodes = nodes.limit(limit)
+
     return nodes
 
 

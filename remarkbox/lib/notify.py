@@ -67,6 +67,30 @@ def filter_watchers(watchers, exclude_users=None, include_users=None):
     return f_watchers
 
 
+def get_mentioned_user_watchers(node):
+    """
+    Parse @mentions from a node's data and return reply watchers
+    for mentioned users who exist.
+    """
+    from remarkbox.lib.mentions import resolve_mentions
+
+    if not node.data:
+        return []
+
+    dbsession = node.dbsession
+    if dbsession is None:
+        return []
+
+    resolved = resolve_mentions(dbsession, node.data)
+    watchers = []
+    for user in resolved.values():
+        if user.verified:
+            # Use the user's reply watcher for mention notifications.
+            for w in user.reply_watchers:
+                watchers.append(w)
+    return watchers
+
+
 def get_all_watchers(request, node_event):
     """Given a request and node_event, return all watcher objects."""
     # Note: we only notify a user once per method per event.
@@ -85,6 +109,9 @@ def get_all_watchers(request, node_event):
         # extend the watchers list to let the owner of the parent node
         # know there was a new child node added to the conversation.
         watchers.extend(node.parent.user.reply_watchers)
+
+    # extend watchers for @mentioned users.
+    watchers.extend(get_mentioned_user_watchers(node))
 
     # extend the watchers list with any watchers of the request's root (thread).
     watchers.extend(node.root.watchers)
@@ -201,6 +228,44 @@ def deliver_scheduled_notifications(request=None):
             send_digest_notifications(request, filtered_dict, "weekly")
     
 
+def _send_push_for_notification(request, notification, root, namespace):
+    """Send a push notification for a single notification if the user wants it."""
+    from remarkbox.lib.push import PUSH_AVAILABLE, send_push_to_user
+    if not PUSH_AVAILABLE:
+        return
+
+    user = notification.user
+    pref = getattr(user, "notification_preference", "email")
+    if pref not in ("push", "both"):
+        return
+
+    node = notification.node_event.node
+    action = notification.node_event.action
+    author = node.user.name if node.user else "Someone"
+
+    action_text = {
+        "created": "started a new thread",
+        "commented": "posted a reply",
+        "approved": "approved a comment",
+        "enabled": "enabled a comment",
+        "disabled": "disabled a comment",
+        "verified": "verified a comment",
+    }.get(action, action)
+
+    title = "[{}] new activity".format(namespace.name)
+    body = "{} {} on {}".format(author, action_text, root.title or "a thread")
+    url = "{}/r/{}".format(request.host_url, node.id)
+
+    payload = {
+        "title": title,
+        "body": body,
+        "url": url,
+        "tag": "remarkbox-{}".format(str(notification.id)[:8]),
+    }
+
+    send_push_to_user(request, user, payload)
+
+
 def send_immediate_notifications(request, notifications):
     deliver_email_notifications = request.app.get("deliver_email_notifications", True)
 
@@ -214,30 +279,38 @@ def send_immediate_notifications(request, notifications):
     subject = "[{}] new activity".format(namespace.name)
 
     for notification in notifications:
+        user_pref = getattr(notification.user, "notification_preference", "email")
+
+        # Send email if the user wants email (or both).
         if deliver_email_notifications and notification.method == "email":
-            send_template_email(
-                request,
-                notification.user.email,
-                subject,
-                "mail_immediate_text.j2",
-                "mail_immediate_html.j2",
-                {
-                    "request": request,
-                    "notification": notification,
-                    "root": root,
-                    "subject": subject,
-                },
-            )
-            log.info(
-                "notification frequency=immediately user={} ({}), count={}".format(
-                    notification.user.name,
-                    notification.user_id,
-                    notification.id,
+            if user_pref in ("email", "both"):
+                send_template_email(
+                    request,
+                    notification.user.email,
+                    subject,
+                    "mail_immediate_text.j2",
+                    "mail_immediate_html.j2",
+                    {
+                        "request": request,
+                        "notification": notification,
+                        "root": root,
+                        "subject": subject,
+                    },
                 )
+
+        # Send push notification if the user wants push (or both).
+        _send_push_for_notification(request, notification, root, namespace)
+
+        log.info(
+            "notification frequency=immediately user={} ({}), count={}".format(
+                notification.user.name,
+                notification.user_id,
+                notification.id,
             )
-            notification.sent = True
-            request.dbsession.add(notification)
-            request.dbsession.flush()
+        )
+        notification.sent = True
+        request.dbsession.add(notification)
+        request.dbsession.flush()
 
 
 def group_notifications_by_root(notifications):

@@ -51,13 +51,13 @@
 
 {%- if request.user.authenticated %}
 
-{%- if request.user.unverified_nodes.count() > 0 %}
+{%- if request.user.unverified_nodes().count() > 0 %}
 
 <br>
 <section class="well">
 <br>
 <p>
-<b>You have <a href="{{ request.link_prefix }}/u/{{ request.user.name }}?pending">unverified comments ({{ request.user.unverified_nodes.count() }})</a> pending review.</b>
+<b>You have <a href="{{ request.link_prefix }}/u/{{ request.user.name }}?pending">unverified comments ({{ request.user.unverified_nodes().count() }})</a> pending review.</b>
 </p>
 
 <p>

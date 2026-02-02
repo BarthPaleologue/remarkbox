@@ -5,6 +5,8 @@ from .sanitize_html import (
     clean_raw_html,
 )
 
+from .mentions import resolve_mentions, replace_mentions_with_links
+
 import logging
 
 log = logging.getLogger(__name__)
@@ -51,10 +53,18 @@ def make_cleaner_from_namespace(namespace):
     return cleaner
 
 
-def markdown_to_html(data, namespace=None):
+def markdown_to_html(data, namespace=None, dbsession=None):
     raw_html = markdown_to_raw_html(data, extra_extensions=["mdx_math"])
     if namespace:
         cleaner = make_cleaner_from_namespace(namespace)
     else:
         cleaner = default_cleaner()
-    return clean_raw_html(raw_html, cleaner)
+    html = clean_raw_html(raw_html, cleaner)
+
+    # After sanitization, resolve @mentions and convert to profile links.
+    if dbsession is not None:
+        resolved = resolve_mentions(dbsession, data)
+        if resolved:
+            html = replace_mentions_with_links(html, resolved)
+
+    return html

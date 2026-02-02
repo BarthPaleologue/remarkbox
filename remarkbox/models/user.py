@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Boolean, Integer, Column, Unicode, Enum, func, or_
+from sqlalchemy import BigInteger, Boolean, Integer, Column, Unicode, UnicodeText, Enum, func, or_
 
 from sqlalchemy.orm import relationship, backref
 
@@ -120,6 +120,14 @@ class User(RBase, Base):
         default='auto',
         nullable=False,
     )
+    # Notification delivery preference: how the user wants to receive notifications.
+    notification_preference = Column(
+        Enum('email', 'push', 'both', 'none', name='notification_preference_enum'),
+        default='email',
+        nullable=False,
+    )
+    # JSON-encoded list of Web Push subscription objects.
+    push_subscriptions = Column(UnicodeText, nullable=True)
     votes = relationship(argument="Vote", backref="user", order_by="desc(Vote.created)")
 
     # lazy='dynamic' returns a query object instead of collection.
@@ -247,33 +255,47 @@ class User(RBase, Base):
     def unverified_namespace_owner_requests(self):
         return [nr for nr in self.namespace_owner_requests if not nr.verified]
 
-    @property
-    def verified_nodes(self):
-        return self.nodes.filter(Node.verified == True, Node.disabled == False)
+    def _namespace_filter(self, query, namespace=None):
+        """Apply namespace filter to a node query if namespace is provided."""
+        if namespace is not None:
+            root_ids = self.dbsession.query(Node.id).filter(
+                Node.namespace_id == namespace.id
+            )
+            query = query.filter(Node.root_id.in_(root_ids))
+        return query
 
-    @property
-    def unverified_nodes(self):
-        return self.nodes.filter(Node.verified == False, Node.disabled == False)
+    def verified_nodes(self, namespace=None):
+        query = self.nodes.filter(Node.verified == True, Node.disabled == False)
+        return self._namespace_filter(query, namespace)
 
-    @property
-    def disabled_nodes(self):
-        return self.nodes.filter(Node.verified == True, Node.disabled == True)
+    def unverified_nodes(self, namespace=None):
+        query = self.nodes.filter(Node.verified == False, Node.disabled == False)
+        return self._namespace_filter(query, namespace)
 
-    @property
-    def unapproved_nodes(self):
-        return self.nodes.filter(or_(Node.approved == False, Node.approved.is_(None)))
+    def disabled_nodes(self, namespace=None):
+        query = self.nodes.filter(Node.verified == True, Node.disabled == True)
+        return self._namespace_filter(query, namespace)
 
-    def page_nodes(self, limit=100, offset=0):
+    def unapproved_nodes(self, namespace=None):
+        query = self.nodes.filter(or_(Node.approved == False, Node.approved.is_(None)))
+        return self._namespace_filter(query, namespace)
+
+    def page_nodes(self, namespace=None, limit=100, offset=0):
         if self.nodes.count() == 0:
             return []
-        return (
-            self.nodes.filter(
-                Node.disabled == False, Node.verified == True, Node.user_id != None, Node.approved == True
-            )
-            .order_by(Node.changed.desc())
-            .limit(limit)
-            .offset(offset)
+        query = self.nodes.filter(
+            Node.disabled == False, Node.verified == True,
+            Node.user_id != None, Node.approved == True
         )
+        query = self._namespace_filter(query, namespace)
+
+        if namespace is not None:
+            if namespace.hide_unless_approved:
+                query = query.filter(Node.approved == True)
+            if namespace.hide_unverified:
+                query = query.filter(Node.verified == True)
+
+        return query.order_by(Node.changed.desc()).limit(limit).offset(offset)
 
     def __init__(self, email):
         self.name = unicode(generate_password(size=8))
@@ -373,6 +395,113 @@ class User(RBase, Base):
             self.watchers.append(reply_watcher)
             return reply_watcher
         return self.reply_watchers.first()
+
+    def anonymize_account(self):
+        """Anonymize this user's account for GDPR/CCPA compliance.
+
+        Scrubs PII (name, email, password) and cleans up metadata,
+        but keeps the user record as a tombstone so node.user_id
+        foreign keys remain valid and templates still work.
+        """
+        dbsession = self.dbsession
+        tombstone_id = uuid.uuid4().hex[:12]
+
+        # Scrub PII on the user record — keep it as a tombstone.
+        self.name = "deleted-{}".format(tombstone_id)
+        self.email = "deleted-{}@localhost".format(tombstone_id)
+        self.password = None
+        self.password_attempts = 0
+        self.gravatar = False
+        self.verified = False
+        self.disabled = True
+
+        # Scrub IP addresses on all comments.
+        for node in self.nodes.all():
+            node.ip_address = None
+            dbsession.add(node)
+
+        # Delete all notification records.
+        for notification in self.node_notifications.all():
+            dbsession.delete(notification)
+
+        # Delete all watchers and their notifications.
+        for watcher in self.watchers.all():
+            for notification in watcher.notifications.all():
+                dbsession.delete(notification)
+            dbsession.delete(watcher)
+
+        # Delete all events and their notifications.
+        for event in self.events:
+            notifications = dbsession.query(NodeEventNotification).filter(
+                NodeEventNotification.node_event_id == event.id
+            ).all()
+            for notification in notifications:
+                dbsession.delete(notification)
+            dbsession.delete(event)
+
+        # Delete OAuth records.
+        for oauth in self.oauth_records.all():
+            dbsession.delete(oauth)
+
+        # Delete namespace owner requests.
+        for nr in self.namespace_owner_requests.all():
+            dbsession.delete(nr)
+
+        # Delete namespace user associations.
+        for nsu in list(self.user_namespaces):
+            dbsession.delete(nsu)
+
+        # Delete payment records.
+        if self.pay_what_you_can:
+            dbsession.delete(self.pay_what_you_can)
+        for payment in self.payments.all():
+            dbsession.delete(payment)
+
+        # Delete votes.
+        for vote in self.votes:
+            dbsession.delete(vote)
+
+        dbsession.add(self)
+        dbsession.flush()
+
+    def export_user_data(self):
+        """Export all user data as a dictionary for GDPR/CCPA data subject requests."""
+        from remarkbox.lib import timestamp_to_date_string
+
+        data = {
+            "profile": {
+                "id": str(self.id),
+                "name": self.name,
+                "email": self.email,
+                "created": timestamp_to_date_string(self.created),
+                "gravatar": self.gravatar,
+                "verified": self.verified,
+                "theme_mode": self.theme_mode,
+            },
+            "comments": [],
+        }
+
+        for node in self.nodes.all():
+            comment = {
+                "id": str(node.id),
+                "created": timestamp_to_date_string(node.created),
+                "changed": timestamp_to_date_string(node.changed),
+                "content": node.data,
+                "disabled": node.disabled,
+                "verified": node.verified,
+                "approved": node.approved,
+            }
+            if node.title:
+                comment["title"] = node.title
+            if node.namespace:
+                comment["namespace"] = node.namespace.name
+            if node.root and node.root.title:
+                comment["thread_title"] = node.root.title
+            if node.root and node.root.uri:
+                comment["thread_uri"] = node.root.uri.data
+            data["comments"].append(comment)
+
+        return data
 
 
 def _user_by_name_query(dbsession, name):

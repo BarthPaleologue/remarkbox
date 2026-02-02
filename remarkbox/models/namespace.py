@@ -60,6 +60,11 @@ PROTECTED_ATTRIBUTES = {
     "reverse_order": False,
     "group_conversations": False,
     "api_access": True,
+    "submit_button_text": None,
+    "comment_label_singular": None,
+    "comment_label_plural": None,
+    "max_nesting_depth": None,
+    "collapse_depth": None,
 }
 
 
@@ -118,6 +123,13 @@ class Namespace(RBase, Base):
     # the group postfix used for imports (e.g., "rb" creates "Anonymous-rb")
     # Once set, this becomes permanent for all imported surrogates
     import_group_postfix = Column(Unicode(6), default=None, nullable=True)
+    # T4: customizable button text and comment labels
+    submit_button_text = Column(Unicode(256), default=None, nullable=True)
+    comment_label_singular = Column(Unicode(256), default=None, nullable=True)
+    comment_label_plural = Column(Unicode(256), default=None, nullable=True)
+    # T8: nesting depth settings
+    max_nesting_depth = Column(Integer, default=None, nullable=True)
+    collapse_depth = Column(Integer, default=None, nullable=True)
     # the type of subscription of this Namespace.
     subscription_type = Column(
         Enum(*SUBSCRIPTION_TYPES, name="subscription_type"),

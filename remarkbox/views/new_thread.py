@@ -54,7 +54,7 @@ def new_thread(request):
         node.namespace = request.namespace
         node.ip_address = unicode(request.client_addr)
         node.title = thread_title
-        node.set_data(thread_data)
+        node.set_data(thread_data, dbsession=request.dbsession)
 
         # Handle anonymous vs authenticated user
         if user_surrogate:

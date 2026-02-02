@@ -13,6 +13,14 @@ def includeme(config):
     config.add_route("billing-success", "/billing/success")
     config.add_route("stripe-webhook", "/webhook/stripe")
 
+    # webmention: IndieWeb webmention receiving endpoint.
+    config.add_route("webmention", "/webmention")
+
+    # push notifications: Web Push API endpoints.
+    config.add_route("push-vapid-key", "/push/vapid-key")
+    config.add_route("push-subscribe", "/push/subscribe")
+    config.add_route("push-unsubscribe", "/push/unsubscribe")
+
     # slack: bot notifications and oauth.
     config.add_route("oauth-slack", "/oauth/slack")
     config.add_route("oauth-slack-delete", "/oauth/slack/delete")
@@ -67,6 +75,7 @@ def includeme(config):
     config.add_route("embed-log-out", "/embed/ns/{namespace}/log-out")
 
     config.add_route("embed-namespace-nodes", "/embed/ns/{namespace}/nodes")
+    config.add_route("embed-namespace-delete", "/embed/ns/{namespace}/delete")
     config.add_route("embed-namespace-settings", "/embed/ns/{namespace}/settings")
     config.add_route("embed-namespace-import-comments", "/embed/ns/{namespace}/import-comments")
     config.add_route(
@@ -74,6 +83,8 @@ def includeme(config):
     )
     config.add_route("embed-namespace", "/embed/ns/{namespace}")
 
+    config.add_route("embed-user-delete-account", "/embed/ns/{namespace}/u/delete-account")
+    config.add_route("embed-user-export-data", "/embed/ns/{namespace}/u/export-data")
     config.add_route("embed-user-settings", "/embed/ns/{namespace}/u/settings")
     config.add_route("embed-user-watching", "/embed/ns/{namespace}/u/watching")
     config.add_route("embed-user-notifications", "/embed/ns/{namespace}/u/notifications")
@@ -99,6 +110,7 @@ def includeme(config):
     config.add_route("basic-verification-challenge", "/verification-challenge")
 
     config.add_route("basic-namespace-nodes", "/ns/{namespace}/nodes")
+    config.add_route("basic-namespace-delete", "/ns/{namespace}/delete")
     config.add_route("basic-namespace-settings", "/ns/{namespace}/settings")
     config.add_route("basic-namespace-import-comments", "/ns/{namespace}/import-comments")
     config.add_route("basic-namespace-stats-json", "/ns/{namespace}/stats.json")
@@ -110,6 +122,8 @@ def includeme(config):
     )
     config.add_route("basic-namespace", "/ns/{namespace}")
 
+    config.add_route("basic-user-delete-account", "/u/delete-account")
+    config.add_route("basic-user-export-data", "/u/export-data")
     config.add_route("basic-user-settings", "/u/settings")
     config.add_route("basic-user-watching", "/u/watching")
     config.add_route("basic-user-notifications", "/u/notifications")

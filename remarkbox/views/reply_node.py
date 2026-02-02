@@ -68,6 +68,13 @@ def reply_node(request):
         )
         return HTTPFound(get_referer_or_home(request))
 
+    # return early if max nesting depth exceeded (T8).
+    if request.namespace.max_nesting_depth is not None:
+        if request.node.depth >= request.namespace.max_nesting_depth:
+            request.session.flash(
+                ("Maximum nesting depth reached. You cannot reply further.", "error")
+            )
+            return HTTPFound(get_referer_or_home(request))
 
     # check CSRF only if user is authenticated.
     if request.method == "POST" and request.csrf_token:
@@ -84,7 +91,7 @@ def reply_node(request):
     # STEP 2: attach a brand new child node to parent node.
     child = parent.new_child()
     child.ip_address = unicode(request.client_addr)
-    child.set_data(thread_data, namespace=request.namespace)
+    child.set_data(thread_data, namespace=request.namespace, dbsession=request.dbsession)
 
     # Handle anonymous vs authenticated user
     if user_surrogate:

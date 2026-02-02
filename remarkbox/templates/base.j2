@@ -19,7 +19,7 @@
 
 </head>
 
-<body>
+<body{% if request.namespace %} data-namespace="{{ request.namespace.name }}"{% endif %}>
 
 <noscript>
   <style>

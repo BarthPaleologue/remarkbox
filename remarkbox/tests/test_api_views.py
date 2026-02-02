@@ -304,6 +304,13 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
         self.assertEqual(res.json["thread"]["id"], node_id)
         self.assertEqual(len(res.json["replies"]), 1)
         self.assertEqual(res.json["replies"][0]["author"]["name"], "ReplyBot")
+        # Pagination metadata
+        self.assertEqual(res.json["total_replies"], 1)
+        self.assertEqual(res.json["page"], 1)
+        self.assertIn("limit", res.json)
+        self.assertIn("offset", res.json)
+        self.assertIn("has_more", res.json)
+        self.assertFalse(res.json["has_more"])
 
     def test_get_nonexistent_thread(self):
         res = self.testapp.get(
@@ -369,6 +376,206 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
         self.assertEqual(res.status_int, 200)
         self.assertEqual(res.json["page"], 1)
         self.assertIn("page_size", res.json)
+
+
+class TestAPIThreadDetailPagination(APIFunctionalTests):
+    """Functional tests for thread detail pagination."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            APIFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            APIFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        ns = get_or_create_namespace(self.dbsession, "api-paginate.example.com")
+        ns.allow_anonymous = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+        # Create a thread with 5 replies
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Pagination Thread",
+                "data": "Root post",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.thread_id = res.json["node"]["id"]
+        for i in range(5):
+            self.testapp.post_json(
+                "/api/v1/threads/{}/replies".format(self.thread_id),
+                {"data": "Reply {}".format(i), "anonymous_name": "Bot{}".format(i)},
+                expect_errors=True,
+            )
+
+    def tearDown(self):
+        super(TestAPIThreadDetailPagination, self).tearDown()
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_default_pagination(self):
+        """Default request returns all replies with pagination metadata."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(len(res.json["replies"]), 5)
+        self.assertEqual(res.json["total_replies"], 5)
+        self.assertEqual(res.json["page"], 1)
+        self.assertEqual(res.json["offset"], 0)
+        self.assertEqual(res.json["limit"], 100)
+        self.assertFalse(res.json["has_more"])
+
+    def test_limit_param(self):
+        """Limit restricts the number of returned replies."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "2"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(len(res.json["replies"]), 2)
+        self.assertEqual(res.json["total_replies"], 5)
+        self.assertEqual(res.json["limit"], 2)
+        self.assertTrue(res.json["has_more"])
+
+    def test_offset_param(self):
+        """Offset skips replies."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "2", "offset": "3"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(len(res.json["replies"]), 2)
+        self.assertEqual(res.json["total_replies"], 5)
+        self.assertEqual(res.json["offset"], 3)
+        self.assertFalse(res.json["has_more"])
+
+    def test_offset_beyond_total(self):
+        """Offset past the end returns empty replies."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "10", "offset": "100"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(len(res.json["replies"]), 0)
+        self.assertEqual(res.json["total_replies"], 5)
+        self.assertFalse(res.json["has_more"])
+
+    def test_page_number_calculation(self):
+        """Page number is calculated from offset and limit."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "2", "offset": "2"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.json["page"], 2)
+
+    def test_replies_exclude_root(self):
+        """Root node is never included in the replies list."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            expect_errors=True,
+        )
+        reply_ids = [r["id"] for r in res.json["replies"]]
+        self.assertNotIn(self.thread_id, reply_ids)
+
+    def test_disabled_replies_filtered(self):
+        """Disabled replies are excluded from results."""
+        root_uuid = id_to_uuid(self.thread_id)
+        reply_node = self.dbsession.query(Node).filter(
+            Node.root_id == root_uuid,
+            Node.id != root_uuid,
+        ).first()
+        self.assertIsNotNone(reply_node)
+        reply_node.disabled = True
+        self.dbsession.add(reply_node)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.json["total_replies"], 4)
+        self.assertEqual(len(res.json["replies"]), 4)
+
+    def test_limit_clamped_to_max(self):
+        """Limit is clamped to 500 maximum."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "9999"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["limit"], 500)
+
+    def test_invalid_limit_uses_default(self):
+        """Non-integer limit falls back to default 100."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"limit": "abc"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["limit"], 100)
+
+    def test_invalid_offset_uses_default(self):
+        """Non-integer offset falls back to default 0."""
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.thread_id),
+            {"offset": "abc"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["offset"], 0)
+
+    def test_zero_replies_thread(self):
+        """Thread with zero replies returns valid empty pagination response."""
+        # Create a thread with no replies
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Empty Thread",
+                "data": "Thread with no replies",
+                "anonymous_name": "Loner",
+            },
+            expect_errors=True,
+        )
+        empty_thread_id = res.json["node"]["id"]
+
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(empty_thread_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["total_replies"], 0)
+        self.assertEqual(len(res.json["replies"]), 0)
+        self.assertEqual(res.json["page"], 1)
+        self.assertEqual(res.json["offset"], 0)
+        self.assertEqual(res.json["limit"], 100)
+        self.assertFalse(res.json["has_more"])
+        # Thread data should still be present
+        self.assertIn("thread", res.json)
+        self.assertIn("namespace", res.json)
 
 
 class TestAPIOTPAuthentication(APIFunctionalTests):
@@ -874,3 +1081,376 @@ class TestAPIClientDownload(APIFunctionalTests):
         self.assertIn("def reply", res.text)
         self.assertIn("def login", res.text)
         self.assertIn("def verify", res.text)
+
+
+# ---------------------------------------------------------------------------
+# T8: Nesting depth enforcement via API
+# ---------------------------------------------------------------------------
+
+
+class TestAPIMaxNestingDepth(APIFunctionalTests):
+    """API tests for T8: max nesting depth enforcement."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            APIFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            APIFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models.namespace import get_or_create_namespace
+
+        ns = get_or_create_namespace(self.dbsession, "api-depth-test.example.com")
+        ns.allow_anonymous = True
+        # Set max nesting depth to 2 (root=0, child=1, grandchild=2, no deeper)
+        ns.max_nesting_depth = 2
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+    def tearDown(self):
+        super(TestAPIMaxNestingDepth, self).tearDown()
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_reply_within_max_depth_succeeds(self):
+        """Reply within max depth (depth 0 -> 1) should succeed."""
+        # Create root thread (depth 0)
+        create_res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Depth Test Thread",
+                "data": "Root post",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(create_res.status_int, 201)
+        root_id = create_res.json["node"]["id"]
+
+        # Reply to root (creating depth 1 child) - should succeed
+        reply_res = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(root_id),
+            {"data": "Depth 1 reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        self.assertEqual(reply_res.status_int, 201)
+
+    def test_reply_at_max_depth_succeeds(self):
+        """Reply creating a node at exactly max depth should succeed."""
+        # Create root thread (depth 0)
+        create_res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Depth Boundary Thread",
+                "data": "Root post",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        root_id = create_res.json["node"]["id"]
+
+        # Reply to root (depth 1 child) - parent.depth=0 < max=2, OK
+        reply_res1 = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(root_id),
+            {"data": "Depth 1 reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        self.assertEqual(reply_res1.status_int, 201)
+        child_id = reply_res1.json["node"]["id"]
+
+        # Reply to depth-1 child (creating depth 2) - parent.depth=1 < max=2, OK
+        reply_res2 = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(child_id),
+            {"data": "Depth 2 reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        self.assertEqual(reply_res2.status_int, 201)
+
+    def test_reply_beyond_max_depth_returns_403(self):
+        """Reply beyond max depth should return 403."""
+        # Create root thread (depth 0)
+        create_res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Too Deep Thread",
+                "data": "Root post",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        root_id = create_res.json["node"]["id"]
+
+        # Reply to root (depth 1)
+        reply_res1 = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(root_id),
+            {"data": "Depth 1 reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        child_id = reply_res1.json["node"]["id"]
+
+        # Reply to depth-1 (creating depth 2)
+        reply_res2 = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(child_id),
+            {"data": "Depth 2 reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        grandchild_id = reply_res2.json["node"]["id"]
+
+        # Reply to depth-2 (would create depth 3) - parent.depth=2 >= max=2, REJECT
+        reply_res3 = self.testapp.post_json(
+            "/api/v1/threads/{}/replies".format(grandchild_id),
+            {"data": "Too deep reply", "anonymous_name": "Bot"},
+            expect_errors=True,
+        )
+        self.assertEqual(reply_res3.status_int, 403)
+        self.assertIn("depth", reply_res3.json["error"].lower())
+
+
+class TestAPINoMaxDepthAllowsUnlimited(APIFunctionalTests):
+    """API test: NULL max_nesting_depth allows unlimited nesting."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            APIFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            APIFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models.namespace import get_or_create_namespace
+
+        ns = get_or_create_namespace(self.dbsession, "api-nolimit-depth.example.com")
+        ns.allow_anonymous = True
+        # max_nesting_depth is NULL by default = unlimited
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+    def tearDown(self):
+        super(TestAPINoMaxDepthAllowsUnlimited, self).tearDown()
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_deep_nesting_allowed_when_no_limit(self):
+        """With NULL max_nesting_depth, deep nesting is allowed."""
+        create_res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Unlimited Depth Thread",
+                "data": "Root post",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(create_res.status_int, 201)
+        current_id = create_res.json["node"]["id"]
+
+        # Nest 5 levels deep - all should succeed
+        for i in range(5):
+            reply_res = self.testapp.post_json(
+                "/api/v1/threads/{}/replies".format(current_id),
+                {"data": "Reply at depth {}".format(i + 1), "anonymous_name": "Bot"},
+                expect_errors=True,
+            )
+            self.assertEqual(reply_res.status_int, 201, "Reply at depth {} failed".format(i + 1))
+            current_id = reply_res.json["node"]["id"]
+
+
+# ---------------------------------------------------------------------------
+# T9: Thread search API
+# ---------------------------------------------------------------------------
+
+
+class TestAPISearchThreads(APIFunctionalTests):
+    """API tests for T9: duplicate thread prevention (AJAX search)."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            APIFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            APIFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models.namespace import get_or_create_namespace
+
+        ns = get_or_create_namespace(self.dbsession, "api-search-test.example.com")
+        ns.allow_anonymous = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+        # Create some threads for searching
+        for title in [
+            "How to deploy Remarkbox",
+            "How to customize themes",
+            "How to moderate comments",
+            "Getting started guide",
+            "FAQ about pricing",
+        ]:
+            self.testapp.post_json(
+                "/api/v1/threads",
+                {
+                    "namespace": self.namespace_name,
+                    "title": title,
+                    "data": "Content for {}".format(title),
+                    "anonymous_name": "Bot",
+                },
+                expect_errors=True,
+            )
+
+    def tearDown(self):
+        super(TestAPISearchThreads, self).tearDown()
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_search_returns_matching_threads(self):
+        """Search with matching query returns relevant threads."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "How to", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("threads", res.json)
+        titles = [t["title"] for t in res.json["threads"]]
+        self.assertTrue(any("How to" in t for t in titles))
+        # Should match the "How to" threads
+        self.assertGreaterEqual(len(res.json["threads"]), 2)
+
+    def test_search_no_matches_returns_empty(self):
+        """Search with no matching query returns empty list."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "zzzznonexistent", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["threads"], [])
+
+    def test_search_without_namespace_returns_error(self):
+        """Search without namespace param returns 400."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "test"},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 400)
+        self.assertIn("namespace", res.json["error"])
+
+    def test_search_short_query_returns_empty(self):
+        """Search with query shorter than 2 characters returns empty list."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "H", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["threads"], [])
+
+    def test_search_empty_query_returns_empty(self):
+        """Search with empty query returns empty list."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["threads"], [])
+
+    def test_search_results_limited_to_10(self):
+        """Search results are limited to at most 10."""
+        # Create 12 threads all starting with "Limit test"
+        for i in range(12):
+            self.testapp.post_json(
+                "/api/v1/threads",
+                {
+                    "namespace": self.namespace_name,
+                    "title": "Limit test thread number {}".format(i),
+                    "data": "Content",
+                    "anonymous_name": "Bot",
+                },
+                expect_errors=True,
+            )
+
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "Limit test", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertLessEqual(len(res.json["threads"]), 10)
+
+    def test_search_sql_injection_safe(self):
+        """Special SQL characters in query are handled safely."""
+        # These should not cause 500 errors
+        for dangerous_query in [
+            "'; DROP TABLE rb_node; --",
+            "%_%_%",
+            "test' OR '1'='1",
+            "test%",
+            "test_",
+        ]:
+            res = self.testapp.get(
+                "/api/v1/threads/search",
+                {"q": dangerous_query, "namespace": self.namespace_name},
+                expect_errors=True,
+            )
+            # Should return 200 with empty or non-empty results, never 500
+            self.assertIn(res.status_int, [200])
+            self.assertIn("threads", res.json)
+
+    def test_search_results_include_expected_fields(self):
+        """Each search result includes id, title, and path."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "Getting", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertGreater(len(res.json["threads"]), 0)
+        thread = res.json["threads"][0]
+        self.assertIn("id", thread)
+        self.assertIn("title", thread)
+        self.assertIn("path", thread)
+
+    def test_search_case_insensitive(self):
+        """Search is case-insensitive (ilike)."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"q": "how to", "namespace": self.namespace_name},
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        # "how to" should match "How to ..." threads
+        self.assertGreater(len(res.json["threads"]), 0)

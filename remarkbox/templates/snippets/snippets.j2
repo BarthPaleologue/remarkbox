@@ -123,8 +123,8 @@
 {% endmacro %}
 
 {% macro node_list_sub_menu(user, divider="|") %}
-{% set user_unverified_node_count = user.unverified_nodes.count() %}
-{% set user_disabled_node_count = user.disabled_nodes.count() %}
+{% set user_unverified_node_count = user.unverified_nodes(request.namespace).count() %}
+{% set user_disabled_node_count = user.disabled_nodes(request.namespace).count() %}
 <a href="{{ request.link_prefix }}/u/{{ user.name }}?verified">my nodes</a>
 {{ divider }}
 <a href="{{ request.link_prefix }}/u/{{ user.name }}?pending">my unverified nodes ({{ user_unverified_node_count }})</a>

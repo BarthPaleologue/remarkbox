@@ -1,0 +1,37 @@
+{% extends request.base_template -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h4>{{ the_title }}</h4>
+
+<p>
+This action is <b>permanent and cannot be undone</b>. Deleting your account will:
+</p>
+
+<ul>
+<li>Anonymize all your comments (your name will be removed)</li>
+<li>Delete your profile, notification settings, and watched threads</li>
+<li>Log you out of all sessions</li>
+</ul>
+
+<p>
+Your comments will remain visible but will no longer be associated with your account.
+</p>
+
+<br>
+
+<form method="post" action="{{ request.link_prefix }}/u/delete-account">
+<label>Type <b>DELETE</b> to confirm:</label>
+<input type="text" name="confirm-delete" id="confirm-delete" class="common-text-input" placeholder="DELETE" autocomplete="off" required>
+<br>
+<br>
+{% include 'snippets/csrf.j2' %}
+{% set submit_button_value = 'permanently delete my account' %}
+{% set submit_button_classes = 'button-right' %}
+{% include 'snippets/submit.j2' %}
+</form>
+
+<br>
+<a href="{{ request.link_prefix }}/u/settings" class="button button-right">cancel</a>
+
+{%- endblock -%}

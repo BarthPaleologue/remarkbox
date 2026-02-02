@@ -144,13 +144,61 @@ def api_list_threads(request):
 
 
 @view_config(
+    route_name="api-threads-search",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_search_threads(request):
+    """Search threads by title prefix within a namespace."""
+    namespace_name = get_param(request, "namespace")
+    q = get_param(request, "q", "").strip()
+
+    if not namespace_name:
+        request.response.status_code = 400
+        return {"error": "namespace parameter is required"}
+
+    if not q or len(q) < 2:
+        return {"threads": []}
+
+    namespace = get_or_create_namespace(request.dbsession, namespace_name)
+
+    from remarkbox.models.node import Node
+
+    roots = (
+        namespace.visible_roots
+        .filter(Node.title.ilike("{}%".format(q.replace("%", "\\%").replace("_", "\\_"))))
+        .limit(10)
+        .all()
+    )
+
+    return {
+        "threads": [
+            {
+                "id": str(root.id),
+                "title": root.title,
+                "path": root.path,
+                "created_ago": root.human_created_timestamp,
+                "stats": root.stats if root.cache else None,
+            }
+            for root in roots
+        ],
+    }
+
+
+@view_config(
     route_name="api-thread-detail",
     request_method="GET",
     renderer="json",
     require_csrf=False,
 )
 def api_get_thread(request):
-    """Get a thread with all its replies."""
+    """Get a thread with its replies (paginated).
+
+    Query parameters:
+        limit:  Maximum replies to return (default 100, max 500).
+        offset: Number of replies to skip (default 0).
+    """
     node_id = request.matchdict["node_id"]
     node = get_node_by_id(request.dbsession, node_id)
 
@@ -165,16 +213,56 @@ def api_get_thread(request):
     if denied:
         return denied
 
-    nodes = get_nodes_who_share_root(request.dbsession, root, namespace.node_order)
+    # Parse pagination params
+    try:
+        limit = int(get_param(request, "limit", 100))
+    except (TypeError, ValueError):
+        limit = 100
+    limit = max(1, min(limit, 500))
+
+    try:
+        offset = int(get_param(request, "offset", 0))
+    except (TypeError, ValueError):
+        offset = 0
+    offset = max(0, offset)
+
+    # Build SQL-side visibility filters (mirrors namespace.can_see_node logic
+    # for anonymous / non-moderator users; moderators and node owners would
+    # see hidden nodes but that edge case is small and acceptable to omit
+    # from the API for performance).
+    visibility_filters = {"disabled": False}
+    if namespace.hide_unless_approved:
+        visibility_filters["approved"] = True
+    if namespace.hide_unverified:
+        visibility_filters["verified"] = True
+
+    # Get total visible reply count (excluding root) for pagination metadata
+    count_query = get_nodes_who_share_root(
+        request.dbsession, root,
+        exclude_root=True,
+        visibility_filters=visibility_filters,
+    )
+    total_replies = count_query.count()
+
+    # Fetch the paginated slice
+    nodes = get_nodes_who_share_root(
+        request.dbsession, root, namespace.node_order,
+        limit=limit, offset=offset,
+        exclude_root=True,
+        visibility_filters=visibility_filters,
+    )
+
+    page = (offset // limit) + 1 if limit else 1
 
     return {
         "namespace": serialize_namespace_brief(namespace),
         "thread": serialize_node(root, include_children=True),
-        "replies": [
-            serialize_node(n)
-            for n in nodes
-            if n.id != root.id and namespace.can_see_node(n, request.user)
-        ],
+        "replies": [serialize_node(n) for n in nodes],
+        "total_replies": total_replies,
+        "page": page,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total_replies,
     }
 
 
@@ -243,7 +331,7 @@ def api_create_thread(request):
     node.namespace = namespace
     node.ip_address = str(request.client_addr)
     node.title = title
-    node.set_data(data)
+    node.set_data(data, dbsession=request.dbsession)
 
     if user_surrogate:
         node.user_surrogate = user_surrogate
@@ -301,6 +389,13 @@ def api_reply(request):
         request.response.status_code = 403
         return {"error": "Thread is locked"}
 
+    # Enforce max nesting depth (T8)
+    namespace = parent.root.namespace
+    if namespace.max_nesting_depth is not None:
+        if parent.depth >= namespace.max_nesting_depth:
+            request.response.status_code = 403
+            return {"error": "Maximum nesting depth reached"}
+
     body = get_json_body(request)
     data = body.get("data") or request.params.get("thread_data", "")
     anonymous_name = (
@@ -346,7 +441,7 @@ def api_reply(request):
     # Create child node
     child = parent.new_child()
     child.ip_address = str(request.client_addr)
-    child.set_data(data, namespace=namespace)
+    child.set_data(data, namespace=namespace, dbsession=request.dbsession)
 
     if user_surrogate:
         child.user_surrogate = user_surrogate

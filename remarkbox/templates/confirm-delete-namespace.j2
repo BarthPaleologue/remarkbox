@@ -1,0 +1,38 @@
+{% extends request.base_template -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h4>{{ the_title }}</h4>
+
+<p>
+This action is <b>permanent and cannot be undone</b>. Deleting this namespace will:
+</p>
+
+<ul>
+<li>Delete all threads and comments in <b>{{ request.namespace.name }}</b></li>
+<li>Delete all watchers and notification settings</li>
+<li>Remove all moderator and owner associations</li>
+<li>Delete all OAuth integrations (e.g. Slack)</li>
+</ul>
+
+<p>
+This will permanently destroy all data associated with the <b>{{ request.namespace.name }}</b> namespace.
+</p>
+
+<br>
+
+<form method="post" action="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/delete">
+<label>Type <b>{{ request.namespace.name }}</b> to confirm:</label>
+<input type="text" name="confirm-delete" id="confirm-delete" class="common-text-input" placeholder="{{ request.namespace.name }}" autocomplete="off" required>
+<br>
+<br>
+{% include 'snippets/csrf.j2' %}
+{% set submit_button_value = 'permanently delete namespace' %}
+{% set submit_button_classes = 'button-right' %}
+{% include 'snippets/submit.j2' %}
+</form>
+
+<br>
+<a href="{{ request.link_prefix }}/ns/{{ request.namespace.name }}/settings" class="button button-right">cancel</a>
+
+{%- endblock -%}

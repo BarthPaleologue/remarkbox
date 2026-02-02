@@ -118,17 +118,19 @@ def user_nodes(request):
     subject_user = get_user_by_name(request.dbsession, subject_user_name)
     if subject_user is None:
         return HTTPFound(get_referer_or_home(request))
+    namespace = request.namespace
     if "disabled" in request.params:
         # TODO: pagination.
         state = "disabled"
-        nodes = subject_user.disabled_nodes
+        nodes = subject_user.disabled_nodes(namespace=namespace)
     elif "pending" in request.params:
         # TODO: pagination.
         state = "pending"
-        nodes = subject_user.unverified_nodes
+        nodes = subject_user.unverified_nodes(namespace=namespace)
     else:
         state = "active"
         nodes = subject_user.page_nodes(
+            namespace=namespace,
             limit=request.page_size, offset=request.page_offset
         )
     return {

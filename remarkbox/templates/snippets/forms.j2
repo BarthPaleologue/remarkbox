@@ -23,7 +23,7 @@
         required></textarea>
 
   {% set submit_button_classes = 'green-button button-right' %}
-  {% set submit_button_value = 'save message' %}
+  {% set submit_button_value = request.namespace.submit_button_text or 'save message' %}
   {% include 'submit.j2' %}
 
   <details class="preview-details js-only" open>
@@ -67,7 +67,7 @@
 {% include 'csrf.j2' %}
 
 {% set submit_button_classes = 'green-button button-right' %}
-{% set submit_button_value = 'save message' %}
+{% set submit_button_value = request.namespace.submit_button_text or 'save message' %}
 {% include 'submit.j2' %}
 </form>
 

@@ -12,6 +12,47 @@ from . import base_parser
 toggle = lambda x: not x
 
 
+def delete_namespace_cascade(dbsession, namespace):
+    """
+    Perform cascading deletion of a namespace and all associated data.
+    Reused by both the CLI script and the web view.
+    """
+    nodes = get_nodes_who_share_roots(dbsession, namespace.roots)
+    for node in nodes:
+        if node.events:
+            for event in node.events:
+                dbsession.delete(event)
+        dbsession.delete(node)
+    for root in namespace.roots:
+        if root.uri:
+            dbsession.delete(root.uri)
+        if root.cache:
+            dbsession.delete(root.cache)
+        if root.watchers:
+            for watcher in root.watchers:
+                if watcher.unsent_notifications():
+                    for notification in watcher.unsent_notifications():
+                        dbsession.delete(notification)
+                dbsession.delete(watcher)
+    if namespace.watchers:
+        for watcher in namespace.watchers:
+            if watcher.unsent_notifications():
+                for notification in watcher.unsent_notifications():
+                    dbsession.delete(notification)
+            dbsession.delete(watcher)
+    if namespace.namespace_users:
+        for nsu in namespace.namespace_users:
+            dbsession.delete(nsu)
+    if namespace.oauth_records:
+        for oauth_record in namespace.oauth_records:
+            dbsession.delete(oauth_record)
+    if namespace.namespace_owner_requests:
+        for nr in namespace.namespace_owner_requests:
+            dbsession.delete(nr)
+    dbsession.delete(namespace)
+    dbsession.flush()
+
+
 def get_arg_parser():
     parser = base_parser("Modify a Namespace.")
     parser.add_argument(
@@ -98,61 +139,11 @@ def main():
 
         elif args.delete:
 
-            nodes = get_nodes_who_share_roots(request.dbsession, namespace.roots)
-
-            # delete all nodes.
-            for node in nodes:
-                if node.events:
-                    # delete all related NodeEvents.
-                    for event in node.events:
-                        request.dbsession.delete(event)
-
-                # delete node.
-                request.dbsession.delete(node)
-
-            for root in namespace.roots:
-                if root.uri:
-                    # delete related Uri.
-                    request.dbsession.delete(root.uri)
-                if root.cache:
-                    # delete related NodeCache.
-                    request.dbsession.delete(root.cache)
-                if root.watchers:
-                    # delete all related NodeEventWatchers.
-                    for watcher in root.watchers:
-                        # delete all unsent NodeEventNotifications.
-                        if watcher.unsent_notifications():
-                            for notification in watcher.unsent_notifications():
-                                request.dbsession.delete(notification)
-                        request.dbsession.delete(watcher)
-
-            if namespace.watchers:
-               for watcher in namespace.watchers:
-                   # delete all unsent NodeEventNotifications.
-                   if watcher.unsent_notifications():
-                       for notification in watcher.unsent_notifications():
-                           request.dbsession.delete(notification)
-                   request.dbsession.delete(watcher)
-
-            # disable all related NamespaceUser objects.
-            if namespace.namespace_users:
-                for nsu in namespace.namespace_users:
-                    # delete related NamespaceUser.
-                   request.dbsession.delete(nsu)
-
-            # delete all related OauthRecords.
-            if namespace.oauth_records:
-                for oauth_record in namespace.oauth_records:
-                    request.dbsession.delete(oauth_record)
-
-            # finally delete Namespace.
-            request.dbsession.delete(namespace)
-
             if (
                 raw_input("*** DANGER: Delete Namespace '{}' ({}) forever? [yes, no]: ".format(namespace.name, namespace.id))
                 == "yes"
             ):
-                request.dbsession.flush()
+                delete_namespace_cascade(request.dbsession, namespace)
                 print("Flushed transaction to database, the Namespace was completely destroyed!")
             else:
                 sp.rollback()

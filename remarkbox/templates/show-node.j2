@@ -109,8 +109,9 @@
   {%- set children_ids = request.node_graph[parent.id] -%}
   {%- endif -%}
 
+  {%- set effective_collapse_depth = request.namespace.collapse_depth -%}
   {%- set display_class = '' -%}
-  {%- if loop.depth > 4 -%}
+  {%- if effective_collapse_depth is not none and loop.depth > effective_collapse_depth -%}
     {%- set display_class = 'hidden-on-tablet' -%}
   {%- endif -%}
 
@@ -149,9 +150,9 @@
     {% endif -%}
     </div>
 
-    {%- if loop.depth == 4 and children_ids -%}
+    {%- if effective_collapse_depth is not none and loop.depth == effective_collapse_depth and children_ids -%}
     <br>
-    <a href="{{ request.link_prefix }}/{{ parent.id }}#{{ parent.id }}" class="load-more shown-on-tablet">load more <span style="color: #292929; font-weight: normal;">({{children_ids | length}} remarks)</span></a>
+    <a href="{{ request.link_prefix }}/{{ parent.id }}#{{ parent.id }}" class="load-more shown-on-tablet">load more <span style="color: #292929; font-weight: normal;">({{children_ids | length}} {{ request.namespace.comment_label_plural or 'remarks' }})</span></a>
     {% endif %}
 
     <div id="edit-box-{{ parent.id }}" class="edit-box-div">
@@ -194,5 +195,24 @@
 </div>
 {% endif %}
 </section>
+
+{% if request.webmentions %}
+<section class="webmentions-section">
+<hr class="comments-divider">
+<h3 class="comments-header">Webmentions</h3>
+{% for wm in request.webmentions %}
+<div class="webmention">
+  <span class="webmention-author">
+    {% if wm.author_url %}<a href="{{ wm.author_url }}" rel="nofollow" target="_blank">{{ wm.author_name or 'Someone' }}</a>{% else %}{{ wm.author_name or 'Someone' }}{% endif %}
+  </span>
+  mentioned this on
+  <a href="{{ wm.source }}" rel="nofollow" target="_blank">their site</a>
+  {% if wm.content %}
+  <p class="webmention-content">{{ wm.content }}</p>
+  {% endif %}
+</div>
+{% endfor %}
+</section>
+{% endif %}
 
 {% endblock %}

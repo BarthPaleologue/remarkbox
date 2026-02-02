@@ -919,3 +919,46 @@ input#namespace-domain {
   margin-bottom: 10px;
   text-align: center;
 }
+
+/* @mention links (T6) */
+a.mention {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+a.mention:hover {
+  text-decoration: underline;
+}
+
+/* Thread title typeahead suggestions (T9) */
+.thread-title-suggestions {
+  border: 1px solid var(--border);
+  border-top: none;
+  background: var(--background);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+.thread-title-suggestions .suggestions-header {
+  padding: 4px 8px;
+  font-size: 0.85em;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--border-faint);
+}
+.thread-title-suggestions .suggestion-item {
+  display: block;
+  padding: 6px 8px;
+  text-decoration: none;
+  color: var(--color);
+  border-bottom: 1px solid var(--border-faint);
+}
+.thread-title-suggestions .suggestion-item:last-child {
+  border-bottom: none;
+}
+.thread-title-suggestions .suggestion-item:hover {
+  background: var(--background-faint);
+}
+.thread-title-suggestions .suggestion-meta {
+  font-size: 0.85em;
+  color: var(--color-muted);
+}

@@ -1,3 +1,5 @@
+from json import dumps
+
 from pyramid.view import view_config
 
 from pyramid.httpexceptions import HTTPFound
@@ -15,6 +17,8 @@ from remarkbox.models import (
 )
 
 from remarkbox.views import get_referer_or_home, user_required, reject_stand_alone
+
+from remarkbox.scripts.modify_namespace import delete_namespace_cascade
 
 from string import digits
 
@@ -61,6 +65,15 @@ def namespace_settings(request):
         google_site_verification = p.get(
             "google-site-verification", request.namespace.google_site_verification
         )
+
+        # T4: customizable button text and comment labels
+        submit_button_text = p.get("submit-button-text", request.namespace.submit_button_text)
+        comment_label_singular = p.get("comment-label-singular", request.namespace.comment_label_singular)
+        comment_label_plural = p.get("comment-label-plural", request.namespace.comment_label_plural)
+
+        # T8: nesting depth settings
+        max_nesting_depth_raw = p.get("max-nesting-depth", "").strip()
+        collapse_depth_raw = p.get("collapse-depth", "").strip()
 
         hide_unless_approved_checkbox = p.get("hide-unless-approved-checkbox", "off")
         allow_anonymous_checkbox = p.get("allow-anonymous-checkbox", "off")
@@ -239,6 +252,56 @@ def namespace_settings(request):
                 )
             )
 
+        # T4: customizable button text and comment labels
+        if submit_button_text != request.namespace.submit_button_text and (
+            submit_button_text or request.namespace.submit_button_text
+        ):
+            request.namespace.submit_button_text = submit_button_text
+            request.session.flash(
+                ("Success, you changed the submit button text.", "success")
+            )
+
+        if comment_label_singular != request.namespace.comment_label_singular and (
+            comment_label_singular or request.namespace.comment_label_singular
+        ):
+            request.namespace.comment_label_singular = comment_label_singular
+            request.session.flash(
+                ("Success, you changed the singular comment label.", "success")
+            )
+
+        if comment_label_plural != request.namespace.comment_label_plural and (
+            comment_label_plural or request.namespace.comment_label_plural
+        ):
+            request.namespace.comment_label_plural = comment_label_plural
+            request.session.flash(
+                ("Success, you changed the plural comment label.", "success")
+            )
+
+        # T8: nesting depth settings
+        max_nesting_depth = int(max_nesting_depth_raw) if max_nesting_depth_raw else None
+        if max_nesting_depth != request.namespace.max_nesting_depth:
+            request.namespace.max_nesting_depth = max_nesting_depth
+            if max_nesting_depth is not None:
+                request.session.flash(
+                    ("Max nesting depth set to {}.".format(max_nesting_depth), "success")
+                )
+            else:
+                request.session.flash(
+                    ("Max nesting depth set to unlimited.", "success")
+                )
+
+        collapse_depth = int(collapse_depth_raw) if collapse_depth_raw else None
+        if collapse_depth != request.namespace.collapse_depth:
+            request.namespace.collapse_depth = collapse_depth
+            if collapse_depth is not None:
+                request.session.flash(
+                    ("Collapse depth set to {}.".format(collapse_depth), "success")
+                )
+            else:
+                request.session.flash(
+                    ("Collapse depth disabled.", "success")
+                )
+
         request.dbsession.add(request.namespace)
         request.dbsession.flush()
 
@@ -382,6 +445,33 @@ def user_settings(request):
                     ("Invalid theme mode value.", "error")
                 )
 
+        notification_preference = request.params.get(
+            "notification-preference",
+            getattr(request.user, "notification_preference", "email"),
+        )
+        current_pref = getattr(request.user, "notification_preference", "email")
+        if notification_preference != current_pref:
+            if notification_preference in ("email", "push", "both", "none"):
+                request.user.notification_preference = notification_preference
+                pref_labels = {
+                    "email": "Email only",
+                    "push": "Browser push only",
+                    "both": "Email and browser push",
+                    "none": "None",
+                }
+                request.session.flash(
+                    (
+                        "Notification delivery set to <b>{}</b>".format(
+                            pref_labels[notification_preference]
+                        ),
+                        "success",
+                    )
+                )
+            else:
+                request.session.flash(
+                    ("Invalid notification preference value.", "error")
+                )
+
         request.dbsession.add(request.user)
         request.dbsession.flush()
 
@@ -450,8 +540,6 @@ def namespace_dump_to_json(request):
         request.session.flash(("You do not own that Namespace.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
-    from json import dumps
-
     response = Response(body=dumps(request.namespace.dict_dump))
     response.headerlist = []
     # allow Javascript from other domains to download this resource.
@@ -459,3 +547,62 @@ def namespace_dump_to_json(request):
         (("Access-Control-Allow-Origin", "*"), ("Content-Type", "application/json"))
     )
     return response
+
+
+@view_config(route_name="basic-user-delete-account", renderer="confirm-delete-account.j2")
+@view_config(route_name="embed-user-delete-account", renderer="confirm-delete-account.j2")
+@user_required()
+def delete_account(request):
+    """Delete the authenticated user's account after confirmation."""
+    if request.method == "POST":
+        confirm = request.params.get("confirm-delete", "")
+        if confirm == "DELETE":
+            request.user.anonymize_account()
+            request.session.flash(
+                ("Your account has been deleted and your data has been anonymized.", "success")
+            )
+            request.session["authenticated_user_id"] = None
+            return HTTPFound("/")
+        else:
+            request.session.flash(
+                ('You must type "DELETE" to confirm account deletion.', "error")
+            )
+    return {"the_title": "Delete My Account"}
+
+
+@view_config(route_name="basic-user-export-data")
+@view_config(route_name="embed-user-export-data")
+@user_required()
+def export_user_data(request):
+    """Export the authenticated user's data as a JSON download."""
+    data = request.user.export_user_data()
+    body = dumps(data, indent=2)
+    response = Response(body=body)
+    response.content_type = "application/json"
+    response.content_disposition = 'attachment; filename="remarkbox-data-export.json"'
+    return response
+
+
+@view_config(route_name="basic-namespace-delete", renderer="confirm-delete-namespace.j2")
+@view_config(route_name="embed-namespace-delete", renderer="confirm-delete-namespace.j2")
+@user_required()
+@reject_stand_alone
+def delete_namespace(request):
+    """Delete a namespace and all associated data after confirmation."""
+    if not request.user in request.namespace.owners:
+        request.session.flash(("You do not own that Namespace.", "error"))
+        return HTTPFound(get_referer_or_home(request))
+    namespace_name = request.namespace.name
+    if request.method == "POST":
+        confirm = request.params.get("confirm-delete", "")
+        if confirm == namespace_name:
+            delete_namespace_cascade(request.dbsession, request.namespace)
+            request.session.flash(
+                ('Namespace "{}" and all associated data have been permanently deleted.'.format(namespace_name), "success")
+            )
+            return HTTPFound("/")
+        else:
+            request.session.flash(
+                ('You must type the namespace name "{}" to confirm deletion.'.format(namespace_name), "error")
+            )
+    return {"the_title": "Delete Namespace: {}".format(namespace_name)}

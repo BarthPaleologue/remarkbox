@@ -1,6 +1,7 @@
 def includeme(config):
     config.add_route("api-version", "/api/v1/version")
     config.add_route("api-threads-list", "/api/v1/threads")
+    config.add_route("api-threads-search", "/api/v1/threads/search")
     config.add_route("api-thread-detail", "/api/v1/threads/{node_id}")
     config.add_route("api-thread-replies", "/api/v1/threads/{node_id}/replies")
     config.add_route("api-node-detail", "/api/v1/nodes/{node_id}")
@@ -8,4 +9,5 @@ def includeme(config):
     config.add_route("api-auth-verify", "/api/v1/auth/verify")
     config.add_route("api-user-profile", "/api/v1/user/profile")
     config.add_route("api-client-python", "/api/v1/clients/python")
+    config.add_route("api-webmention", "/api/v1/webmention")
     config.scan("remarkbox.api.views")
