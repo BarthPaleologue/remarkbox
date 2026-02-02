@@ -17,7 +17,11 @@ from remarkbox.models.user import (
     is_user_name_valid,
     is_user_name_available,
 )
-from remarkbox.models.namespace import get_or_create_namespace, get_topsecret_namespaces
+from remarkbox.models.namespace import (
+    get_namespace_by_name,
+    get_or_create_namespace,
+    get_topsecret_namespaces,
+)
 from remarkbox.models.node import Node
 from remarkbox.lib.mail import send_verification_digits_to_email
 from remarkbox.lib.notify import schedule_notifications
@@ -464,7 +468,10 @@ def api_create_thread(request):
             )
         }
 
-    namespace = get_or_create_namespace(request.dbsession, namespace_name)
+    namespace = get_namespace_by_name(request.dbsession, namespace_name)
+    if namespace is None:
+        request.response.status_code = 404
+        return {"error": "namespace '{}' does not exist".format(namespace_name)}
 
     denied = check_namespace_api_access(request, namespace)
     if denied:

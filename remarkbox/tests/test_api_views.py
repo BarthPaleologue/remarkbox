@@ -119,6 +119,19 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
         self.assertEqual(res.status_int, 400)
         self.assertIn("namespace", res.json["error"])
 
+    def test_create_thread_nonexistent_namespace(self):
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": "does-not-exist.example.com",
+                "title": "Test",
+                "data": "Should fail",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 404)
+        self.assertIn("does not exist", res.json["error"])
+
     def test_create_thread_missing_title(self):
         res = self.testapp.post_json(
             "/api/v1/threads",
