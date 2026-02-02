@@ -1,0 +1,40 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h3>{{ the_title }}</h3>
+
+<h4>Current Superusers</h4>
+
+{% if superusers %}
+<table>
+<tr><th>Name</th><th>Email</th><th>Action</th></tr>
+{% for user in superusers %}
+<tr>
+<td><a href="{{ request.link_prefix }}/u/{{ user.name }}">{{ user.name }}</a></td>
+<td>{{ user.email }}</td>
+<td>
+<form method="POST" action="{{ request.route_url('topsecret-user-demote') }}" style="display:inline">
+<input type="hidden" name="csrf_token" value="{{ request.session.get_csrf_token() }}" />
+<input type="hidden" name="email" value="{{ user.email }}" />
+<button type="submit" onclick="return confirm('Demote {{ user.name }} from superuser?')">demote</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p>No superusers configured.</p>
+{% endif %}
+
+<h4>Promote User to Superuser</h4>
+
+<form method="POST" action="{{ request.route_url('topsecret-user-promote') }}">
+<input type="hidden" name="csrf_token" value="{{ request.session.get_csrf_token() }}" />
+<label for="email">Email address:</label><br />
+<input type="email" name="email" id="email" placeholder="user@example.com" required />
+<button type="submit">promote</button>
+</form>
+
+{%- endblock -%}

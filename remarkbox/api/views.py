@@ -17,10 +17,14 @@ from remarkbox.models.user import (
     is_user_name_valid,
     is_user_name_available,
 )
-from remarkbox.models.namespace import get_or_create_namespace
+from remarkbox.models.namespace import get_or_create_namespace, get_topsecret_namespaces
+from remarkbox.models.node import Node
 from remarkbox.lib.mail import send_verification_digits_to_email
 from remarkbox.lib.notify import schedule_notifications
 from remarkbox.views import verify_pending_nodes_in_session
+
+from remarkbox.models.spam import score_content
+from remarkbox.models.spam_llm import check_thread_relevance, check_reply_relevance
 
 from .serializers import serialize_node, serialize_namespace_brief
 
@@ -51,6 +55,95 @@ def get_param(request, key, default=None):
     if key in body:
         return body[key]
     return request.params.get(key, default)
+
+
+def check_spam(request, data, user=None, namespace=None, title=None,
+               parent_node=None):
+    """Check content for spam. Returns error dict or None.
+
+    - Hard threshold: reject with 403.
+    - Soft threshold: returns {"spam_held": True} so caller can set approved=False.
+    - LLM relevance check: if enabled and basic score is suspicious, ask the LLM
+      whether the content is relevant to its context.
+    - Superusers bypass all checks.
+    """
+    settings = request.registry.settings
+    if settings.get("spam.enabled", "true").strip().lower() not in ("true", "1", "yes"):
+        return None
+
+    if user and getattr(user, "is_superuser", False):
+        return None
+
+    hard_threshold = float(settings.get("spam.hard_threshold", 0.8))
+    soft_threshold = float(settings.get("spam.soft_threshold", 0.5))
+
+    spam_score, signals = score_content(
+        data,
+        user=user,
+        ip_address=str(request.client_addr),
+        dbsession=request.dbsession,
+        settings=settings,
+    )
+
+    # LLM relevance check: runs on every message when spam.llm.enabled is set
+    if settings.get("spam.llm.enabled", "false").strip().lower() in ("true", "1", "yes"):
+        relevant, explanation = _llm_relevance_check(
+            settings, data, title=title, namespace=namespace,
+            parent_node=parent_node,
+        )
+        if relevant is False:
+            spam_score = min(spam_score + 0.4, 1.0)
+            signals.append("llm_irrelevant")
+            if explanation:
+                signals.append("llm_reason:{}".format(explanation[:80]))
+
+    if spam_score >= hard_threshold:
+        request.response.status_code = 403
+        return {"error": "Content flagged as spam", "spam_score": spam_score}
+
+    if spam_score >= soft_threshold:
+        return {"spam_held": True, "spam_score": spam_score, "signals": signals}
+
+    return None
+
+
+def _llm_relevance_check(settings, data, title=None, namespace=None,
+                         parent_node=None):
+    """Run LLM relevance check if enabled. Returns (relevant, explanation).
+
+    For replies, includes the parent page URL (embed mode) so the LLM knows
+    what the parent site is about.
+    """
+    if parent_node is not None:
+        # Reply: check relevance to thread
+        root = parent_node.root if parent_node else None
+        # In embed mode, root.uri.data has the parent page URL
+        page_url = None
+        if root and getattr(root, "has_uri", False) and root.uri:
+            page_url = root.uri.data
+        ns_name = namespace.name if namespace else None
+        return check_reply_relevance(
+            thread_title=root.title if root else None,
+            thread_content=root.data if root else None,
+            parent_content=parent_node.data if parent_node else None,
+            reply_content=data,
+            page_url=page_url,
+            namespace_name=ns_name,
+            settings=settings,
+        )
+    elif namespace is not None:
+        # New thread: check relevance to namespace
+        ns_desc = None
+        if hasattr(namespace, "description"):
+            ns_desc = namespace.description
+        return check_thread_relevance(
+            namespace_name=namespace.name,
+            namespace_description=ns_desc,
+            title=title,
+            content=data,
+            settings=settings,
+        )
+    return None, None
 
 
 def _get_git_commit():
@@ -384,6 +477,13 @@ def api_create_thread(request):
     if not user and email:
         user = get_or_create_user_by_email(request.dbsession, email)
 
+    # Spam check (before creating anything)
+    spam_result = check_spam(request, data, user=user, namespace=namespace,
+                             title=title)
+    if spam_result and "error" in spam_result:
+        return spam_result
+    spam_held = spam_result and spam_result.get("spam_held")
+
     if namespace.allow_anonymous and not user:
         if not anonymous_name:
             anonymous_name = "Anonymous"
@@ -411,6 +511,9 @@ def api_create_thread(request):
         node.verified = user.authenticated
         node_event = node.new_event(user, "created")
         request.dbsession.add(user)
+
+    if spam_held:
+        node.approved = False
 
     request.dbsession.add(node)
     if node_event:
@@ -496,6 +599,13 @@ def api_reply(request):
     if not user and email:
         user = get_or_create_user_by_email(request.dbsession, email)
 
+    # Spam check (before creating anything)
+    spam_result = check_spam(request, data, user=user, namespace=namespace,
+                             parent_node=parent)
+    if spam_result and "error" in spam_result:
+        return spam_result
+    spam_held = spam_result and spam_result.get("spam_held")
+
     if namespace.allow_anonymous and not user:
         if not anonymous_name:
             anonymous_name = "Anonymous"
@@ -521,7 +631,9 @@ def api_reply(request):
         child.verified = user.authenticated
         child_event = child.new_event(user, "commented")
 
-    if namespace.hide_unless_approved:
+    if spam_held:
+        child.approved = False
+    elif namespace.hide_unless_approved:
         if user:
             child.approved = namespace.is_moderator(user)
         else:
@@ -864,3 +976,110 @@ def api_client_python(request):
         content_type="text/plain",
         charset="utf-8",
     )
+
+
+# ---------------------------------------------------------------------------
+# Admin (superuser only)
+# ---------------------------------------------------------------------------
+
+
+def _require_superuser(request):
+    """Return error dict if user is not a superuser, else None."""
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+    if not getattr(request.user, "is_superuser", False):
+        request.response.status_code = 403
+        return {"error": "Superuser access required"}
+    return None
+
+
+@view_config(
+    route_name="api-admin-namespaces",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_admin_namespaces(request):
+    """List all namespaces (superuser only)."""
+    denied = _require_superuser(request)
+    if denied:
+        return denied
+
+    namespaces = get_topsecret_namespaces(request.dbsession)
+    return {
+        "namespaces": [
+            {
+                "id": str(ns.id),
+                "name": ns.name,
+                "subscription_type": ns.subscription_type,
+                "owner_count": len(ns.owners),
+                "root_count": ns.roots.count(),
+            }
+            for ns in namespaces
+        ],
+    }
+
+
+@view_config(
+    route_name="api-admin-recent-nodes",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_admin_recent_nodes(request):
+    """List recent nodes across all namespaces (superuser only).
+
+    Query parameters:
+        days: Number of days to look back (default 7, max 90).
+        limit: Max results (default 100, max 500).
+    """
+    denied = _require_superuser(request)
+    if denied:
+        return denied
+
+    import time
+    try:
+        days = int(get_param(request, "days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(days, 90))
+
+    try:
+        limit = int(get_param(request, "limit", 100))
+    except (TypeError, ValueError):
+        limit = 100
+    limit = max(1, min(limit, 500))
+
+    cutoff_ms = int((time.time() - days * 86400) * 1000)
+
+    nodes = (
+        request.dbsession.query(Node)
+        .filter(Node.created > cutoff_ms)
+        .order_by(Node.created.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "days": days,
+        "count": len(nodes),
+        "nodes": [
+            {
+                "id": str(n.id),
+                "root_id": str(n.root_id) if n.root_id else None,
+                "namespace": n.root.namespace.name if n.root and n.root.namespace else None,
+                "title": n.title,
+                "data": n.data[:200] if n.data else None,
+                "ip_address": n.ip_address,
+                "created_ago": n.human_created_timestamp,
+                "disabled": n.disabled,
+                "verified": n.verified,
+                "approved": n.approved,
+                "author": n.user.name if n.user else (
+                    n.user_surrogate.name if n.user_surrogate else None
+                ),
+            }
+            for n in nodes
+        ],
+    }

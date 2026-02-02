@@ -421,6 +421,29 @@ class RemarkboxClient:
         """
         return self._request("PATCH", "/api/v1/user/profile", {"name": name})
 
+    # ----- Admin (superuser only) -----
+
+    def admin_list_namespaces(self):
+        """List all namespaces (requires superuser).
+
+        Returns:
+            dict with key: namespaces (list of namespace dicts)
+        """
+        return self._request("GET", "/api/v1/admin/namespaces")
+
+    def admin_recent_nodes(self, days=7, limit=100):
+        """List recent nodes across all namespaces (requires superuser).
+
+        Args:
+            days: Number of days to look back (default 7, max 90)
+            limit: Max results (default 100, max 500)
+
+        Returns:
+            dict with keys: days, count, nodes
+        """
+        params = urllib.parse.urlencode({"days": days, "limit": limit})
+        return self._request("GET", "/api/v1/admin/recent-nodes?" + params)
+
 
 # ----- CLI -----
 

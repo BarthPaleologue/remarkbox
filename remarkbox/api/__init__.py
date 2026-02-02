@@ -10,4 +10,6 @@ def includeme(config):
     config.add_route("api-user-profile", "/api/v1/user/profile")
     config.add_route("api-client-python", "/api/v1/clients/python")
     config.add_route("api-webmention", "/api/v1/webmention")
+    config.add_route("api-admin-namespaces", "/api/v1/admin/namespaces")
+    config.add_route("api-admin-recent-nodes", "/api/v1/admin/recent-nodes")
     config.scan("remarkbox.api.views")

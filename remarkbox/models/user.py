@@ -104,6 +104,8 @@ class User(RBase, Base):
     gravatar = Column(Boolean, default=False)
     verified = Column(Boolean, default=False)
     disabled = Column(Boolean, default=False)
+    # Global moderator: can moderate across all namespaces.
+    is_superuser = Column(Boolean, default=False)
     # automatically watch any threads I create.
     auto_watch_threads_i_create = Column(Boolean, default=True, nullable=False)
     # automatically watch any threads I participate in.

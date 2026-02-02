@@ -35,12 +35,11 @@ def user_required(
 # view decorator.
 def super_fly_required(fn):
     """This view requires that the request has a super fly admin."""
-    # TODO: don't rely on this hack for super fly admin.
     def wrapped(request):
         if (
             request.user
             and request.user.authenticated
-            and (request.user.name == "Remarkbox" or request.user.name == "russell")
+            and getattr(request.user, "is_superuser", False)
         ):
             return fn(request)
         request.session.flash(

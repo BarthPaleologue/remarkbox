@@ -1,3 +1,4 @@
+from pyramid.httpexceptions import HTTPFound
 from pyramid.view import view_config
 
 from remarkbox.models import (
@@ -7,6 +8,7 @@ from remarkbox.models import (
     get_topsecret_roots,
     get_topsecret_nodes,
 )
+from remarkbox.models.user import get_user_by_email, User
 
 from remarkbox.views import super_fly_required
 
@@ -78,3 +80,55 @@ def topsecret_nodes(request):
         ),
         "the_title": "topsecret activity on everything!",
     }
+
+
+@view_config(route_name="topsecret-users", renderer="list-users.j2")
+@super_fly_required
+def topsecret_users(request):
+    superusers = request.dbsession.query(User).filter(
+        User.is_superuser == True
+    ).all()
+    return {
+        "superusers": superusers,
+        "the_title": "topsecret superusers!",
+    }
+
+
+@view_config(route_name="topsecret-user-promote", request_method="POST")
+@super_fly_required
+def topsecret_user_promote(request):
+    email = request.params.get("email", "").strip().lower()
+    if email:
+        user = get_user_by_email(request.dbsession, email)
+        if user:
+            user.is_superuser = True
+            request.dbsession.add(user)
+            request.dbsession.flush()
+            request.session.flash(
+                ("Promoted {} ({}) to superuser.".format(user.name, user.email), "success")
+            )
+        else:
+            request.session.flash(
+                ("No user found with email: {}".format(email), "error")
+            )
+    return HTTPFound(request.route_url("topsecret-users"))
+
+
+@view_config(route_name="topsecret-user-demote", request_method="POST")
+@super_fly_required
+def topsecret_user_demote(request):
+    email = request.params.get("email", "").strip().lower()
+    if email:
+        user = get_user_by_email(request.dbsession, email)
+        if user:
+            user.is_superuser = False
+            request.dbsession.add(user)
+            request.dbsession.flush()
+            request.session.flash(
+                ("Demoted {} ({}) from superuser.".format(user.name, user.email), "success")
+            )
+        else:
+            request.session.flash(
+                ("No user found with email: {}".format(email), "error")
+            )
+    return HTTPFound(request.route_url("topsecret-users"))

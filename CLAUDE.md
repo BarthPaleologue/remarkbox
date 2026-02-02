@@ -96,7 +96,7 @@ c.delete_node(node_id)  # permanent, moderator only
 - **Identity**: Authenticated as `timehexon@unturf.com` (display name: `timehexon`)
 - **Journey thread**: `9f970183-ffaf-11f0-b565-040140774501` on `meta.remarkbox.com` -- update this after finishing work
 - **Content limit**: 500,000 characters (~128k tokens)
-- **Rate limits**: 120 reads/min, 30 writes/min (wait if you hit 429)
+- **Rate limits**: 120 reads/min, 30 writes/min, 1 thread creation per 7 min (wait if you hit 429)
 
 ### Endpoints
 
@@ -105,7 +105,7 @@ c.delete_node(node_id)  # permanent, moderator only
 | GET | `/api/v1/version` | Deployed git commit hash |
 | GET | `/api/v1/threads?namespace=X` | List threads |
 | GET | `/api/v1/threads/{id}` | Thread with replies |
-| POST | `/api/v1/threads` | Create thread |
+| POST | `/api/v1/threads` | Create thread (1 per 7 min limit) |
 | POST | `/api/v1/threads/{id}/replies` | Reply to thread |
 | GET | `/api/v1/nodes/{id}` | Single node |
 | PATCH | `/api/v1/nodes/{id}` | Edit node (data, title, disabled, approved, locked) |
@@ -115,6 +115,8 @@ c.delete_node(node_id)  # permanent, moderator only
 | GET | `/api/v1/user/profile` | Get profile |
 | PATCH | `/api/v1/user/profile` | Update display name |
 | GET | `/api/v1/clients/python` | Download Python client |
+| GET | `/api/v1/admin/namespaces` | List all namespaces (superuser only) |
+| GET | `/api/v1/admin/recent-nodes?days=7` | Recent nodes network-wide (superuser only) |
 
 ### Authentication
 
@@ -135,6 +137,56 @@ env/bin/python remarkbox/api/functional_test.py https://my.remarkbox.com meta.re
 ```
 
 This exercises all endpoints and updates the journey thread with results.
+
+## Superuser (Global Moderator)
+
+Users with `is_superuser=True` can moderate across all namespaces. This bypasses the
+normal namespace-scoped `is_moderator()` check. The admin UI is at `/topsecret/users`
+where you can promote/demote users by email.
+
+Bootstrap the first superuser via the database script:
+```bash
+env/bin/python scripts/promote_superuser.py --ini development.ini --email timehexon@unturf.com
+```
+
+After that, use the web UI at `/topsecret/users` or the existing topsecret admin pages
+(all guarded by `@super_fly_required` which checks `is_superuser`).
+
+Admin client methods:
+```python
+c.admin_list_namespaces()           # list all namespaces
+c.admin_recent_nodes(days=7)        # recent nodes network-wide
+```
+
+## Spam Prevention
+
+Spam detection runs automatically on `POST /api/v1/threads` and `POST /api/v1/threads/{id}/replies`.
+Superusers bypass all spam checks.
+
+**Scoring signals**: link density, known spam patterns, duplicate content, new account velocity,
+IP reputation (disabled post count), content length anomalies.
+
+**Thresholds** (configurable in `.ini`):
+- `spam.hard_threshold = 0.8` -- reject with 403
+- `spam.soft_threshold = 0.5` -- allow but set `approved=False` (held for moderation)
+
+**Thread creation rate limit**: 1 new thread per 7 minutes per user/IP via the API.
+This does not affect browser users or replies.
+
+**Spam hunting scripts** (require superuser cookie):
+```bash
+# Scan recent posts for spam
+python scripts/spam/scan.py --days=7 --threshold=0.3
+
+# Scan and output JSON
+python scripts/spam/scan.py --json --threshold=0.5
+
+# Bulk disable flagged posts
+python scripts/spam/scan.py --json --threshold=0.8 | python scripts/spam/disable_spam.py --from-json
+
+# Disable specific nodes
+python scripts/spam/disable_spam.py node-uuid-1 node-uuid-2
+```
 
 ## Production Rules
 

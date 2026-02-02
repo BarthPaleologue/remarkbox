@@ -66,6 +66,9 @@ def includeme(config):
     config.add_route("topsecret-namespaces", "/topsecret/namespaces")
     config.add_route("topsecret-notifications", "/topsecret/notifications")
     config.add_route("topsecret-nodes", "/topsecret/nodes")
+    config.add_route("topsecret-users", "/topsecret/users")
+    config.add_route("topsecret-user-promote", "/topsecret/users/promote")
+    config.add_route("topsecret-user-demote", "/topsecret/users/demote")
     config.add_route("topsecret", "/topsecret")
 
     # embed routes:

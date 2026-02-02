@@ -371,9 +371,15 @@ class Namespace(RBase, Base):
         return False
 
     def is_moderator(self, user):
-        """Return True if given user moderates this namespace, else False."""
-        if user and user.authenticated and user in self.moderators:
-            return True
+        """Return True if given user moderates this namespace, else False.
+
+        Superusers are treated as moderators on every namespace.
+        """
+        if user and user.authenticated:
+            if getattr(user, "is_superuser", False):
+                return True
+            if user in self.moderators:
+                return True
         return False
 
     def can_alter_node(self, node, user):
