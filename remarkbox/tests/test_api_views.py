@@ -97,6 +97,57 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
         self.assertEqual(body["node"]["author"]["type"], "surrogate")
         self.assertEqual(body["node"]["author"]["name"], "ClaudeBot")
 
+    def test_create_thread_with_uri(self):
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Page Thread",
+                "data": "Linked to a URI",
+                "thread_uri": "https://api-test.example.com/my-page/",
+                "anonymous_name": "TestBot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 201)
+        node_id = res.json["node"]["id"]
+
+        # Verify the URI record was created and linked
+        from remarkbox.models.uri import get_uri_by_uri
+        uri = get_uri_by_uri(self.dbsession, "https://api-test.example.com/my-page")
+        self.assertIsNotNone(uri)
+        self.assertEqual(str(uri.node.id), node_id)
+
+    def test_create_thread_duplicate_uri(self):
+        # First thread with URI
+        res1 = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "First",
+                "data": "First thread",
+                "thread_uri": "https://api-test.example.com/dup-test/",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(res1.status_int, 201)
+
+        # Second thread with same URI should fail
+        res2 = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Second",
+                "data": "Duplicate",
+                "thread_uri": "https://api-test.example.com/dup-test/",
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(res2.status_int, 409)
+        self.assertIn("already exists", res2.json["error"])
+
     def test_create_anonymous_thread_default_name(self):
         res = self.testapp.post_json(
             "/api/v1/threads",

@@ -22,6 +22,7 @@ from remarkbox.models.namespace import (
     get_or_create_namespace,
     get_topsecret_namespaces,
 )
+from remarkbox.models.uri import get_or_create_uri
 from remarkbox.models.node import Node
 from remarkbox.lib.mail import send_verification_digits_to_email
 from remarkbox.lib.notify import schedule_notifications
@@ -443,6 +444,7 @@ def api_create_thread(request):
     namespace_name = body.get("namespace") or request.params.get("namespace")
     title = body.get("title") or request.params.get("thread_title", "")
     data = body.get("data") or request.params.get("thread_data", "")
+    thread_uri = body.get("thread_uri") or request.params.get("thread_uri", "")
     anonymous_name = (
         body.get("anonymous_name") or request.params.get("anonymous_name", "")
     ).strip()
@@ -527,6 +529,22 @@ def api_create_thread(request):
         request.dbsession.add(node_event)
     request.dbsession.add(namespace)
     request.dbsession.flush()
+
+    # Link thread to a page URI so the embed iframe can find it
+    if thread_uri:
+        uri = get_or_create_uri(request.dbsession, thread_uri)
+        if uri.node is not None and uri.node.id != node.id:
+            # URI already has a thread — caller should use the reply endpoint
+            request.response.status_code = 409
+            return {
+                "error": "A thread already exists for this URI",
+                "existing_node_id": str(uri.node.id),
+            }
+        uri.node = node
+        node.has_uri = True
+        request.dbsession.add(uri)
+        request.dbsession.add(node)
+        request.dbsession.flush()
 
     if node_event:
         request.node = node
