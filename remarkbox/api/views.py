@@ -542,9 +542,18 @@ def api_edit_node(request):
     data = body.get("data") or request.params.get("thread_data", "")
     title = body.get("title") or request.params.get("thread_title", "")
 
-    if not data and not title:
+    # Moderation flags (require can_alter_node, already checked above)
+    disabled = body.get("disabled")
+    approved = body.get("approved")
+    locked = body.get("locked")
+
+    has_content_change = bool(data or title)
+    has_moderation_change = (disabled is not None or approved is not None
+                            or locked is not None)
+
+    if not has_content_change and not has_moderation_change:
         request.response.status_code = 400
-        return {"error": "data or title is required"}
+        return {"error": "data, title, disabled, approved, or locked is required"}
 
     if data and len(data) > MAX_CONTENT_LENGTH:
         request.response.status_code = 400
@@ -559,10 +568,59 @@ def api_edit_node(request):
     if data:
         node.edit(data)
 
+    if disabled is True:
+        node.disable()
+    elif disabled is False:
+        node.enable()
+
+    if approved is True:
+        node.approved = True
+    elif approved is False:
+        node.approved = False
+
+    if locked is not None and node.is_root:
+        node.locked = bool(locked)
+
     request.dbsession.add(node)
     request.dbsession.flush()
 
     return {"node": serialize_node(node)}
+
+
+@view_config(
+    route_name="api-node-detail",
+    request_method="DELETE",
+    renderer="json",
+    require_csrf=False,
+)
+def api_delete_node(request):
+    """Delete a node permanently (requires moderator)."""
+    node_id = request.matchdict["node_id"]
+    node = get_node_by_id(request.dbsession, node_id)
+
+    if node is None:
+        request.response.status_code = 404
+        return {"error": "Node not found"}
+
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+
+    namespace = node.root.namespace
+
+    denied = check_namespace_api_access(request, namespace)
+    if denied:
+        return denied
+
+    if not namespace.is_moderator(request.user):
+        request.response.status_code = 403
+        return {"error": "Only moderators can delete nodes"}
+
+    node_id_str = str(node.id)
+    request.dbsession.delete(node)
+    request.dbsession.flush()
+
+    return {"deleted": node_id_str}
 
 
 # ---------------------------------------------------------------------------

@@ -79,8 +79,8 @@ def info_node(node):
 
 def get_arg_parser():
     parser = base_parser("Modify a Node.")
-    parser.add_argument("-u", "--uri", type=unicode, default=None)
-    parser.add_argument("-i", "--id", type=unicode, default=None)
+    parser.add_argument("-u", "--uri", type=str, default=None)
+    parser.add_argument("-i", "--id", type=str, default=None)
     parser.add_argument("--show", default=False, action="store_true")
     parser.add_argument("--info", default=False, action="store_true")
     parser.add_argument("--move", default=False, metavar="NEW-PARENT-ID")
@@ -143,7 +143,7 @@ def main():
 
         if args.delete:
             if (
-                raw_input("Delete node '{}' forever? [yes, no]: ".format(node.id))
+                input("Delete node '{}' forever? [yes, no]: ".format(node.id))
                 == "yes"
             ):
                 request.dbsession.delete(node)

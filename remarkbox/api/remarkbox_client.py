@@ -296,6 +296,72 @@ class RemarkboxClient:
             raise ValueError("data or title is required")
         return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), body)
 
+    def disable_node(self, node_id):
+        """Disable a node (requires authentication, moderator or owner).
+
+        Args:
+            node_id: UUID of the node to disable
+
+        Returns:
+            dict with key: node
+        """
+        return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"disabled": True})
+
+    def enable_node(self, node_id):
+        """Enable a previously disabled node (requires authentication, moderator or owner).
+
+        Args:
+            node_id: UUID of the node to enable
+
+        Returns:
+            dict with key: node
+        """
+        return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"disabled": False})
+
+    def approve_node(self, node_id):
+        """Approve a node (requires authentication, moderator or owner).
+
+        Args:
+            node_id: UUID of the node to approve
+
+        Returns:
+            dict with key: node
+        """
+        return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"approved": True})
+
+    def lock_node(self, node_id):
+        """Lock a thread (requires authentication, moderator or owner). Root nodes only.
+
+        Args:
+            node_id: UUID of the root node to lock
+
+        Returns:
+            dict with key: node
+        """
+        return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"locked": True})
+
+    def unlock_node(self, node_id):
+        """Unlock a thread (requires authentication, moderator or owner). Root nodes only.
+
+        Args:
+            node_id: UUID of the root node to unlock
+
+        Returns:
+            dict with key: node
+        """
+        return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"locked": False})
+
+    def delete_node(self, node_id):
+        """Delete a node permanently (requires moderator).
+
+        Args:
+            node_id: UUID of the node to delete
+
+        Returns:
+            dict with key: deleted (the node ID)
+        """
+        return self._request("DELETE", "/api/v1/nodes/{}".format(node_id))
+
     # ----- Auth -----
 
     def login(self, email=None):
@@ -370,12 +436,19 @@ Commands:
     node <node_id>                          Get a single node
     post <namespace> <title> <data> [name]  Create thread (anonymous)
     reply <node_id> <data> [name]           Reply to thread (anonymous)
+    disable <node_id>                       Disable a node (auth required)
+    enable <node_id>                        Enable a node (auth required)
+    approve <node_id>                       Approve a node (auth required)
+    lock <node_id>                          Lock a thread (auth required)
+    unlock <node_id>                        Unlock a thread (auth required)
+    delete <node_id>                        Delete a node (moderator only)
     login <email>                           Request OTP
     verify <email> <otp>                    Verify OTP
 
 Examples:
     python remarkbox_client.py https://my.remarkbox.com threads meta.remarkbox.com
     python remarkbox_client.py https://my.remarkbox.com post meta.remarkbox.com "Hello" "World" MyBot
+    python remarkbox_client.py https://my.remarkbox.com disable <node_id>
 """
 
     if len(sys.argv) < 3:
@@ -400,6 +473,18 @@ Examples:
         elif cmd == "reply" and len(args) >= 2:
             name = args[2] if len(args) > 2 else None
             result = client.reply(args[0], args[1], anonymous_name=name)
+        elif cmd == "disable" and len(args) >= 1:
+            result = client.disable_node(args[0])
+        elif cmd == "enable" and len(args) >= 1:
+            result = client.enable_node(args[0])
+        elif cmd == "approve" and len(args) >= 1:
+            result = client.approve_node(args[0])
+        elif cmd == "lock" and len(args) >= 1:
+            result = client.lock_node(args[0])
+        elif cmd == "unlock" and len(args) >= 1:
+            result = client.unlock_node(args[0])
+        elif cmd == "delete" and len(args) >= 1:
+            result = client.delete_node(args[0])
         elif cmd == "login" and len(args) >= 1:
             result = client.login(args[0])
         elif cmd == "verify" and len(args) >= 2:
