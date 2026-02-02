@@ -147,6 +147,16 @@ function initThreadTitleTypeahead() {
         }, 400);
     });
 
+    // Clicking a suggestion navigates to that thread.
+    suggestionsDiv.addEventListener('click', function(e) {
+        var link = e.target.closest('.suggestion-item');
+        if (link && link.href) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = link.href;
+        }
+    });
+
     // Hide suggestions when clicking outside.
     document.addEventListener('click', function(e) {
         if (e.target !== titleInput && !suggestionsDiv.contains(e.target)) {
