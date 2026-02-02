@@ -164,40 +164,69 @@ def api_search_threads(request):
     namespace = get_or_create_namespace(request.dbsession, namespace_name)
 
     from remarkbox.models.node import Node
-    from sqlalchemy import or_
+    from sqlalchemy import or_, and_
+
+    _STOP_WORDS = {
+        "a", "an", "the", "is", "it", "in", "on", "of", "to", "do", "i",
+        "we", "my", "me", "or", "if", "at", "by", "so", "no", "up", "am",
+        "be", "he", "us", "you", "can", "did", "has", "had", "was", "are",
+        "for", "not", "but", "how", "our", "its", "his", "her", "who",
+        "all", "any", "got", "get", "this", "that", "with", "from",
+        "your", "have", "will", "what", "when", "does", "there", "would",
+        "should", "could",
+    }
 
     def _escape(s):
         return s.replace("%", "\\%").replace("_", "\\_")
 
-    # Split query into keywords; each must appear in title OR content.
-    keywords = q.split()
+    def _clean_keyword(word):
+        """Strip punctuation and return lowercase, or None if stop word."""
+        cleaned = re.sub(r'[^\w-]', '', word).strip('-')
+        if not cleaned or len(cleaned) < 2 or cleaned.lower() in _STOP_WORDS:
+            return None
+        return cleaned
 
-    # Search root nodes: all keywords must match title or data.
-    query = namespace.visible_roots
+    # Extract meaningful keywords from query.
+    keywords = [_clean_keyword(w) for w in q.split()]
+    keywords = [kw for kw in keywords if kw]
+
+    # Fall back to whole query if all words were stop words.
+    if not keywords:
+        keywords = [q]
+
+    # Build OR conditions: any keyword matching title or data.
+    keyword_conditions = []
     for kw in keywords:
         pattern = "%{}%".format(_escape(kw))
-        query = query.filter(or_(
-            Node.title.ilike(pattern),
-            Node.data.ilike(pattern),
-        ))
+        keyword_conditions.append(Node.title.ilike(pattern))
+        keyword_conditions.append(Node.data.ilike(pattern))
 
-    title_matches = query.limit(10).all()
+    # Search root nodes.
+    title_matches = (
+        namespace.visible_roots
+        .filter(or_(*keyword_conditions))
+        .limit(10)
+        .all()
+    )
     seen_ids = {r.id for r in title_matches}
 
     # Also search child nodes and return their root threads.
     remaining = 10 - len(title_matches)
     child_roots = []
     if remaining > 0:
+        child_conditions = []
+        for kw in keywords:
+            pattern = "%{}%".format(_escape(kw))
+            child_conditions.append(Node.data.ilike(pattern))
+
         child_query = (
             request.dbsession.query(Node)
             .filter(
                 Node.namespace_id == None,  # child nodes
                 Node.disabled == False,
+                or_(*child_conditions),
             )
         )
-        for kw in keywords:
-            pattern = "%{}%".format(_escape(kw))
-            child_query = child_query.filter(Node.data.ilike(pattern))
 
         # Get distinct root_ids from matching children, scoped to namespace.
         children = child_query.limit(50).all()
