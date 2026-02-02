@@ -150,7 +150,7 @@ def api_list_threads(request):
     require_csrf=False,
 )
 def api_search_threads(request):
-    """Search threads by title prefix within a namespace."""
+    """Search threads by keywords in title and content within a namespace."""
     namespace_name = get_param(request, "namespace")
     q = get_param(request, "q", "").strip()
 
@@ -164,13 +164,52 @@ def api_search_threads(request):
     namespace = get_or_create_namespace(request.dbsession, namespace_name)
 
     from remarkbox.models.node import Node
+    from sqlalchemy import or_
 
-    roots = (
-        namespace.visible_roots
-        .filter(Node.title.ilike("{}%".format(q.replace("%", "\\%").replace("_", "\\_"))))
-        .limit(10)
-        .all()
-    )
+    def _escape(s):
+        return s.replace("%", "\\%").replace("_", "\\_")
+
+    # Split query into keywords; each must appear in title OR content.
+    keywords = q.split()
+
+    # Search root nodes: all keywords must match title or data.
+    query = namespace.visible_roots
+    for kw in keywords:
+        pattern = "%{}%".format(_escape(kw))
+        query = query.filter(or_(
+            Node.title.ilike(pattern),
+            Node.data.ilike(pattern),
+        ))
+
+    title_matches = query.limit(10).all()
+    seen_ids = {r.id for r in title_matches}
+
+    # Also search child nodes and return their root threads.
+    remaining = 10 - len(title_matches)
+    child_roots = []
+    if remaining > 0:
+        child_query = (
+            request.dbsession.query(Node)
+            .filter(
+                Node.namespace_id == None,  # child nodes
+                Node.disabled == False,
+            )
+        )
+        for kw in keywords:
+            pattern = "%{}%".format(_escape(kw))
+            child_query = child_query.filter(Node.data.ilike(pattern))
+
+        # Get distinct root_ids from matching children, scoped to namespace.
+        children = child_query.limit(50).all()
+        for child in children:
+            root = child.root
+            if root.id not in seen_ids and root.namespace == namespace:
+                seen_ids.add(root.id)
+                child_roots.append(root)
+                if len(child_roots) >= remaining:
+                    break
+
+    all_roots = title_matches + child_roots
 
     return {
         "threads": [
@@ -181,7 +220,7 @@ def api_search_threads(request):
                 "created_ago": root.human_created_timestamp,
                 "stats": root.stats if root.cache else None,
             }
-            for root in roots
+            for root in all_roots
         ],
     }
 
