@@ -98,6 +98,8 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
         self.assertEqual(body["node"]["author"]["name"], "ClaudeBot")
 
     def test_create_thread_with_uri(self):
+        """thread_uri creates a root via get_or_create_node_by_uri and
+        returns the comment as a child reply — same as the embed iframe."""
         res = self.testapp.post_json(
             "/api/v1/threads",
             {
@@ -110,43 +112,54 @@ class TestAPIAnonymousPosting(APIFunctionalTests):
             expect_errors=True,
         )
         self.assertEqual(res.status_int, 201)
-        node_id = res.json["node"]["id"]
+        reply_id = res.json["node"]["id"]
+        root_id = res.json["root_node_id"]
 
-        # Verify the URI record was created and linked
+        # The reply should be a child, not the root itself
+        self.assertNotEqual(reply_id, root_id)
+
+        # Verify the URI record links to the root node (not the reply)
         from remarkbox.models.uri import get_uri_by_uri
         uri = get_uri_by_uri(self.dbsession, "https://api-test.example.com/my-page/")
         self.assertIsNotNone(uri)
-        self.assertEqual(str(uri.node.id), node_id)
+        self.assertEqual(str(uri.node.id), root_id)
 
-    def test_create_thread_duplicate_uri(self):
-        # First thread with URI
+    def test_create_thread_duplicate_uri_adds_reply(self):
+        """Posting to the same thread_uri twice adds a second reply
+        under the same root — it does not fail with 409."""
         res1 = self.testapp.post_json(
             "/api/v1/threads",
             {
                 "namespace": self.namespace_name,
                 "title": "First",
-                "data": "First thread",
+                "data": "First comment",
                 "thread_uri": "https://api-test.example.com/dup-test/",
                 "anonymous_name": "Bot",
             },
             expect_errors=True,
         )
         self.assertEqual(res1.status_int, 201)
+        root_id_1 = res1.json["root_node_id"]
 
-        # Second thread with same URI should fail
+        # Second post to same URI creates another reply under the same root
         res2 = self.testapp.post_json(
             "/api/v1/threads",
             {
                 "namespace": self.namespace_name,
-                "title": "Second",
-                "data": "Duplicate",
+                "title": "First",
+                "data": "Second comment",
                 "thread_uri": "https://api-test.example.com/dup-test/",
                 "anonymous_name": "Bot",
             },
             expect_errors=True,
         )
-        self.assertEqual(res2.status_int, 409)
-        self.assertIn("already exists", res2.json["error"])
+        self.assertEqual(res2.status_int, 201)
+        root_id_2 = res2.json["root_node_id"]
+
+        # Both replies share the same root
+        self.assertEqual(root_id_1, root_id_2)
+        # But the reply nodes are different
+        self.assertNotEqual(res1.json["node"]["id"], res2.json["node"]["id"])
 
     def test_create_anonymous_thread_default_name(self):
         res = self.testapp.post_json(

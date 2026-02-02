@@ -23,7 +23,7 @@ from remarkbox.models.namespace import (
     get_topsecret_namespaces,
 )
 from remarkbox.models.uri import get_or_create_uri
-from remarkbox.models.node import Node
+from remarkbox.models.node import Node, get_or_create_node_by_uri
 from remarkbox.lib.mail import send_verification_digits_to_email
 from remarkbox.lib.notify import schedule_notifications
 from remarkbox.views import verify_pending_nodes_in_session
@@ -503,7 +503,55 @@ def api_create_thread(request):
         request.response.status_code = 400
         return {"error": "email is required (or namespace must allow_anonymous)"}
 
-    # Create root node
+    if thread_uri:
+        # Simulate what the embed iframe does: get or create the root node
+        # via URI, then post the comment as a reply under it.
+        root = get_or_create_node_by_uri(
+            request.dbsession, thread_uri, node_title=title
+        )
+        request.dbsession.add(root)
+        request.dbsession.flush()
+
+        # Create the comment as a child of the root (same as api_reply)
+        node = root.new_child()
+        node.ip_address = str(request.client_addr)
+        node.set_data(data, namespace=namespace, dbsession=request.dbsession)
+
+        if user_surrogate:
+            node.user_surrogate = user_surrogate
+            node.verified = True
+            node_event = None
+            request.dbsession.add(user_surrogate)
+        else:
+            node.user = user
+            node.verified = user.authenticated
+            node_event = node.new_event(user, "commented")
+            request.dbsession.add(user)
+
+        if spam_held:
+            node.approved = False
+
+        # Bump thread
+        root.changed = node.changed
+        root._invalidate_cache()
+
+        request.dbsession.add(node)
+        if node_event:
+            request.dbsession.add(node_event)
+        request.dbsession.add(root)
+        request.dbsession.flush()
+
+        if node_event:
+            schedule_notifications(request, node_event)
+
+        request.response.status_code = 201
+        return {
+            "node": serialize_node(node),
+            "root_node_id": str(root.id),
+            "verified": node.verified,
+        }
+
+    # No thread_uri — create a standalone thread (root node holds the content)
     node = create_root_node()
     node.namespace = namespace
     node.ip_address = str(request.client_addr)
@@ -529,22 +577,6 @@ def api_create_thread(request):
         request.dbsession.add(node_event)
     request.dbsession.add(namespace)
     request.dbsession.flush()
-
-    # Link thread to a page URI so the embed iframe can find it
-    if thread_uri:
-        uri = get_or_create_uri(request.dbsession, thread_uri)
-        if uri.node is not None and uri.node.id != node.id:
-            # URI already has a thread — caller should use the reply endpoint
-            request.response.status_code = 409
-            return {
-                "error": "A thread already exists for this URI",
-                "existing_node_id": str(uri.node.id),
-            }
-        uri.node = node
-        node.has_uri = True
-        request.dbsession.add(uri)
-        request.dbsession.add(node)
-        request.dbsession.flush()
 
     if node_event:
         request.node = node
