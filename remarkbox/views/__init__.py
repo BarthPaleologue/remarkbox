@@ -1,3 +1,5 @@
+import functools
+
 from remarkbox.models import get_node_by_id
 
 from pyramid.httpexceptions import HTTPFound
@@ -18,6 +20,7 @@ def user_required(
 
     def wrapped(fn):
 
+        @functools.wraps(fn)
         def inner(request):
             if request.user and request.user.authenticated:
                 return fn(request)
@@ -35,6 +38,7 @@ def user_required(
 # view decorator.
 def super_fly_required(fn):
     """This view requires that the request has a super fly admin."""
+    @functools.wraps(fn)
     def wrapped(request):
         if (
             request.user
@@ -54,6 +58,7 @@ def super_fly_required(fn):
 def reject_stand_alone(fn):
     """Reject access to view if app is running in stand_alone_mode."""
 
+    @functools.wraps(fn)
     def wrapped(request):
         if request.stand_alone_mode:
             request.session.flash(
