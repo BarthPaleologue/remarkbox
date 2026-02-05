@@ -1743,12 +1743,30 @@ class GDPRDeleteAccountFunctionalTests(FunctionalTests):
         user = self.dbsession.query(User).filter(User.id == self.user_id).one_or_none()
         self.assertIsNotNone(user)
 
-    def test_3_delete_account_anonymizes_and_keeps_tombstone(self):
+    @patch("smtplib.SMTP")
+    def test_3_delete_account_anonymizes_and_keeps_tombstone(self, mock_smtp):
         """POST with DELETE confirmation scrubs PII and keeps user as tombstone."""
         self._log_in_test_user()
-        redirect_res = self.testapp.post(
+
+        # Step 1: POST with DELETE triggers OTP generation, returns 200 with OTP form.
+        otp_res = self.testapp.post(
             "/u/delete-account",
             {"csrf_token": self.csrf, "confirm-delete": "DELETE"},
+            status=200,
+        )
+        self.assertIn(b"Confirmation code", otp_res.body)
+
+        # Retrieve the OTP code from the database.
+        from remarkbox.models.sudo_otp import SudoOtp
+        action_key = "delete_account:gdpr-delete@remarkbox.com"
+        otp_row = self.dbsession.query(SudoOtp).get(action_key)
+        self.assertIsNotNone(otp_row, "OTP row should exist after step 1")
+        code = otp_row.code
+
+        # Step 2: POST with the OTP code completes deletion.
+        redirect_res = self.testapp.post(
+            "/u/delete-account",
+            {"csrf_token": self.csrf, "sudo_otp": code},
             status=302,
         )
         res = redirect_res.follow()
