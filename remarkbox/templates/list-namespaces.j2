@@ -1,0 +1,18 @@
+{% extends request.base_template -%}
+
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h3>{{ the_title }}</h3>
+
+<table>
+<tr><th>Namespace</th><th>Description</th></tr>
+{% for namespace in namespaces %}
+<tr>
+<td><a href="{{ request.link_prefix }}/ns/{{ namespace.name }}">{{ namespace.name }}</a></td>
+<td>{{ namespace.description or '' }}</td>
+</tr>
+{% endfor -%}
+</table>
+
+{%- endblock -%}
