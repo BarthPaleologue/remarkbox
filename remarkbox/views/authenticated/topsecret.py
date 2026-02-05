@@ -68,7 +68,7 @@ def topsecret_notifications(request):
 @super_fly_required
 def topsecret_roots(request):
     return {
-        "nodes": get_topsecret_roots(request.dbsession),
+        "nodes": get_topsecret_roots(request.dbsession).limit(1000),
         "the_title": "topsecret dashboard",
     }
 
