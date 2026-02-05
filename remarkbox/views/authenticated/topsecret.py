@@ -1,5 +1,9 @@
+import time
+
 from pyramid.httpexceptions import HTTPFound
 from pyramid.view import view_config
+
+from sqlalchemy import func, or_
 
 from remarkbox.models import (
     get_topsecret_namespace_requests,
@@ -9,8 +13,12 @@ from remarkbox.models import (
     get_topsecret_nodes,
 )
 from remarkbox.models.user import get_user_by_email, User
+from remarkbox.models.node import Node
+from remarkbox.models.namespace import Namespace
+from remarkbox.models.namespace_request import NamespaceRequest
 from remarkbox.models.sudo_otp import verify_sudo_otp
 
+from remarkbox.lib import timestamp_to_ago_string
 from remarkbox.lib.sudo import request_sudo_otp
 from remarkbox.views import super_fly_required
 
@@ -66,10 +74,84 @@ def topsecret_notifications(request):
 
 @view_config(route_name="topsecret", renderer="topsecret-dashboard.j2")
 @super_fly_required
-def topsecret_roots(request):
+def topsecret_dashboard(request):
+    db = request.dbsession
+    now_ms = int(time.time() * 1000)
+    seven_days_ms = 7 * 24 * 60 * 60 * 1000
+    thirty_days_ms = 30 * 24 * 60 * 60 * 1000
+
+    # --- Totals ---
+    total_users = db.query(func.count(User.id)).scalar()
+    total_namespaces = db.query(func.count(Namespace.id)).scalar()
+    total_nodes = db.query(func.count(Node.id)).scalar()
+
+    # --- People waiting on us ---
+    pending_requests = (
+        db.query(NamespaceRequest)
+        .filter(NamespaceRequest.verified == False)
+        .order_by(NamespaceRequest.created_timestamp.asc())
+        .all()
+    )
+
+    # --- New humans (last 7 days) ---
+    new_users = (
+        db.query(User)
+        .filter(User.created > now_ms - seven_days_ms, User.disabled == False)
+        .order_by(User.created.desc())
+        .all()
+    )
+
+    # --- Moderation queue ---
+    held_nodes = (
+        db.query(Node)
+        .filter(
+            or_(Node.approved == False, Node.approved.is_(None)),
+            Node.disabled == False,
+        )
+        .order_by(Node.created.desc())
+        .limit(50)
+        .all()
+    )
+
+    # --- Flagged by spam filter but not killed ---
+    spam_flagged = (
+        db.query(Node)
+        .filter(Node.spam_score >= 0.5, Node.disabled == False)
+        .order_by(Node.spam_score.desc())
+        .limit(50)
+        .all()
+    )
+
+    # --- Most active namespaces (last 30 days) ---
+    active_namespaces = (
+        db.query(
+            Namespace.name,
+            Namespace.id,
+            func.count(Node.id).label("node_count"),
+        )
+        .join(Node, Node.namespace_id == Namespace.id)
+        .filter(Node.created > now_ms - thirty_days_ms)
+        .group_by(Namespace.id)
+        .order_by(func.count(Node.id).desc())
+        .limit(20)
+        .all()
+    )
+
+    # --- Recent root nodes ---
+    recent_roots = get_topsecret_roots(db).limit(50)
+
     return {
-        "nodes": get_topsecret_roots(request.dbsession).limit(1000),
-        "the_title": "topsecret dashboard",
+        "the_title": "topsecret",
+        "total_users": total_users,
+        "total_namespaces": total_namespaces,
+        "total_nodes": total_nodes,
+        "pending_requests": pending_requests,
+        "new_users": new_users,
+        "held_nodes": held_nodes,
+        "spam_flagged": spam_flagged,
+        "active_namespaces": active_namespaces,
+        "nodes": recent_roots,
+        "ago": timestamp_to_ago_string,
     }
 
 
