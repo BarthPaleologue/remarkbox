@@ -64,12 +64,12 @@ def topsecret_notifications(request):
     }
 
 
-@view_config(route_name="topsecret", renderer="home.j2")
+@view_config(route_name="topsecret", renderer="topsecret-dashboard.j2")
 @super_fly_required
 def topsecret_roots(request):
     return {
         "nodes": get_topsecret_roots(request.dbsession),
-        "the_title": "topsecret root nodes!",
+        "the_title": "topsecret dashboard",
     }
 
 
