@@ -9,7 +9,9 @@ from remarkbox.models import (
     get_topsecret_nodes,
 )
 from remarkbox.models.user import get_user_by_email, User
+from remarkbox.models.sudo_otp import verify_sudo_otp
 
+from remarkbox.lib.sudo import request_sudo_otp
 from remarkbox.views import super_fly_required
 
 
@@ -94,41 +96,97 @@ def topsecret_users(request):
     }
 
 
-@view_config(route_name="topsecret-user-promote", request_method="POST")
+@view_config(
+    route_name="topsecret-user-promote",
+    request_method="POST",
+    renderer="confirm-sudo-otp.j2",
+)
 @super_fly_required
 def topsecret_user_promote(request):
     email = request.params.get("email", "").strip().lower()
-    if email:
-        user = get_user_by_email(request.dbsession, email)
-        if user:
-            user.is_superuser = True
-            request.dbsession.add(user)
-            request.dbsession.flush()
-            request.session.flash(
-                ("Promoted {} ({}) to superuser.".format(user.name, user.email), "success")
-            )
-        else:
-            request.session.flash(
-                ("No user found with email: {}".format(email), "error")
-            )
+    sudo_otp = request.params.get("sudo_otp", "").strip()
+
+    if not email:
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    user = get_user_by_email(request.dbsession, email)
+    if not user:
+        request.session.flash(
+            ("No user found with email: {}".format(email), "error")
+        )
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    action_key = "promote:{}".format(email)
+    action_description = "Promote {} ({}) to superuser".format(user.name, email)
+
+    if not sudo_otp:
+        # Step 1: generate OTP and show confirmation form.
+        request_sudo_otp(request, action_key, action_description)
+        return {
+            "the_title": "Confirm Promote",
+            "action_description": action_description,
+            "email": email,
+            "confirm_url": request.route_url("topsecret-user-promote"),
+        }
+
+    # Step 2: verify OTP and execute.
+    ok, err = verify_sudo_otp(request.dbsession, action_key, sudo_otp)
+    if not ok:
+        request.session.flash((err, "error"))
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    user.is_superuser = True
+    request.dbsession.add(user)
+    request.dbsession.flush()
+    request.session.flash(
+        ("Promoted {} ({}) to superuser.".format(user.name, user.email), "success")
+    )
     return HTTPFound(request.route_url("topsecret-users"))
 
 
-@view_config(route_name="topsecret-user-demote", request_method="POST")
+@view_config(
+    route_name="topsecret-user-demote",
+    request_method="POST",
+    renderer="confirm-sudo-otp.j2",
+)
 @super_fly_required
 def topsecret_user_demote(request):
     email = request.params.get("email", "").strip().lower()
-    if email:
-        user = get_user_by_email(request.dbsession, email)
-        if user:
-            user.is_superuser = False
-            request.dbsession.add(user)
-            request.dbsession.flush()
-            request.session.flash(
-                ("Demoted {} ({}) from superuser.".format(user.name, user.email), "success")
-            )
-        else:
-            request.session.flash(
-                ("No user found with email: {}".format(email), "error")
-            )
+    sudo_otp = request.params.get("sudo_otp", "").strip()
+
+    if not email:
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    user = get_user_by_email(request.dbsession, email)
+    if not user:
+        request.session.flash(
+            ("No user found with email: {}".format(email), "error")
+        )
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    action_key = "demote:{}".format(email)
+    action_description = "Demote {} ({}) from superuser".format(user.name, email)
+
+    if not sudo_otp:
+        # Step 1: generate OTP and show confirmation form.
+        request_sudo_otp(request, action_key, action_description)
+        return {
+            "the_title": "Confirm Demote",
+            "action_description": action_description,
+            "email": email,
+            "confirm_url": request.route_url("topsecret-user-demote"),
+        }
+
+    # Step 2: verify OTP and execute.
+    ok, err = verify_sudo_otp(request.dbsession, action_key, sudo_otp)
+    if not ok:
+        request.session.flash((err, "error"))
+        return HTTPFound(request.route_url("topsecret-users"))
+
+    user.is_superuser = False
+    request.dbsession.add(user)
+    request.dbsession.flush()
+    request.session.flash(
+        ("Demoted {} ({}) from superuser.".format(user.name, user.email), "success")
+    )
     return HTTPFound(request.route_url("topsecret-users"))

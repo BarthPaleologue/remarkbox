@@ -4,6 +4,30 @@
 
 <h4>{{ the_title }}</h4>
 
+{% if otp_requested %}
+
+<p>
+An 8-digit confirmation code has been sent to <b>{{ request.user.email }}</b>.
+Enter it below to permanently delete your account.
+</p>
+
+<br>
+
+<form method="post" action="{{ request.link_prefix }}/u/delete-account">
+{% include 'snippets/csrf.j2' %}
+<label for="sudo-otp">Confirmation code:</label>
+<input type="text" name="sudo_otp" id="sudo-otp" class="common-text-input"
+       pattern="[0-9]{8}" inputmode="numeric" maxlength="8"
+       placeholder="12345678" autocomplete="off" autofocus required>
+<br>
+<br>
+{% set submit_button_value = 'permanently delete my account' %}
+{% set submit_button_classes = 'button-right' %}
+{% include 'snippets/submit.j2' %}
+</form>
+
+{% else %}
+
 <p>
 This action is <b>permanent and cannot be undone</b>. Deleting your account will:
 </p>
@@ -30,6 +54,8 @@ Your comments will remain visible but will no longer be associated with your acc
 {% set submit_button_classes = 'button-right' %}
 {% include 'snippets/submit.j2' %}
 </form>
+
+{% endif %}
 
 <br>
 <a href="{{ request.link_prefix }}/u/settings" class="button button-right">cancel</a>

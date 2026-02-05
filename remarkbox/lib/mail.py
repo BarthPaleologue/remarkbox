@@ -13,6 +13,8 @@ from remarkbox.lib.mail_messages import (
     WELCOME_2_TEXT,
     WELCOME_2_HTML,
     OPERATOR_HTML,
+    SUDO_OTP_TEXT,
+    SUDO_OTP_HTML,
 )
 
 import dkim
@@ -194,6 +196,14 @@ def send_verification_digits_to_email(request, to_email, raw_digits):
         message_text = WELCOME_1_TEXT.format(raw_digits)
         message_html = WELCOME_1_HTML.format(subject, raw_digits)
 
+    send_pyramid_email(request, to_email, subject, message_text, message_html)
+
+
+def send_sudo_otp_email(request, to_email, action_description, code):
+    """Send a sudo OTP confirmation email."""
+    subject = "Security Verification - {}".format(code)
+    message_text = SUDO_OTP_TEXT.format(action=action_description, code=code)
+    message_html = SUDO_OTP_HTML.format(action=action_description, code=code)
     send_pyramid_email(request, to_email, subject, message_text, message_html)
 
 

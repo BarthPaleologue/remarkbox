@@ -148,17 +148,20 @@ class RemarkboxClient:
         if self._cookie_file and hasattr(self._cookie_jar, "save"):
             self._cookie_jar.save(ignore_discard=True, ignore_expires=True)
 
-    def _request(self, method, path, body=None):
+    def _request(self, method, path, body=None, headers=None):
         """Make an HTTP request and return parsed JSON."""
         url = self.url + path
         data = None
-        headers = {}
+        _headers = {}
 
         if body is not None:
             data = json.dumps(body).encode("utf-8")
-            headers["Content-Type"] = "application/json"
+            _headers["Content-Type"] = "application/json"
 
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        if headers:
+            _headers.update(headers)
+
+        req = urllib.request.Request(url, data=data, headers=_headers, method=method)
 
         try:
             resp = self._opener.open(req)
@@ -351,16 +354,23 @@ class RemarkboxClient:
         """
         return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), {"locked": False})
 
-    def delete_node(self, node_id):
-        """Delete a node permanently (requires moderator).
+    def delete_node(self, node_id, sudo_otp=None):
+        """Delete a node permanently (requires moderator + sudo OTP).
+
+        First call without sudo_otp returns 202 and emails a code.
+        Second call with the code performs the deletion.
 
         Args:
             node_id: UUID of the node to delete
+            sudo_otp: 8-digit confirmation code from email (optional)
 
         Returns:
-            dict with key: deleted (the node ID)
+            dict with key: deleted (the node ID), or status/message if OTP required
         """
-        return self._request("DELETE", "/api/v1/nodes/{}".format(node_id))
+        headers = {}
+        if sudo_otp:
+            headers["X-Sudo-OTP"] = sudo_otp
+        return self._request("DELETE", "/api/v1/nodes/{}".format(node_id), headers=headers)
 
     # ----- Auth -----
 

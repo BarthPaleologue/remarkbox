@@ -24,7 +24,8 @@ from remarkbox.models.namespace import (
 )
 from remarkbox.models.uri import get_or_create_uri
 from remarkbox.models.node import Node, get_or_create_node_by_uri
-from remarkbox.lib.mail import send_verification_digits_to_email
+from remarkbox.lib.mail import send_verification_digits_to_email, send_sudo_otp_email
+from remarkbox.models.sudo_otp import create_sudo_otp, verify_sudo_otp
 from remarkbox.lib.notify import schedule_notifications
 from remarkbox.views import verify_pending_nodes_in_session
 
@@ -864,7 +865,7 @@ def api_edit_node(request):
     require_csrf=False,
 )
 def api_delete_node(request):
-    """Delete a node permanently (requires moderator)."""
+    """Delete a node permanently (requires moderator + sudo OTP)."""
     node_id = request.matchdict["node_id"]
     node = get_node_by_id(request.dbsession, node_id)
 
@@ -885,6 +886,31 @@ def api_delete_node(request):
     if not namespace.is_moderator(request.user):
         request.response.status_code = 403
         return {"error": "Only moderators can delete nodes"}
+
+    # Sudo OTP gate.
+    sudo_otp = request.headers.get("X-Sudo-OTP", "").strip()
+    action_key = "delete_node:{}".format(node_id)
+
+    if not sudo_otp:
+        action_description = "Delete node {}".format(node_id)
+        code = create_sudo_otp(
+            request.dbsession,
+            action_key,
+            action_description,
+            client_ip=str(request.client_addr),
+        )
+        send_sudo_otp_email(request, request.user.email, action_description, code)
+        request.response.status_code = 202
+        return {
+            "status": "otp_required",
+            "message": "A confirmation code has been sent to your email. "
+                       "Repeat this request with the X-Sudo-OTP header.",
+        }
+
+    ok, err = verify_sudo_otp(request.dbsession, action_key, sudo_otp)
+    if not ok:
+        request.response.status_code = 403
+        return {"error": err}
 
     node_id_str = str(node.id)
     request.dbsession.delete(node)

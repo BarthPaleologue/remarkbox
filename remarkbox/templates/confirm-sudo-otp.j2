@@ -1,0 +1,35 @@
+{% extends request.base_template -%}
+{% block title %}Security Verification | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+
+<h4>Security Verification Required</h4>
+
+<p>
+<strong>Action:</strong> {{ action_description }}
+</p>
+
+<p>
+An 8-digit confirmation code has been sent to <b>{{ request.user.email }}</b>.
+Enter it below to proceed.
+</p>
+
+<br>
+
+<form method="post" action="{{ confirm_url }}">
+{% include 'snippets/csrf.j2' %}
+<input type="hidden" name="email" value="{{ email }}" />
+<label for="sudo-otp">Confirmation code:</label>
+<input type="text" name="sudo_otp" id="sudo-otp" class="common-text-input"
+       pattern="[0-9]{8}" inputmode="numeric" maxlength="8"
+       placeholder="12345678" autocomplete="off" autofocus required>
+<br>
+<br>
+{% set submit_button_value = 'confirm' %}
+{% set submit_button_classes = 'button-right' %}
+{% include 'snippets/submit.j2' %}
+</form>
+
+<br>
+<a href="{{ request.route_url('topsecret-users') }}" class="button button-right">cancel</a>
+
+{%- endblock -%}

@@ -117,6 +117,50 @@ WELCOME_2_HTML = """
 </html>
 """
 
+SUDO_OTP_TEXT = """
+Security Verification Required
+
+Action: {action}
+
+Your one-time confirmation code is:
+
+ \n{code}\n
+
+This code expires in 15 minutes.
+
+If you did not request this action, you can safely ignore this email.
+"""
+
+SUDO_OTP_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<title>Security Verification</title>
+<style>
+  .otp-code {{
+    font-size: 3em;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    margin: 1em 0;
+  }}
+</style>
+</head>
+  <body>
+    <h2>Security Verification Required</h2>
+
+    <p><strong>Action:</strong> {action}</p>
+
+    <p>Your one-time confirmation code is:</p>
+
+    <h1 class="otp-code">{code}</h1>
+
+    <p>This code expires in 15 minutes.</p>
+
+    <p>If you did not request this action, you can safely ignore this email.</p>
+  </body>
+</html>
+"""
+
 OPERATOR_HTML = """<!DOCTYPE html>
 <html>
 <head>

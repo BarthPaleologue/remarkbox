@@ -20,6 +20,9 @@ from remarkbox.views import get_referer_or_home, user_required, reject_stand_alo
 
 from remarkbox.scripts.modify_namespace import delete_namespace_cascade
 
+from remarkbox.lib.sudo import request_sudo_otp
+from remarkbox.models.sudo_otp import verify_sudo_otp
+
 from string import digits
 
 try:
@@ -566,16 +569,31 @@ def namespace_dump_to_json(request):
 @view_config(route_name="embed-user-delete-account", renderer="confirm-delete-account.j2")
 @user_required()
 def delete_account(request):
-    """Delete the authenticated user's account after confirmation."""
+    """Delete the authenticated user's account after OTP confirmation."""
     if request.method == "POST":
-        confirm = request.params.get("confirm-delete", "")
-        if confirm == "DELETE":
+        sudo_otp = request.params.get("sudo_otp", "").strip()
+        action_key = "delete_account:{}".format(request.user.email)
+
+        if sudo_otp:
+            # Step 2: verify OTP and execute deletion.
+            ok, err = verify_sudo_otp(request.dbsession, action_key, sudo_otp)
+            if not ok:
+                request.session.flash((err, "error"))
+                return {"the_title": "Delete My Account", "otp_requested": True}
+
             request.user.anonymize_account()
             request.session.flash(
                 ("Your account has been deleted and your data has been anonymized.", "success")
             )
             request.session["authenticated_user_id"] = None
             return HTTPFound("/")
+
+        confirm = request.params.get("confirm-delete", "")
+        if confirm == "DELETE":
+            # Step 1: generate OTP and show OTP input.
+            action_description = "Delete account {}".format(request.user.email)
+            request_sudo_otp(request, action_key, action_description)
+            return {"the_title": "Delete My Account", "otp_requested": True}
         else:
             request.session.flash(
                 ('You must type "DELETE" to confirm account deletion.', "error")
