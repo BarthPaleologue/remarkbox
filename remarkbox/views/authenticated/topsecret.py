@@ -144,18 +144,8 @@ def topsecret_dashboard(request):
         .all()
     )
 
-    # --- Recent root nodes (created in last 30 days) ---
-    recent_roots = (
-        db.query(Node)
-        .filter(
-            Node.parent_id == None,
-            Node.verified == True,
-            Node.disabled == False,
-            Node.created > now_ms - thirty_days_ms,
-        )
-        .order_by(Node.created.desc())
-        .limit(50)
-    )
+    # --- Recently active threads (by last activity) ---
+    recent_roots = get_topsecret_roots(db).limit(50)
 
     return {
         "the_title": "topsecret",
