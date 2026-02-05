@@ -85,12 +85,18 @@ def topsecret_dashboard(request):
     total_namespaces = db.query(func.count(Namespace.id)).scalar()
     total_nodes = db.query(func.count(Node.id)).scalar()
 
-    # --- People waiting on us ---
+    # --- People waiting on us (oldest first, capped) ---
     pending_requests = (
         db.query(NamespaceRequest)
         .filter(NamespaceRequest.verified == False)
         .order_by(NamespaceRequest.created_timestamp.asc())
+        .limit(25)
         .all()
+    )
+    pending_requests_total = (
+        db.query(func.count(NamespaceRequest.id))
+        .filter(NamespaceRequest.verified == False)
+        .scalar()
     )
 
     # --- New humans (last 7 days) ---
@@ -98,6 +104,7 @@ def topsecret_dashboard(request):
         db.query(User)
         .filter(User.created > now_ms - seven_days_ms, User.disabled == False)
         .order_by(User.created.desc())
+        .limit(50)
         .all()
     )
 
@@ -137,8 +144,18 @@ def topsecret_dashboard(request):
         .all()
     )
 
-    # --- Recent root nodes ---
-    recent_roots = get_topsecret_roots(db).limit(50)
+    # --- Recent root nodes (created in last 30 days) ---
+    recent_roots = (
+        db.query(Node)
+        .filter(
+            Node.parent_id == None,
+            Node.verified == True,
+            Node.disabled == False,
+            Node.created > now_ms - thirty_days_ms,
+        )
+        .order_by(Node.created.desc())
+        .limit(50)
+    )
 
     return {
         "the_title": "topsecret",
@@ -146,6 +163,7 @@ def topsecret_dashboard(request):
         "total_namespaces": total_namespaces,
         "total_nodes": total_nodes,
         "pending_requests": pending_requests,
+        "pending_requests_total": pending_requests_total,
         "new_users": new_users,
         "held_nodes": held_nodes,
         "spam_flagged": spam_flagged,
