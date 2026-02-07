@@ -17,15 +17,18 @@ import sqlalchemy as sa
 
 
 def upgrade():
-    op.create_table('rb_sudo_otp',
-        sa.Column('action_key', sa.Unicode(length=256), nullable=False),
-        sa.Column('code', sa.Unicode(length=8), nullable=False),
-        sa.Column('action', sa.Unicode(length=512), nullable=False),
-        sa.Column('client_ip', sa.Unicode(length=45), nullable=True),
-        sa.Column('created_at', sa.BigInteger(), nullable=False),
-        sa.Column('expires_at', sa.BigInteger(), nullable=False),
-        sa.PrimaryKeyConstraint('action_key'),
-    )
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    if 'rb_sudo_otp' not in inspector.get_table_names():
+        op.create_table('rb_sudo_otp',
+            sa.Column('action_key', sa.Unicode(length=256), nullable=False),
+            sa.Column('code', sa.Unicode(length=8), nullable=False),
+            sa.Column('action', sa.Unicode(length=512), nullable=False),
+            sa.Column('client_ip', sa.Unicode(length=45), nullable=True),
+            sa.Column('created_at', sa.BigInteger(), nullable=False),
+            sa.Column('expires_at', sa.BigInteger(), nullable=False),
+            sa.PrimaryKeyConstraint('action_key'),
+        )
 
 
 def downgrade():
