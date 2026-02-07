@@ -2035,3 +2035,332 @@ class NamespaceDeletionFunctionalTests(FunctionalTests):
             Node.root_id == self.root_id
         ).all()
         self.assertEqual(len(nodes), 0, "All nodes in namespace should be deleted")
+
+
+class AjaxReplyFunctionalTests(FunctionalTests):
+    """Functional tests for AJAX comment submission (progressive enhancement).
+
+    Tests verify that:
+    - AJAX replies return JSON 201 for authenticated users
+    - Non-AJAX replies still redirect (graceful fallback)
+    - JSON response contains correct comment data
+    - Unverified users get redirect even with AJAX header
+    - Anonymous AJAX replies work
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        # Create test user
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "ajax-test@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+
+        # Create namespace
+        self.ns = get_or_create_namespace(
+            self.dbsession, "ajax-test.example.com"
+        )
+        self.dbsession.add(self.ns)
+
+        # Create root node
+        self.root = create_root_node()
+        self.root.namespace = self.ns
+        self.root.user = self.test_user
+        self.root.verified = True
+        self.root.title = "AJAX Test Thread"
+        self.root.set_data("Test thread for AJAX replies")
+        self.dbsession.add(self.root)
+        self.dbsession.flush()
+
+        self.root_id = str(self.root.id)
+        self.ns_id = self.ns.id
+
+        self.tm.commit()
+
+        self.test_creds = ("ajax-test@remarkbox.com", self.raw_otp)
+
+    def _log_in_test_user(self):
+        res_login = self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(
+                *self.test_creds
+            )
+        )
+        res_csrf = self.testapp.get("/")
+        self.csrf = res_csrf.form.fields["csrf_token"][0].value
+        return res_login
+
+    def tearDown(self):
+        super(AjaxReplyFunctionalTests, self).tearDown()
+        # Clean up nodes
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        # Clean up surrogates
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        # Clean up user
+        user = get_user_by_email(self.dbsession, "ajax-test@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_ajax_reply_returns_json_201(self):
+        """Authenticated AJAX reply returns JSON with status 201."""
+        self._log_in_test_user()
+
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "AJAX reply content",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        self.assertIn("id", body)
+        self.assertIn("data_html", body)
+        self.assertIn("author_name", body)
+        self.assertIn("ago_string", body)
+        self.assertIn("approved", body)
+        self.assertIn("depth", body)
+        self.assertIn("verified", body)
+        self.assertTrue(body["verified"])
+
+    def test_ajax_reply_json_contains_rendered_html(self):
+        """AJAX response data_html contains server-rendered markdown."""
+        self._log_in_test_user()
+
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "**bold text** and _italic_",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        self.assertIn("<strong>bold text</strong>", body["data_html"])
+        self.assertIn("<em>italic</em>", body["data_html"])
+
+    def test_ajax_reply_json_has_correct_parent_id(self):
+        """AJAX response parent_id matches the node replied to."""
+        self._log_in_test_user()
+
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "Reply to root",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        self.assertEqual(body["parent_id"], self.root_id)
+
+    def test_ajax_reply_json_has_author_name(self):
+        """AJAX response includes the authenticated user's display name."""
+        self._log_in_test_user()
+
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "Check author name",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        # User name should be the email-derived name or the set display name
+        self.assertTrue(len(body["author_name"]) > 0)
+
+    def test_non_ajax_reply_still_redirects(self):
+        """Non-AJAX reply (no X-Requested-With) returns 302 redirect."""
+        self._log_in_test_user()
+
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "Normal reply without AJAX",
+            },
+            status=302,
+        )
+
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)
+
+    def test_ajax_reply_creates_node_in_database(self):
+        """AJAX reply actually creates a node in the database."""
+        self._log_in_test_user()
+
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "Database persistence check",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        node_id = res.json["id"]
+        from remarkbox.models import get_node_by_id
+        node = get_node_by_id(self.dbsession, node_id)
+        self.assertIsNotNone(node)
+        self.assertEqual(node.data, "Database persistence check")
+
+    def test_ajax_empty_reply_returns_redirect(self):
+        """AJAX reply with empty data falls back to redirect (form error)."""
+        self._log_in_test_user()
+
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "csrf_token": self.csrf,
+                "thread_data": "",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=302,
+        )
+
+        res = redirect_res.follow()
+        self.assertIn(b"Your message was empty", res.body)
+
+    @patch("smtplib.SMTP")
+    def test_ajax_unverified_user_gets_redirect(self, mock_smtp):
+        """Unverified user gets redirect even with AJAX header (email flow)."""
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "thread_data": "Unverified AJAX reply",
+                "email": "unverified@example.com",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=302,
+        )
+
+        # Should redirect to join-or-log-in (email verification)
+        self.assertIn("join-or-log-in", redirect_res.headers["location"])
+
+
+class AjaxAnonymousReplyFunctionalTests(FunctionalTests):
+    """Tests for AJAX replies in anonymous mode."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        # Create test user for thread ownership
+        self.test_user = get_or_create_user_by_email(
+            self.dbsession, "ajax-anon-test@remarkbox.com"
+        )
+        self.raw_otp = self.test_user.new_password()
+        self.dbsession.add(self.test_user)
+
+        # Create anonymous namespace
+        self.ns = get_or_create_namespace(
+            self.dbsession, "ajax-anon-test.example.com"
+        )
+        self.ns.allow_anonymous = True
+        self.dbsession.add(self.ns)
+
+        # Create root node
+        self.root = create_root_node()
+        self.root.namespace = self.ns
+        self.root.user = self.test_user
+        self.root.verified = True
+        self.root.title = "AJAX Anonymous Test Thread"
+        self.root.set_data("Test thread for anonymous AJAX replies")
+        self.dbsession.add(self.root)
+        self.dbsession.flush()
+
+        self.root_id = str(self.root.id)
+        self.ns_id = self.ns.id
+
+        self.tm.commit()
+
+    def tearDown(self):
+        super(AjaxAnonymousReplyFunctionalTests, self).tearDown()
+        # Clean up nodes
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        # Clean up surrogates
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        # Clean up user
+        user = get_user_by_email(self.dbsession, "ajax-anon-test@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def test_ajax_anonymous_reply_returns_json_201(self):
+        """Anonymous AJAX reply returns JSON 201."""
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "thread_data": "Anonymous AJAX reply",
+                "anonymous_name": "AjaxAnon",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        self.assertEqual(body["author_name"], "AjaxAnon")
+        self.assertTrue(body["verified"])
+
+    def test_ajax_anonymous_reply_default_name(self):
+        """Anonymous AJAX reply without name uses 'Anonymous'."""
+        res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "thread_data": "Anonymous AJAX reply no name",
+            },
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            status=201,
+        )
+
+        body = res.json
+        self.assertEqual(body["author_name"], "Anonymous")
+
+    def test_non_ajax_anonymous_reply_still_redirects(self):
+        """Non-AJAX anonymous reply returns redirect (baseline behavior)."""
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {
+                "thread_data": "Normal anonymous reply",
+                "anonymous_name": "NormalAnon",
+            },
+            status=302,
+        )
+
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)

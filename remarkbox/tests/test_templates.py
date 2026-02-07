@@ -87,5 +87,54 @@ class TestTemplateValidation(unittest.TestCase):
             self.fail(f"show-node.j2 has syntax error at line {e.lineno}: {e.message}")
 
 
+class TestCapabilityDrivenPresentation(unittest.TestCase):
+    """Test capability-driven presentation patterns (js-only / noscript)."""
+
+    @classmethod
+    def setUpClass(cls):
+        tests_dir = Path(__file__).parent
+        cls.templates_dir = tests_dir.parent / "templates"
+        cls.static_dir = tests_dir.parent / "static"
+
+    def test_base_template_has_noscript_js_only_pattern(self):
+        """Verify base.j2 contains the noscript/js-only hide pattern."""
+        base_content = (self.templates_dir / "base.j2").read_text()
+        self.assertIn("<noscript>", base_content)
+        self.assertIn(".js-only", base_content)
+        self.assertIn("display: none", base_content)
+
+    def test_reply_form_preview_uses_js_only_class(self):
+        """Verify preview elements in reply form have js-only class."""
+        forms_content = (self.templates_dir / "snippets" / "forms.j2").read_text()
+        self.assertIn('class="preview-details js-only"', forms_content)
+        self.assertIn("class='preview js-only'", forms_content)
+
+    def test_reply_form_works_as_plain_html(self):
+        """Verify reply form has method=post and action — works without JS."""
+        forms_content = (self.templates_dir / "snippets" / "forms.j2").read_text()
+        self.assertIn('method="post"', forms_content)
+        self.assertIn('/reply"', forms_content)
+        self.assertIn("thread_data", forms_content)
+
+    def test_custom_js_has_ajax_comment_init(self):
+        """Verify custom.js contains AJAX comment form initialization."""
+        js_content = (self.static_dir / "js" / "custom.js").read_text()
+        self.assertIn("initAjaxCommentForms", js_content)
+        self.assertIn("X-Requested-With", js_content)
+        self.assertIn("XMLHttpRequest", js_content)
+
+    def test_custom_js_has_graceful_fallback(self):
+        """Verify AJAX submission falls back to form.submit() on error."""
+        js_content = (self.static_dir / "js" / "custom.js").read_text()
+        self.assertIn("form.submit()", js_content)
+
+    def test_create_form_works_as_plain_html(self):
+        """Verify create thread form has method=post — works without JS."""
+        create_content = (self.templates_dir / "snippets" / "create.j2").read_text()
+        self.assertIn('method="post"', create_content)
+        self.assertIn("thread_title", create_content)
+        self.assertIn("thread_data", create_content)
+
+
 if __name__ == "__main__":
     unittest.main()
