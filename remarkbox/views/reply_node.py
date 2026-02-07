@@ -4,6 +4,8 @@ from pyramid.csrf import check_csrf_token
 
 from pyramid.httpexceptions import HTTPFound
 
+from pyramid.response import Response
+
 from . import (
     get_referer_or_home,
     get_embed_route_uri,
@@ -136,6 +138,28 @@ def reply_node(request):
 
     msg = ("Your post was successful!", "success")
     request.session.flash(msg)
+
+    # AJAX request — return JSON instead of redirect (capability-driven presentation).
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    if is_ajax and (user_surrogate or child.verified):
+        author_name = ""
+        if child.user:
+            author_name = child.user.name or ""
+        elif child.user_surrogate:
+            author_name = child.user_surrogate.name or "Anonymous"
+        return Response(
+            json={
+                "id": str(child.id),
+                "parent_id": str(child.parent_id) if child.parent_id else None,
+                "data_html": child.data_html,
+                "author_name": author_name,
+                "ago_string": child.human_created_timestamp,
+                "approved": child.approved,
+                "depth": child.graph_depth,
+                "verified": child.verified,
+            },
+            status_code=201,
+        )
 
     # set return_to URI.
     if request.mode == "embed":

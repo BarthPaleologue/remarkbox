@@ -212,6 +212,110 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// AJAX comment submission — capability-driven presentation.
+// When JS is available, intercepts reply form POSTs and submits
+// via fetch so the page does not reload. When JS is disabled,
+// the form falls back to the normal POST + redirect.
+function initAjaxCommentForms() {
+    document.querySelectorAll('form[action*="/reply"]').forEach(function(form) {
+        // Skip forms that are already wired up.
+        if (form.dataset.ajaxBound) return;
+        form.dataset.ajaxBound = '1';
+
+        form.addEventListener('submit', function(e) {
+            var submitBtn = form.querySelector('.rb-submit');
+            if (!submitBtn) return; // let normal submit proceed
+
+            e.preventDefault();
+            var formData = new FormData(form);
+            var originalLabel = submitBtn.value;
+            submitBtn.disabled = true;
+            submitBtn.value = 'Sending...';
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(response) {
+                if (!response.ok || response.status !== 201) {
+                    // Auth redirect, validation error, or server error
+                    // — fall back to regular form submit.
+                    submitBtn.disabled = false;
+                    submitBtn.value = originalLabel;
+                    form.submit();
+                    return;
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (!data) return;
+                insertReply(data, form);
+                // Clear the textarea.
+                var textarea = form.querySelector('.common-textarea');
+                if (textarea) textarea.value = '';
+                // Clear the preview.
+                var preview = form.querySelector('.preview');
+                if (preview) preview.innerHTML = '';
+                submitBtn.disabled = false;
+                submitBtn.value = originalLabel;
+            })
+            .catch(function() {
+                // Network error — fall back to regular form submit.
+                submitBtn.disabled = false;
+                submitBtn.value = originalLabel;
+                form.submit();
+            });
+        });
+    });
+}
+
+function insertReply(data, form) {
+    // Build a new node div matching the existing markup structure.
+    var nodeDiv = document.createElement('div');
+    nodeDiv.id = 'node-' + data.id;
+    nodeDiv.className = 'node';
+
+    var authorSpan = '<span class="author-and-date">'
+        + '<strong>' + escapeHtml(data.author_name) + '</strong> '
+        + '<span class="date">' + escapeHtml(data.ago_string) + '</span>'
+        + '</span>';
+
+    var contentDiv = '<div id="node-data-' + data.id + '" class="node-data">'
+        + data.data_html + '</div>';
+
+    var statusHtml = '';
+    if (!data.approved) {
+        statusHtml = '<span>(hidden: waiting for approval)</span>';
+    }
+
+    nodeDiv.innerHTML = authorSpan + statusHtml + contentDiv;
+
+    // Insert after the reply form's parent container.
+    var parentNode = form.closest('.node, .remark-box-div-main');
+    if (parentNode) {
+        // Find or create a children container.
+        var childrenContainer = parentNode.querySelector('[id^="node-children-"]');
+        if (childrenContainer) {
+            childrenContainer.insertBefore(nodeDiv, childrenContainer.firstChild);
+        } else {
+            parentNode.appendChild(nodeDiv);
+        }
+    }
+
+    // Add anchor for the new comment.
+    var anchor = document.createElement('a');
+    anchor.className = 'anchor';
+    anchor.id = data.id;
+    nodeDiv.parentNode.insertBefore(anchor, nodeDiv);
+
+    nodeDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Briefly highlight the new comment.
+    nodeDiv.classList.add('focused');
+    setTimeout(function() { nodeDiv.classList.remove('focused'); }, 3000);
+}
+
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -228,6 +332,9 @@ document.addEventListener('DOMContentLoaded', function() {
             autoGrow(this);
         });
     });
+
+    // Initialize AJAX comment forms (capability-driven presentation).
+    initAjaxCommentForms();
 
     // Vote button handlers
     document.querySelectorAll('button.vote-up').forEach(function(btn) {

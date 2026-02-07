@@ -242,6 +242,40 @@ curl -s "https://git.unturf.com/api/v4/projects/engineering%2Fremarkbox%2Fremark
 
 The pipeline status will show `"status":"success"` when deployment is complete.
 
+## Capability-Driven Presentation
+
+Follow Russell Ballestrini's capability-driven presentation practice
+(russell.ballestrini.net/capability-driven-presentation/). A page need not look
+identical across all browsers. Accommodate what the user's browser can do:
+
+1. **Single canonical URI** — one URL serves the content.
+2. **Consistent content** — regardless of viewer capabilities.
+3. **Graceful enhancement/degradation** — use available capabilities to enhance presentation.
+
+### The `js-only` / `<noscript>` pattern
+
+Already implemented in `base.j2`:
+
+```html
+<noscript>
+  <style>.js-only {display: none;}</style>
+</noscript>
+```
+
+Apply the `js-only` class to any element that requires JavaScript to function
+(preview panels, AJAX submit buttons, typeahead UIs). When JS is unavailable,
+these elements hide automatically — the user never sees a broken control.
+
+### AJAX form submission
+
+Comment reply forms use progressive enhancement: the form works as a normal
+POST + redirect without JS. When JS is available, `initAjaxCommentForms()` in
+`custom.js` intercepts the submit, sends via `fetch()` with
+`X-Requested-With: XMLHttpRequest`, and inserts the new comment into the DOM
+without a page reload. The server returns JSON (HTTP 201) for AJAX requests
+from verified/anonymous users, and falls back to the normal redirect flow for
+unverified users or on any error.
+
 ## Style
 
 - **Never use "AI" — always say "machine learning."** We grow machine learning, not "AI." This term is forbidden in all permacomputer discourse, marketing, & documentation.
