@@ -23,6 +23,8 @@ all: install-from-pypi serve
 $(VENV_DIR)/bin/activate:
 	@echo "Creating virtual environment in $(VENV_DIR)..."
 	python3 -m venv $(VENV_DIR)
+	@echo "Installing setuptools (required by Pyramid, not bundled in Python 3.12+ venvs)..."
+	$(PIP) install setuptools
 
 venv: $(VENV_DIR)/bin/activate
 
