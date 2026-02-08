@@ -26,7 +26,7 @@
   {% set submit_button_value = request.namespace.submit_button_text or 'save message' %}
   {% include 'submit.j2' %}
 
-  <template class="preview-header-template">
+  <div class="preview-header js-only" style="display:none">
   {% if request.user and request.user.authenticated %}
   <img src="{{ request.user.avatar_uri(size=request.avatar_size) }}" class="avatar nested-avatar" align="left" />
   <span class="author-and-date">
@@ -39,7 +39,7 @@
     <span class="date">just now</span>
   </span>
   {% endif %}
-  </template>
+  </div>
 
   <details class="preview-details js-only" open>
   <summary class="action link preview-toggle"><span class="when-open">hide preview ▲</span><span class="when-closed">show preview ▼</span></summary>

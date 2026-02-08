@@ -59,24 +59,18 @@ function isReplyForm(form) {
 }
 
 function wrapPreviewAsNode(html, form) {
-    // Wrap preview HTML in node-like markup so it looks like a live comment.
-    // Uses server-rendered <template> for the avatar + author header.
-    var template = form.querySelector('.preview-header-template');
-    if (!template || !template.innerHTML.trim()) return html;
+    // Clone the hidden preview header (avatar + author + "just now")
+    // and wrap content in node-data div so it looks like a live comment.
+    var header = form.querySelector('.preview-header');
+    if (!header || !header.innerHTML.trim()) return html;
 
-    var headerHtml = template.innerHTML;
+    var headerHtml = header.innerHTML;
 
-    // For anonymous users, update name from the input field.
+    // For anonymous users, update the displayed name from the input field.
     var nameInput = form.querySelector('[name="anonymous_name"]');
     if (nameInput) {
         var name = nameInput.value.trim() || 'Anonymous';
-        var anonEl = template.content.querySelector('.preview-anon-name');
-        if (anonEl) {
-            headerHtml = headerHtml.replace(
-                '>' + anonEl.textContent + '<',
-                '>' + escapeHtml(name) + '<'
-            );
-        }
+        headerHtml = headerHtml.replace('>Anonymous<', '>' + escapeHtml(name) + '<');
     }
 
     return headerHtml + '<div class="node-data">' + html + '</div>';
