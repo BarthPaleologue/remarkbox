@@ -37,6 +37,7 @@ function updatePreviewAuthor(previewDiv) {
         img.className = 'avatar';
         img.align = 'left';
         img.style.marginTop = '6px';
+        img.style.marginRight = '10px';
         img.width = parseInt(previewDiv.dataset.avatarSize) || 35;
         img.height = parseInt(previewDiv.dataset.avatarSize) || 35;
         img.src = previewDiv.dataset.avatarSrc;
