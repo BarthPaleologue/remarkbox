@@ -271,49 +271,49 @@ function initAjaxCommentForms() {
 }
 
 function insertReply(data, form) {
-    // Build a new node div matching the existing markup structure.
-    var nodeDiv = document.createElement('div');
-    nodeDiv.id = 'node-' + data.id;
-    nodeDiv.className = 'node';
+    // Insert server-rendered node HTML into the correct position.
+    var parentNodeDiv = form.closest('.node');
 
-    var authorSpan = '<span class="author-and-date">'
-        + '<strong>' + escapeHtml(data.author_name) + '</strong> '
-        + '<span class="date">' + escapeHtml(data.ago_string) + '</span>'
-        + '</span>';
-
-    var contentDiv = '<div id="node-data-' + data.id + '" class="node-data">'
-        + data.data_html + '</div>';
-
-    var statusHtml = '';
-    if (!data.approved) {
-        statusHtml = '<span>(hidden: waiting for approval)</span>';
-    }
-
-    nodeDiv.innerHTML = authorSpan + statusHtml + contentDiv;
-
-    // Insert after the reply form's parent container.
-    var parentNode = form.closest('.node, .remark-box-div-main');
-    if (parentNode) {
-        // Find or create a children container.
-        var childrenContainer = parentNode.querySelector('[id^="node-children-"]');
+    if (parentNodeDiv) {
+        // Replying to a child node — append to parent's children container.
+        var childrenContainer = parentNodeDiv.querySelector('[id^="node-children-"]');
         if (childrenContainer) {
-            childrenContainer.insertBefore(nodeDiv, childrenContainer.firstChild);
+            childrenContainer.insertAdjacentHTML('beforeend', data.node_html);
+        }
+    } else {
+        // Replying to root — insert into .thread container.
+        var threadDiv = document.querySelector('.thread');
+        if (threadDiv) {
+            threadDiv.insertAdjacentHTML('afterbegin', data.node_html);
         } else {
-            parentNode.appendChild(nodeDiv);
+            // First comment — replace .no-comments placeholder.
+            var noComments = document.querySelector('.no-comments');
+            if (noComments) {
+                var newThread = document.createElement('div');
+                newThread.className = 'thread';
+                newThread.innerHTML = data.node_html;
+                noComments.replaceWith(newThread);
+            }
         }
     }
 
-    // Add anchor for the new comment.
-    var anchor = document.createElement('a');
-    anchor.className = 'anchor';
-    anchor.id = data.id;
-    nodeDiv.parentNode.insertBefore(anchor, nodeDiv);
+    // Scroll to and highlight the new node.
+    var newNode = document.getElementById('node-' + data.id);
+    if (newNode) {
+        newNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        newNode.classList.add('focused');
+        setTimeout(function() { newNode.classList.remove('focused'); }, 3000);
 
-    nodeDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Bind auto-grow on new textareas.
+        newNode.querySelectorAll('.common-textarea').forEach(function(textarea) {
+            textarea.addEventListener('input', function() {
+                autoGrow(this);
+            });
+        });
+    }
 
-    // Briefly highlight the new comment.
-    nodeDiv.classList.add('focused');
-    setTimeout(function() { nodeDiv.classList.remove('focused'); }, 3000);
+    // Wire up AJAX on any new reply forms.
+    initAjaxCommentForms();
 }
 
 // Initialize on DOM ready

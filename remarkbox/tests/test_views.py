@@ -2131,16 +2131,13 @@ class AjaxReplyFunctionalTests(FunctionalTests):
 
         body = res.json
         self.assertIn("id", body)
-        self.assertIn("data_html", body)
-        self.assertIn("author_name", body)
-        self.assertIn("ago_string", body)
-        self.assertIn("approved", body)
-        self.assertIn("depth", body)
-        self.assertIn("verified", body)
-        self.assertTrue(body["verified"])
+        self.assertIn("parent_id", body)
+        self.assertIn("node_html", body)
+        # Server-rendered HTML contains the comment content.
+        self.assertIn("AJAX reply content", body["node_html"])
 
     def test_ajax_reply_json_contains_rendered_html(self):
-        """AJAX response data_html contains server-rendered markdown."""
+        """AJAX response node_html contains server-rendered markdown."""
         self._log_in_test_user()
 
         res = self.testapp.post(
@@ -2154,8 +2151,8 @@ class AjaxReplyFunctionalTests(FunctionalTests):
         )
 
         body = res.json
-        self.assertIn("<strong>bold text</strong>", body["data_html"])
-        self.assertIn("<em>italic</em>", body["data_html"])
+        self.assertIn("<strong>bold text</strong>", body["node_html"])
+        self.assertIn("<em>italic</em>", body["node_html"])
 
     def test_ajax_reply_json_has_correct_parent_id(self):
         """AJAX response parent_id matches the node replied to."""
@@ -2174,8 +2171,8 @@ class AjaxReplyFunctionalTests(FunctionalTests):
         body = res.json
         self.assertEqual(body["parent_id"], self.root_id)
 
-    def test_ajax_reply_json_has_author_name(self):
-        """AJAX response includes the authenticated user's display name."""
+    def test_ajax_reply_html_has_author_name(self):
+        """AJAX response node_html includes the authenticated user's display name."""
         self._log_in_test_user()
 
         res = self.testapp.post(
@@ -2189,8 +2186,8 @@ class AjaxReplyFunctionalTests(FunctionalTests):
         )
 
         body = res.json
-        # User name should be the email-derived name or the set display name
-        self.assertTrue(len(body["author_name"]) > 0)
+        # Server-rendered HTML should contain author-and-date span.
+        self.assertIn("author-and-date", body["node_html"])
 
     def test_non_ajax_reply_still_redirects(self):
         """Non-AJAX reply (no X-Requested-With) returns 302 redirect."""
@@ -2334,8 +2331,8 @@ class AjaxAnonymousReplyFunctionalTests(FunctionalTests):
         )
 
         body = res.json
-        self.assertEqual(body["author_name"], "AjaxAnon")
-        self.assertTrue(body["verified"])
+        self.assertIn("node_html", body)
+        self.assertIn("AjaxAnon", body["node_html"])
 
     def test_ajax_anonymous_reply_default_name(self):
         """Anonymous AJAX reply without name uses 'Anonymous'."""
@@ -2349,7 +2346,7 @@ class AjaxAnonymousReplyFunctionalTests(FunctionalTests):
         )
 
         body = res.json
-        self.assertEqual(body["author_name"], "Anonymous")
+        self.assertIn("Anonymous", body["node_html"])
 
     def test_non_ajax_anonymous_reply_still_redirects(self):
         """Non-AJAX anonymous reply returns redirect (baseline behavior)."""

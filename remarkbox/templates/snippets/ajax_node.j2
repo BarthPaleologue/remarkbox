@@ -1,0 +1,32 @@
+{#- Single node fragment for AJAX insertion — mirrors show-node.j2 loop body. -#}
+{%- import 'snippets.j2' as snippets with context -%}
+{%- import 'forms.j2' as forms with context -%}
+{% if is_conversation_root %}<section class="conversation">{% endif %}
+<a class="anchor" id="{{ node.id }}"></a>
+<div id="node-{{ node.id }}" class="node node-depth-{{ depth }}">
+
+{{ snippets.node_avatar_link(node, size=avatar_size) }}
+{{ snippets.author_and_date(node) }}
+{{ snippets.status(node) }}
+
+<div id="node-data-{{ node.id }}" class="node-data">
+{{ node.data_html | safe }}
+</div>
+
+<div class="node-actions">
+{{ snippets.permalinks(node, parent_node, root_node) }}
+{{ snippets.actions(node) }}
+</div>
+
+<div id="edit-box-{{ node.id }}" class="edit-box-div">
+   {{ forms.edit(node) }}
+</div>
+
+<div id="remark-box-{{ node.id }}" class="remark-box-div">
+   {{ forms.reply(node, root_node) }}
+</div>
+
+<div id="node-children-{{ node.id }}"></div>
+
+</div>
+{% if is_conversation_root %}</section>{% endif %}

@@ -4,6 +4,7 @@ from pyramid.csrf import check_csrf_token
 
 from pyramid.httpexceptions import HTTPFound
 
+from pyramid.renderers import render
 from pyramid.response import Response
 
 from . import (
@@ -139,24 +140,32 @@ def reply_node(request):
     msg = ("Your post was successful!", "success")
     request.session.flash(msg)
 
-    # AJAX request — return JSON instead of redirect (capability-driven presentation).
+    # AJAX request — return server-rendered HTML (capability-driven presentation).
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if is_ajax and (user_surrogate or child.verified):
-        author_name = ""
-        if child.user:
-            author_name = child.user.name or ""
-        elif child.user_surrogate:
-            author_name = child.user_surrogate.name or "Anonymous"
+        depth = child.graph_depth
+        is_conversation_root = (depth == 1)
+        if depth > 1:
+            avatar_size = int(request.avatar_size * 0.75)
+        else:
+            avatar_size = request.avatar_size
+        node_html = render(
+            'snippets/ajax_node.j2',
+            {
+                'node': child,
+                'parent_node': request.node,
+                'root_node': request.node.root,
+                'is_conversation_root': is_conversation_root,
+                'depth': depth,
+                'avatar_size': avatar_size,
+            },
+            request=request,
+        )
         return Response(
             json={
                 "id": str(child.id),
                 "parent_id": str(child.parent_id) if child.parent_id else None,
-                "data_html": child.data_html,
-                "author_name": author_name,
-                "ago_string": child.human_created_timestamp,
-                "approved": child.approved,
-                "depth": child.graph_depth,
-                "verified": child.verified,
+                "node_html": node_html,
             },
             status_code=201,
         )
