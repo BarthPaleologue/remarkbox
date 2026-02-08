@@ -5,12 +5,7 @@
 <p>This thread was locked to prevent additional comments.</p>
 {% else %}
 
-<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/reply"
-      {% if request.user and request.user.authenticated %}
-      data-author-name="{{ request.user.name }}"
-      data-author-avatar="{{ request.user.avatar_uri(size=request.avatar_size) }}"
-      {% endif %}
-      onsubmit="submit.disabled = true; return true;">
+<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/reply" onsubmit="submit.disabled = true; return true;">
 
 {# the first if statement gaurds the 2nd and is an optimization #}
 {% if node.id == request.node.id %}
@@ -30,6 +25,21 @@
   {% set submit_button_classes = 'green-button button-right' %}
   {% set submit_button_value = request.namespace.submit_button_text or 'save message' %}
   {% include 'submit.j2' %}
+
+  <template class="preview-header-template">
+  {% if request.user and request.user.authenticated %}
+  <img src="{{ request.user.avatar_uri(size=request.avatar_size) }}" class="avatar nested-avatar" align="left" />
+  <span class="author-and-date">
+    <strong>{{ request.user.name }}</strong>
+    <span class="date">just now</span>
+  </span>
+  {% elif request.namespace.allow_anonymous %}
+  <span class="author-and-date">
+    <strong class="preview-anon-name">Anonymous</strong>
+    <span class="date">just now</span>
+  </span>
+  {% endif %}
+  </template>
 
   <details class="preview-details js-only" open>
   <summary class="action link preview-toggle"><span class="when-open">hide preview ▲</span><span class="when-closed">show preview ▼</span></summary>

@@ -60,34 +60,26 @@ function isReplyForm(form) {
 
 function wrapPreviewAsNode(html, form) {
     // Wrap preview HTML in node-like markup so it looks like a live comment.
-    var name = '';
-    var avatarHtml = '';
+    // Uses server-rendered <template> for the avatar + author header.
+    var template = form.querySelector('.preview-header-template');
+    if (!template || !template.innerHTML.trim()) return html;
 
-    if (form.hasAttribute('data-author-name')) {
-        // Authenticated user.
-        name = form.getAttribute('data-author-name');
-        var avatarSrc = form.getAttribute('data-author-avatar');
-        if (avatarSrc) {
-            avatarHtml = '<img src="' + avatarSrc + '" class="avatar nested-avatar" align="left" />';
-        }
-    } else {
-        // Anonymous user — read name from input.
-        var nameInput = form.querySelector('[name="anonymous_name"]');
-        if (nameInput && nameInput.value.trim()) {
-            name = nameInput.value.trim();
-        } else {
-            name = 'Anonymous';
+    var headerHtml = template.innerHTML;
+
+    // For anonymous users, update name from the input field.
+    var nameInput = form.querySelector('[name="anonymous_name"]');
+    if (nameInput) {
+        var name = nameInput.value.trim() || 'Anonymous';
+        var anonEl = template.content.querySelector('.preview-anon-name');
+        if (anonEl) {
+            headerHtml = headerHtml.replace(
+                '>' + anonEl.textContent + '<',
+                '>' + escapeHtml(name) + '<'
+            );
         }
     }
 
-    if (!name) return html;
-
-    return avatarHtml
-        + '<span class="author-and-date">'
-        + '<strong>' + escapeHtml(name) + '</strong> '
-        + '<span class="date">just now</span>'
-        + '</span>'
-        + '<div class="node-data">' + html + '</div>';
+    return headerHtml + '<div class="node-data">' + html + '</div>';
 }
 
 // CSS-based toggle for smoother animations.
