@@ -278,6 +278,35 @@ without a page reload. The server returns JSON (HTTP 201) for AJAX requests
 from verified/anonymous users, and falls back to the normal redirect flow for
 unverified users or on any error.
 
+## Themes
+
+Remarkbox themes are separate pip packages loaded via `remarkbox.themes` entry points.
+They live in their own repos and are installed from git at deploy time.
+
+| Theme | Repo | Package |
+|-------|------|---------|
+| meta | `git.unturf.com/engineering/remarkbox/remarkbox-theme-meta` | `remarkbox_theme_meta` |
+| westworld | `git.unturf.com/engineering/remarkbox/remarkbox-theme-westworld` | `remarkbox_westworld` |
+
+**Local development**: Themes are editable installs (e.g. `/home/fox/git/remarkbox-theme-meta`).
+Changes take effect immediately on the local dev server.
+
+**Deploying theme changes**: Push the theme repo first, then push remarkbox to trigger
+a CI/CD pipeline. The pipeline runs `pip install` from the theme's git URI
+(see `requirements.py3.txt`) and copies static assets (see `.gitlab-ci.yml`).
+A remarkbox push is required even if only the theme changed — the theme is pulled
+fresh during each remarkbox build.
+
+**Theme structure**:
+- `templates/{name}-base.j2` — main base template (extends nothing, standalone HTML)
+- `templates/{name}-base-funnel.j2` — funnel pages (setup, login, billing)
+- `static/theme/{name}/css/` — theme CSS
+- `static/theme/{name}/img/` — theme images
+
+**How themes are selected**: `request.theme` reads `namespace.theme` from the database.
+When set, `request.base_template` becomes `{theme}-base.j2`. The CSS and static assets
+are served at `/static/theme/{name}/` via Pyramid's `add_static_view`.
+
 ## Style
 
 - **Never use "AI" — always say "machine learning."** We grow machine learning, not "AI." This term is forbidden in all permacomputer discourse, marketing, & documentation.
