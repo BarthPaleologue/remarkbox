@@ -2,6 +2,23 @@
 // previewTimer must live outside the functions.
 var previewTimer = null;
 
+function updatePreviewAuthor(previewDiv) {
+    // Show the persistent .preview-author header when preview has content.
+    // For anonymous users, sync the displayed name from the input field.
+    var author = previewDiv.querySelector('.preview-author');
+    if (!author) return;
+    author.style.display = '';
+    var form = previewDiv.closest('form');
+    if (form) {
+        var nameInput = form.querySelector('[name="anonymous_name"]');
+        if (nameInput) {
+            var name = nameInput.value.trim() || 'Anonymous';
+            var strong = author.querySelector('.preview-anon-name');
+            if (strong) strong.textContent = name;
+        }
+    }
+}
+
 function previewAjax(textarea, div, show_raw, mathjax) {
     // set div to raw textarea while waiting for remote Markdown rendering.
     if (show_raw) {
@@ -9,12 +26,14 @@ function previewAjax(textarea, div, show_raw, mathjax) {
         var el = document.getElementById(textarea);
         var busted_textarea = el.value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
         var rawHtml = '<span class="preview-raw-markdown">' + busted_textarea + '</span>';
-        // Wrap raw preview as a live node for reply forms.
-        var form = el.closest('form');
-        if (form && isReplyForm(form)) {
-            rawHtml = wrapPreviewAsNode(rawHtml, form);
+        var previewDiv = document.getElementById(div);
+        var contentDiv = previewDiv.querySelector('.preview-content');
+        if (contentDiv) {
+            contentDiv.innerHTML = rawHtml;
+            updatePreviewAuthor(previewDiv);
+        } else {
+            previewDiv.innerHTML = rawHtml;
         }
-        document.getElementById(div).innerHTML = rawHtml;
     }
     if (previewTimer) {
         clearTimeout(previewTimer);
@@ -38,42 +57,20 @@ function sendPreview(textarea, div, mathjax) {
     })
     .then(function(response) { return response.text(); })
     .then(function(html) {
-        // Wrap rendered preview as a live node for reply forms.
-        var textareaEl = document.getElementById(textarea);
-        var form = textareaEl ? textareaEl.closest('form') : null;
-        if (form && isReplyForm(form)) {
-            html = wrapPreviewAsNode(html, form);
+        var previewDiv = document.getElementById(div);
+        var contentDiv = previewDiv.querySelector('.preview-content');
+        if (contentDiv) {
+            contentDiv.innerHTML = html;
+            updatePreviewAuthor(previewDiv);
+        } else {
+            previewDiv.innerHTML = html;
         }
-        document.getElementById(div).innerHTML = html;
         if (mathjax && typeof MathJax !== 'undefined') {
             setTimeout(function() {
                 MathJax.Hub.Queue(["Typeset", MathJax.Hub, div]);
             }, 100);
         }
     });
-}
-
-function isReplyForm(form) {
-    var action = form.getAttribute('action') || '';
-    return action.indexOf('/reply') !== -1;
-}
-
-function wrapPreviewAsNode(html, form) {
-    // Clone the hidden preview header (avatar + author + "just now")
-    // and wrap content in node-data div so it looks like a live comment.
-    var header = form.querySelector('.preview-header');
-    if (!header || !header.innerHTML.trim()) return html;
-
-    var headerHtml = header.innerHTML;
-
-    // For anonymous users, update the displayed name from the input field.
-    var nameInput = form.querySelector('[name="anonymous_name"]');
-    if (nameInput) {
-        var name = nameInput.value.trim() || 'Anonymous';
-        headerHtml = headerHtml.replace('>Anonymous<', '>' + escapeHtml(name) + '<');
-    }
-
-    return headerHtml + '<div class="node-data">' + html + '</div>';
 }
 
 // CSS-based toggle for smoother animations.
@@ -291,7 +288,16 @@ function initAjaxCommentForms() {
                 if (textarea) textarea.value = '';
                 // Clear the preview.
                 var preview = form.querySelector('.preview');
-                if (preview) preview.innerHTML = '';
+                if (preview) {
+                    var contentDiv = preview.querySelector('.preview-content');
+                    if (contentDiv) {
+                        contentDiv.innerHTML = '';
+                    }
+                    var authorDiv = preview.querySelector('.preview-author');
+                    if (authorDiv) {
+                        authorDiv.style.display = 'none';
+                    }
+                }
                 submitBtn.disabled = false;
                 submitBtn.value = originalLabel;
             })
