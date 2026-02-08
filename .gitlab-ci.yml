@@ -11,7 +11,7 @@ test:
     - tags
   script:
     - make venv
-    - env/bin/pip install setuptools
+    - env/bin/pip install 'setuptools<81'
     - make test
 
 build:
@@ -21,7 +21,7 @@ build:
     - tags
   script:
     - make venv
-    - env/bin/pip install setuptools
+    - env/bin/pip install 'setuptools<81'
     - make install-source-prod
     # Copy static assets to env/static
     - cp -pr remarkbox/static env/static

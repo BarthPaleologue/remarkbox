@@ -24,7 +24,7 @@ $(VENV_DIR)/bin/activate:
 	@echo "Creating virtual environment in $(VENV_DIR)..."
 	python3 -m venv $(VENV_DIR)
 	@echo "Installing setuptools (required by Pyramid, not bundled in Python 3.12+ venvs)..."
-	$(PIP) install setuptools
+	$(PIP) install 'setuptools<81'
 
 venv: $(VENV_DIR)/bin/activate
 
@@ -66,7 +66,7 @@ install: install-core install-dev install-themes
 # Install remarkbox from source (editable mode) plus dev, test, and themes
 install-source-dev-and-test: venv install-themes
 	@echo "Ensuring setuptools is installed (required by Pyramid on Python 3.12+)..."
-	$(PIP) install setuptools
+	$(PIP) install 'setuptools<81'
 	@echo "Installing remarkbox from source (editable mode)..."
 	$(PIP) install --editable .
 	$(PIP) install --upgrade -r requirements-dev.txt
@@ -74,7 +74,7 @@ install-source-dev-and-test: venv install-themes
 
 install-source-prod: venv install-themes
 	@echo "Ensuring setuptools is installed (required by Pyramid on Python 3.12+)..."
-	$(PIP) install setuptools
+	$(PIP) install 'setuptools<81'
 	@echo "Deleting tests from source code for production..."
 	rm -rf remarkbox/tests
 	@echo "Installing remarkbox from source (in non-editable mode)..."
