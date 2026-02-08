@@ -394,8 +394,167 @@ function insertReply(data, form) {
         }
     }
 
-    // Wire up AJAX on any new reply forms.
+    // Wire up AJAX on any new reply forms and action buttons.
     initAjaxCommentForms();
+    initAjaxActionForms();
+}
+
+// AJAX action buttons — capability-driven presentation.
+// When JS is available, intercepts action form POSTs (lock, unlock, watch,
+// unwatch, disable, enable, verify, approve, deny) and submits via fetch
+// so the page does not reload.  Falls back to normal POST + redirect when
+// JS is disabled or on error.
+function initAjaxActionForms() {
+    document.querySelectorAll('form.ajax-action').forEach(function(form) {
+        if (form.dataset.ajaxBound) return;
+        form.dataset.ajaxBound = '1';
+
+        form.addEventListener('submit', function(e) {
+            var btn = form.querySelector('[type="submit"]');
+            if (!btn) return;
+
+            e.preventDefault();
+            var formData = new FormData(form);
+            btn.disabled = true;
+
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    btn.disabled = false;
+                    form.submit();
+                    return;
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                if (!data) return;
+                handleActionResponse(data, form, btn);
+            })
+            .catch(function() {
+                btn.disabled = false;
+                form.submit();
+            });
+        });
+    });
+}
+
+function handleActionResponse(data, form, btn) {
+    if (!data.ok) {
+        btn.disabled = false;
+        form.submit();
+        return;
+    }
+
+    var action = form.action;
+
+    // Top-level toggle pairs: /lock ↔ /unlock, /watch ↔ /unwatch
+    if (action.match(/\/lock$/)) {
+        form.action = action.replace(/\/lock$/, '/unlock');
+        btn.value = 'unlock';
+        btn.name = 'unlock';
+        btn.className = 'unlock button-small';
+        btn.disabled = false;
+        return;
+    }
+    if (action.match(/\/unlock$/)) {
+        form.action = action.replace(/\/unlock$/, '/lock');
+        btn.value = '\uD83D\uDD12 lock';
+        btn.name = 'lock';
+        btn.className = 'lock button-small';
+        btn.disabled = false;
+        return;
+    }
+    if (action.match(/\/watch$/)) {
+        form.action = action.replace(/\/watch$/, '/unwatch');
+        btn.value = 'unwatch';
+        btn.name = 'unwatch';
+        btn.className = 'unwatch button-small';
+        btn.disabled = false;
+        return;
+    }
+    if (action.match(/\/unwatch$/)) {
+        form.action = action.replace(/\/unwatch$/, '/watch');
+        btn.value = '\uD83D\uDC41 watch';
+        btn.name = 'watch';
+        btn.className = 'watch button-small';
+        btn.disabled = false;
+        return;
+    }
+
+    // Node-level toggle pairs: .../disable ↔ .../enable
+    if (action.match(/\/disable$/)) {
+        form.action = action.replace(/\/disable$/, '/enable');
+        btn.textContent = 'enable';
+        btn.name = 'enable';
+        btn.value = 'enable';
+        btn.disabled = false;
+        // Visually mark the node as disabled.
+        var nodeDiv = form.closest('.node');
+        if (nodeDiv) {
+            var statusSpan = nodeDiv.querySelector('.status');
+            if (statusSpan) statusSpan.innerHTML = '<span>(waiting for deletion)</span>';
+            var authorDate = nodeDiv.querySelector('.author-and-date');
+            if (authorDate) authorDate.innerHTML = 'node was disabled';
+        }
+        return;
+    }
+    if (action.match(/\/enable$/)) {
+        form.action = action.replace(/\/enable$/, '/disable');
+        btn.textContent = 'disable';
+        btn.name = 'disable';
+        btn.value = 'disable';
+        btn.disabled = false;
+        // Reload to restore full node content since we don't have it client-side.
+        window.location.reload();
+        return;
+    }
+
+    // .../approve ↔ .../deny
+    if (action.match(/\/approve$/)) {
+        form.action = action.replace(/\/approve$/, '/deny');
+        btn.textContent = 'deny';
+        btn.name = 'deny';
+        btn.value = 'deny';
+        btn.disabled = false;
+        // Remove the adjacent deny button if present (from the "both" state).
+        var sibling = form.nextElementSibling;
+        while (sibling && !sibling.matches('form.ajax-action')) {
+            sibling = sibling.nextElementSibling;
+        }
+        if (sibling && sibling.querySelector('[name="deny"]')) {
+            sibling.remove();
+        }
+        return;
+    }
+    if (action.match(/\/deny$/)) {
+        form.action = action.replace(/\/deny$/, '/approve');
+        btn.textContent = 'approve';
+        btn.name = 'approve';
+        btn.value = 'approve';
+        btn.disabled = false;
+        // Remove the adjacent approve button if present (from the "both" state).
+        var sibling = form.previousElementSibling;
+        while (sibling && !sibling.matches('form.ajax-action')) {
+            sibling = sibling.previousElementSibling;
+        }
+        if (sibling && sibling.querySelector('[name="approve"]')) {
+            sibling.remove();
+        }
+        return;
+    }
+
+    // .../verify — no toggle, just remove the button.
+    if (action.match(/\/verify$/)) {
+        form.remove();
+        return;
+    }
+
+    // Unknown action — re-enable and let normal flow handle it.
+    btn.disabled = false;
 }
 
 // Initialize on DOM ready
@@ -417,6 +576,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize AJAX comment forms (capability-driven presentation).
     initAjaxCommentForms();
+
+    // Initialize AJAX action buttons (capability-driven presentation).
+    initAjaxActionForms();
 
     // Vote button handlers
     document.querySelectorAll('button.vote-up').forEach(function(btn) {

@@ -137,7 +137,7 @@
 {% endmacro %}
 
 {% macro watch_node(node_id) %}
-<form action="/watch" id="watch" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+<form action="/watch" id="watch" method="POST" class="ajax-action" onsubmit="submit.disabled = true; return true;" style="display: inline;">
   {% include 'csrf.j2' %}
   <input type="hidden" name="root-id" value="{{ node_id }}">
   <input type="submit" name="watch" id="submit" class="watch button-small" value="&#128065; watch" />
@@ -145,7 +145,7 @@
 {% endmacro %}
 
 {% macro unwatch_node(node_id="", watcher_id="") %}
-<form action="/unwatch" id="unwatch" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+<form action="/unwatch" id="unwatch" method="POST" class="ajax-action" onsubmit="submit.disabled = true; return true;" style="display: inline;">
   {% include 'csrf.j2' %}
   <input type="hidden" name="root-id" value="{{ node_id }}">
   <input type="hidden" name="watcher-id" value="{{ watcher_id }}">
@@ -154,7 +154,7 @@
 {% endmacro %}
 
 {% macro lock_node(node_id) %}
-<form action="/lock" id="lock" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+<form action="/lock" id="lock" method="POST" class="ajax-action" onsubmit="submit.disabled = true; return true;" style="display: inline;">
   {% include 'csrf.j2' %}
   <input type="hidden" name="root-id" value="{{ node_id }}">
   <input type="submit" name="lock" id="submit" class="lock button-small" value="&#128274; lock" />
@@ -162,7 +162,7 @@
 {% endmacro %}
 
 {% macro unlock_node(node_id) %}
-<form action="/unlock" id="unlock" method="POST" onsubmit="submit.disabled = true; return true;" style="display: inline;">
+<form action="/unlock" id="unlock" method="POST" class="ajax-action" onsubmit="submit.disabled = true; return true;" style="display: inline;">
   {% include 'csrf.j2' %}
   <input type="hidden" name="root-id" value="{{ node_id }}">
   <input type="submit" name="unlock" id="submit" class="unlock button-small" value="unlock" />
@@ -171,35 +171,35 @@
 
 
 {% macro disable_node(node) %}
-<form action="{{ request.link_prefix }}/{{ node.id }}/disable" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+<form action="{{ request.link_prefix }}/{{ node.id }}/disable" method="POST" class="node-action ajax-action" onsubmit="submit.disabled = true; return true;">
   {% include 'csrf.j2' %}
   <button type="submit" name="disable" id="submit" class="action link" value="disable">disable</button>
 </form>
 {% endmacro %}
 
 {% macro enable_node(node) %}
-<form action="{{ request.link_prefix }}/{{ node.id }}/enable" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+<form action="{{ request.link_prefix }}/{{ node.id }}/enable" method="POST" class="node-action ajax-action" onsubmit="submit.disabled = true; return true;">
   {% include 'csrf.j2' %}
   <button type="submit" name="enable" id="submit" class="action link" value="enable">enable</button>
 </form>
 {% endmacro %}
 
 {% macro verify_node(node) %}
-<form action="{{ request.link_prefix }}/{{ node.id }}/verify" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+<form action="{{ request.link_prefix }}/{{ node.id }}/verify" method="POST" class="node-action ajax-action" onsubmit="submit.disabled = true; return true;">
   {% include 'csrf.j2' %}
   <button type="submit" name="verify" id="submit" class="action link" value="verify">verify</button>
 </form>
 {% endmacro %}
 
 {% macro approve_node(node) %}
-<form action="{{ request.link_prefix }}/{{ node.id }}/approve" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+<form action="{{ request.link_prefix }}/{{ node.id }}/approve" method="POST" class="node-action ajax-action" onsubmit="submit.disabled = true; return true;">
   {% include 'csrf.j2' %}
   <button type="submit" name="approve" id="submit" class="action link" value="approve">approve</button>
 </form>
 {% endmacro %}
 
 {% macro deny_node(node) %}
-<form action="{{ request.link_prefix }}/{{ node.id }}/deny" method="POST" class="node-action" onsubmit="submit.disabled = true; return true;">
+<form action="{{ request.link_prefix }}/{{ node.id }}/deny" method="POST" class="node-action ajax-action" onsubmit="submit.disabled = true; return true;">
   {% include 'csrf.j2' %}
   <button type="submit" name="deny" id="submit" class="action link" value="deny">deny</button>
 </form>

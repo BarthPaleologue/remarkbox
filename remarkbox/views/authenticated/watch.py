@@ -1,23 +1,24 @@
 from pyramid.view import view_config
 
 from pyramid.httpexceptions import HTTPFound
+from pyramid.response import Response
 
 from remarkbox.models import get_node_by_id
 
 from remarkbox.views import get_referer_or_home, user_required
 
 
-# TODO: maybe use this when javascript is enabled.
-# @view_config(route_name="watch", renderer="json", request_method=("POST", "PUT"), xhr=True)
-# otherwise fallback to this when javascript is disabled:
 @view_config(route_name="watch", request_method=("POST", "PUT"))
 @user_required()
 def watch(request):
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     root_id = request.params.get("root-id", None)
     if root_id:
         root = get_node_by_id(request.dbsession, root_id)
         if root:
             watcher = request.user.watch_node(root)
+            if is_ajax:
+                return Response(json={"ok": True, "action": "watched"}, status=200)
             request.session.flash(
                 (
                     "You <b>watched</b> this thread. We will notify you of changes <b>{}</b>.".format(
@@ -27,6 +28,8 @@ def watch(request):
                 )
             )
         else:
+            if is_ajax:
+                return Response(json={"ok": False, "error": "Thread does not exist."}, status=404)
             request.session.flash(
                 ("You <b>may not</b> watch an empty thread.", "error")
             )
@@ -34,12 +37,10 @@ def watch(request):
     return HTTPFound(get_referer_or_home(request))
 
 
-# TODO: maybe use this when javascript is enabled.
-# @view_config(route_name="watch", renderer="json", request_method=("POST", "PUT"), xhr=True)
-# otherwise fallback to this when javascript is disabled:
 @view_config(route_name="unwatch", request_method=("POST", "PUT"))
 @user_required()
 def unwatch(request):
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     root_id = request.params.get("root-id", None)
     watcher_id = request.params.get("watcher-id", None)
 
@@ -50,6 +51,8 @@ def unwatch(request):
 
     if watcher:
         request.dbsession.delete(watcher)
+        if is_ajax:
+            return Response(json={"ok": True, "action": "unwatched"}, status=200)
         request.session.flash(
             (
                 "You <b>unwatched</b> this thread. We <b>will not notify</b> you of changes.",

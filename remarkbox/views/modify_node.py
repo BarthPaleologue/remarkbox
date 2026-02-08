@@ -1,6 +1,7 @@
 from pyramid.view import view_config
 
 from pyramid.httpexceptions import HTTPFound
+from pyramid.response import Response
 
 from remarkbox.models.node import Node
 
@@ -51,10 +52,15 @@ def _node_route_uri(request):
 @view_config(route_name="basic-disable", request_method=("POST", "PUT"))
 def disable_node(request):
     """disable node if user allowed."""
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.namespace.can_alter_node(request.node, request.user):
         request.node.disable()
         request.dbsession.add(request.node)
         request.dbsession.flush()
+        if is_ajax:
+            return Response(json={"ok": True, "action": "disabled"}, status=200)
+    elif is_ajax:
+        return Response(json={"ok": False, "error": "Not allowed."}, status=403)
     return HTTPFound(_node_route_uri(request))
 
 
@@ -62,10 +68,15 @@ def disable_node(request):
 @view_config(route_name="basic-enable", request_method=("POST", "PUT"))
 def enable_node(request):
     """enable node if user allowed."""
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.namespace.can_alter_node(request.node, request.user):
         request.node.enable()
         request.dbsession.add(request.node)
         request.dbsession.flush()
+        if is_ajax:
+            return Response(json={"ok": True, "action": "enabled"}, status=200)
+    elif is_ajax:
+        return Response(json={"ok": False, "error": "Not allowed."}, status=403)
     return HTTPFound(_node_route_uri(request))
 
 
@@ -73,10 +84,15 @@ def enable_node(request):
 @view_config(route_name="basic-verify", request_method=("POST", "PUT"))
 def verify_node(request):
     """only the node creator may verify ownership of a node."""
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.node.user == request.user:
         request.node.verify()
         request.dbsession.add(request.node)
         request.dbsession.flush()
+        if is_ajax:
+            return Response(json={"ok": True, "action": "verified"}, status=200)
+    elif is_ajax:
+        return Response(json={"ok": False, "error": "Not allowed."}, status=403)
     return HTTPFound(_node_route_uri(request))
 
 
@@ -84,10 +100,15 @@ def verify_node(request):
 @view_config(route_name="basic-approve", request_method=("POST", "PUT"))
 def approve_node(request):
     """approve node if user allowed."""
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.namespace.is_moderator(request.user):
         request.node.approve()
         request.dbsession.add(request.node)
         request.dbsession.flush()
+        if is_ajax:
+            return Response(json={"ok": True, "action": "approved"}, status=200)
+    elif is_ajax:
+        return Response(json={"ok": False, "error": "Moderator role needed."}, status=403)
     return HTTPFound(_node_route_uri(request))
 
 
@@ -95,10 +116,15 @@ def approve_node(request):
 @view_config(route_name="basic-deny", request_method=("POST", "PUT"))
 def deny_node(request):
     """deny node if user allowed."""
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     if request.namespace.is_moderator(request.user):
         request.node.deny()
         request.dbsession.add(request.node)
         request.dbsession.flush()
+        if is_ajax:
+            return Response(json={"ok": True, "action": "denied"}, status=200)
+    elif is_ajax:
+        return Response(json={"ok": False, "error": "Moderator role needed."}, status=403)
     return HTTPFound(_node_route_uri(request))
 
 
