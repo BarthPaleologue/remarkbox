@@ -65,12 +65,16 @@ install: install-core install-dev install-themes
 
 # Install remarkbox from source (editable mode) plus dev, test, and themes
 install-source-dev-and-test: venv install-themes
+	@echo "Ensuring setuptools is installed (required by Pyramid on Python 3.12+)..."
+	$(PIP) install setuptools
 	@echo "Installing remarkbox from source (editable mode)..."
 	$(PIP) install --editable .
 	$(PIP) install --upgrade -r requirements-dev.txt
 	$(PIP) install --upgrade -r requirements-test.txt
 
 install-source-prod: venv install-themes
+	@echo "Ensuring setuptools is installed (required by Pyramid on Python 3.12+)..."
+	$(PIP) install setuptools
 	@echo "Deleting tests from source code for production..."
 	rm -rf remarkbox/tests
 	@echo "Installing remarkbox from source (in non-editable mode)..."
