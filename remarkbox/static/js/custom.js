@@ -29,10 +29,14 @@ function updatePreviewAuthor(previewDiv) {
     }
 
     // Create avatar img once, via DOM API on visible parent.
+    // Use class 'avatar' only (not 'nested-avatar') because the dynamic CSS
+    // sets margin-left: -48px on nested-avatar to hang into .node padding,
+    // which would push the image off-screen inside the preview container.
     if (previewDiv.dataset.avatarSrc && !author.querySelector('img.avatar')) {
         var img = document.createElement('img');
-        img.className = 'avatar nested-avatar';
+        img.className = 'avatar';
         img.align = 'left';
+        img.style.marginTop = '6px';
         img.width = parseInt(previewDiv.dataset.avatarSize) || 35;
         img.height = parseInt(previewDiv.dataset.avatarSize) || 35;
         img.src = previewDiv.dataset.avatarSrc;
