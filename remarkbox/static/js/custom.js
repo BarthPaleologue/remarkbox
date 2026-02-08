@@ -8,6 +8,13 @@ function updatePreviewAuthor(previewDiv) {
     var author = previewDiv.querySelector('.preview-author');
     if (!author) return;
     author.style.display = '';
+    // Force avatar re-render: browsers skip images in display:none containers.
+    var img = author.querySelector('img');
+    if (img) {
+        var src = img.getAttribute('src');
+        img.removeAttribute('src');
+        img.setAttribute('src', src);
+    }
     var form = previewDiv.closest('form');
     if (form) {
         var nameInput = form.querySelector('[name="anonymous_name"]');
