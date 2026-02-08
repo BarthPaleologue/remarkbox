@@ -385,6 +385,13 @@ function insertReply(data, form) {
                 autoGrow(this);
             });
         });
+
+        // Respect user's preview visibility preference.
+        if (localStorage.getItem('remarkbox-preview-hidden') === 'true') {
+            newNode.querySelectorAll('.preview-details').forEach(function(details) {
+                details.open = false;
+            });
+        }
     }
 
     // Wire up AJAX on any new reply forms.
