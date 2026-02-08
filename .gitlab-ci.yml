@@ -9,7 +9,10 @@ test:
   tags: ["build"]
   except:
     - tags
-  script: make test
+  script:
+    - make venv
+    - env/bin/pip install setuptools
+    - make test
 
 build:
   stage: build
@@ -17,6 +20,8 @@ build:
   except:
     - tags
   script:
+    - make venv
+    - env/bin/pip install setuptools
     - make install-source-prod
     # Copy static assets to env/static
     - cp -pr remarkbox/static env/static
