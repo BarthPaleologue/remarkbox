@@ -275,6 +275,14 @@ Embed this snippet into your web page to enable comments:
 </ul>
 
 
+<label>API Clients</label>
+Programmatic access to this Namespace's threads and comments:
+<ul>
+<li><a href="/api/v1/clients/python" target="_blank">Python client</a> — <code>remarkbox_client.py</code> (stdlib only, no pip)</li>
+<li><a href="/api/v1/clients/c" target="_blank">C client</a> — <code>rb.c</code> + <code><a href="/api/v1/clients/c?file=rb.h" target="_blank">rb.h</a></code> (libcurl only, <code>gcc rb.c -o rb -lcurl</code>)</li>
+</ul>
+<br>
+
 <label>Statistics</a></label>
 This <a href="/ns/{{ request.namespace.name }}/stats.json" target="_blank">stats.json</a> endpoint
 returns various statistics about the threads in this Namespace.

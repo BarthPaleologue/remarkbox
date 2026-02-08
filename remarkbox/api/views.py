@@ -1094,6 +1094,29 @@ def api_client_python(request):
     )
 
 
+@view_config(
+    route_name="api-client-c",
+    request_method="GET",
+    require_csrf=False,
+)
+def api_client_c(request):
+    """Serve the C client for download.
+
+    ?file=rb.h returns the header library instead of the CLI.
+    """
+    filename = request.params.get("file", "rb.c")
+    if filename not in ("rb.c", "rb.h"):
+        filename = "rb.c"
+    path = os.path.join(_client_dir, filename)
+    with open(path) as f:
+        content = f.read()
+    return Response(
+        body=content,
+        content_type="text/plain",
+        charset="utf-8",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Admin (superuser only)
 # ---------------------------------------------------------------------------

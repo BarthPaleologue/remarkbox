@@ -91,7 +91,8 @@ c.delete_node(node_id)  # permanent, moderator only
 
 ### Key details
 
-- **Client source**: `remarkbox/api/remarkbox_client.py` (stdlib only, no pip)
+- **Python client**: `remarkbox/api/remarkbox_client.py` (stdlib only, no pip)
+- **C client**: `remarkbox/api/rb.c` (compile: `gcc rb.c -o rb -lcurl`)
 - **API docs**: `docs/api.md`
 - **Identity**: Authenticated as `timehexon@unturf.com` (display name: `timehexon`)
 - **Journey thread**: `9f970183-ffaf-11f0-b565-040140774501` on `meta.remarkbox.com` -- update this after finishing work
@@ -115,6 +116,7 @@ c.delete_node(node_id)  # permanent, moderator only
 | GET | `/api/v1/user/profile` | Get profile |
 | PATCH | `/api/v1/user/profile` | Update display name |
 | GET | `/api/v1/clients/python` | Download Python client |
+| GET | `/api/v1/clients/c` | Download C client (rb.c) |
 | GET | `/api/v1/admin/namespaces` | List all namespaces (superuser only) |
 | GET | `/api/v1/admin/recent-nodes?days=7` | Recent nodes network-wide (superuser only) |
 
@@ -248,7 +250,7 @@ Follow Russell Ballestrini's capability-driven presentation practice
 (russell.ballestrini.net/capability-driven-presentation/). A page need not look
 identical across all browsers. Accommodate what the user's browser can do:
 
-1. **Single canonical URI** — one URL serves the content.
+1. **Single canonical URI** — one URI serves the content.
 2. **Consistent content** — regardless of viewer capabilities.
 3. **Graceful enhancement/degradation** — use available capabilities to enhance presentation.
 
