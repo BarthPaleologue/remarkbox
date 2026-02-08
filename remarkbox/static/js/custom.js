@@ -33,15 +33,23 @@ function updatePreviewAuthor(previewDiv) {
     // sets margin-left: -48px on nested-avatar to hang into .node padding,
     // which would push the image off-screen inside the preview container.
     if (previewDiv.dataset.avatarSrc && !author.querySelector('img.avatar')) {
+        var size = parseInt(previewDiv.dataset.avatarSize) || 35;
+        var gap = 10;
         var img = document.createElement('img');
         img.className = 'avatar';
         img.align = 'left';
         img.style.marginTop = '6px';
-        img.style.marginRight = '10px';
-        img.width = parseInt(previewDiv.dataset.avatarSize) || 35;
-        img.height = parseInt(previewDiv.dataset.avatarSize) || 35;
+        img.style.marginRight = gap + 'px';
+        img.width = size;
+        img.height = size;
         img.src = previewDiv.dataset.avatarSrc;
         author.insertBefore(img, author.firstChild);
+        // Indent author text and content so they stay to the right of the avatar.
+        var indent = (size + gap) + 'px';
+        author.style.paddingLeft = indent;
+        img.style.marginLeft = '-' + indent;
+        var contentDiv = previewDiv.querySelector('.preview-content');
+        if (contentDiv) contentDiv.style.marginLeft = indent;
     }
 }
 
