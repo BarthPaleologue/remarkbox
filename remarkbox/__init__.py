@@ -29,10 +29,37 @@ import re
 from pkg_resources import iter_entry_points
 
 import logging
+import os
+import subprocess
 
 log = logging.getLogger(__name__)
 
 JINJA2_EXTENSION = ".j2"
+
+
+def _get_static_version():
+    """Return a short git hash for cache-busting static assets."""
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
+    for candidate in [
+        os.path.join(_this_dir, "..", "commit-hash.txt"),
+        os.path.join(os.sys.prefix, "commit-hash.txt"),
+    ]:
+        try:
+            with open(candidate) as f:
+                return f.read().strip()[:7]
+        except (IOError, OSError):
+            pass
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=_this_dir,
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "0"
+
+
+STATIC_VERSION = _get_static_version()
 
 
 def get_int_or_bool_or_none_or_str(value):
@@ -415,6 +442,9 @@ def main(global_config, **settings):
                 return request.namespace.avatar_size
         return request.app.get("avatar.size", 30)
 
+    def add_static_version(request):
+        return STATIC_VERSION
+
     def add_stand_alone_mode(request):
         if request.app.get("stand_alone_mode", "disabled") == "enabled":
             return True
@@ -562,6 +592,7 @@ def main(global_config, **settings):
     config.add_request_method(add_marketing_domain, "marketing_domain", reify=True)
     config.add_request_method(add_faq_home, "faq_home", reify=True)
     config.add_request_method(add_saas_home, "saas_home", reify=True)
+    config.add_request_method(add_static_version, "static_version", reify=True)
     config.add_request_method(add_stand_alone_mode, "stand_alone_mode", reify=True)
     config.add_request_method(add_avatar_size, "avatar_size", reify=True)
     config.add_request_method(add_theme, "theme", reify=True)
