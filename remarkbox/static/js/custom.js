@@ -8,7 +8,13 @@ function previewAjax(textarea, div, show_raw, mathjax) {
         // bust HTML tags like <script> to prevent running evil code.
         var el = document.getElementById(textarea);
         var busted_textarea = el.value.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        document.getElementById(div).innerHTML = '<span class="preview-raw-markdown">' + busted_textarea + '</span>';
+        var rawHtml = '<span class="preview-raw-markdown">' + busted_textarea + '</span>';
+        // Wrap raw preview as a live node for reply forms.
+        var form = el.closest('form');
+        if (form && isReplyForm(form)) {
+            rawHtml = wrapPreviewAsNode(rawHtml, form);
+        }
+        document.getElementById(div).innerHTML = rawHtml;
     }
     if (previewTimer) {
         clearTimeout(previewTimer);
@@ -32,6 +38,12 @@ function sendPreview(textarea, div, mathjax) {
     })
     .then(function(response) { return response.text(); })
     .then(function(html) {
+        // Wrap rendered preview as a live node for reply forms.
+        var textareaEl = document.getElementById(textarea);
+        var form = textareaEl ? textareaEl.closest('form') : null;
+        if (form && isReplyForm(form)) {
+            html = wrapPreviewAsNode(html, form);
+        }
         document.getElementById(div).innerHTML = html;
         if (mathjax && typeof MathJax !== 'undefined') {
             setTimeout(function() {
@@ -39,6 +51,43 @@ function sendPreview(textarea, div, mathjax) {
             }, 100);
         }
     });
+}
+
+function isReplyForm(form) {
+    var action = form.getAttribute('action') || '';
+    return action.indexOf('/reply') !== -1;
+}
+
+function wrapPreviewAsNode(html, form) {
+    // Wrap preview HTML in node-like markup so it looks like a live comment.
+    var name = '';
+    var avatarHtml = '';
+
+    if (form.hasAttribute('data-author-name')) {
+        // Authenticated user.
+        name = form.getAttribute('data-author-name');
+        var avatarSrc = form.getAttribute('data-author-avatar');
+        if (avatarSrc) {
+            avatarHtml = '<img src="' + avatarSrc + '" class="avatar nested-avatar" align="left" />';
+        }
+    } else {
+        // Anonymous user — read name from input.
+        var nameInput = form.querySelector('[name="anonymous_name"]');
+        if (nameInput && nameInput.value.trim()) {
+            name = nameInput.value.trim();
+        } else {
+            name = 'Anonymous';
+        }
+    }
+
+    if (!name) return html;
+
+    return avatarHtml
+        + '<span class="author-and-date">'
+        + '<strong>' + escapeHtml(name) + '</strong> '
+        + '<span class="date">just now</span>'
+        + '</span>'
+        + '<div class="node-data">' + html + '</div>';
 }
 
 // CSS-based toggle for smoother animations.

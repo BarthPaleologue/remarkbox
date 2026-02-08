@@ -5,7 +5,12 @@
 <p>This thread was locked to prevent additional comments.</p>
 {% else %}
 
-<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/reply" onsubmit="submit.disabled = true; return true;">
+<form method="post" action="{{ request.link_prefix }}/{{ node.id }}/reply"
+      {% if request.user and request.user.authenticated %}
+      data-author-name="{{ request.user.name }}"
+      data-author-avatar="{{ request.user.avatar_uri(size=request.avatar_size) }}"
+      {% endif %}
+      onsubmit="submit.disabled = true; return true;">
 
 {# the first if statement gaurds the 2nd and is an optimization #}
 {% if node.id == request.node.id %}
