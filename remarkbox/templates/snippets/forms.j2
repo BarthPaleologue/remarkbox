@@ -28,20 +28,20 @@
 
   <details class="preview-details js-only" open>
   <summary class="action link preview-toggle"><span class="when-open">hide preview ▲</span><span class="when-closed">show preview ▼</span></summary>
-  <div id='preview-{{ node.id }}' name='preview' class='preview js-only'>
-    <div class="preview-author" style="display:none">
+  <div id='preview-{{ node.id }}' name='preview' class='preview js-only'
     {% if request.user and request.user.authenticated %}
-    <img src="{{ request.user.avatar_uri(size=request.avatar_size) }}" class="avatar nested-avatar" align="left" />
-    <span class="author-and-date">
-      <strong>{{ request.user.name }}</strong>
-      <span class="date">just now</span>
-    </span>
+    data-avatar-src="{{ request.user.avatar_uri(size=request.avatar_size) }}"
+    data-avatar-size="{{ request.avatar_size }}"
+    data-author-name="{{ request.user.name }}"
     {% elif request.namespace.allow_anonymous %}
-    <span class="author-and-date">
-      <strong class="preview-anon-name">Anonymous</strong>
-      <span class="date">just now</span>
-    </span>
-    {% endif %}
+    data-author-name="Anonymous"
+    data-author-anon="1"
+    {% endif %}>
+    <div class="preview-author" style="display:none">
+      <span class="author-and-date">
+        <strong class="preview-anon-name"></strong>
+        <span class="date">just now</span>
+      </span>
     </div>
     <div class="preview-content node-data"></div>
   </div>

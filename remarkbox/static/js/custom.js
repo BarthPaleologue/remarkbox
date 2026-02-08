@@ -3,26 +3,40 @@
 var previewTimer = null;
 
 function updatePreviewAuthor(previewDiv) {
-    // Show the persistent .preview-author header when preview has content.
-    // For anonymous users, sync the displayed name from the input field.
+    // Show the preview-author header and build the avatar via DOM API.
+    // The avatar img is created dynamically (not in the template) because
+    // browsers skip rendering images inside display:none containers.
     var author = previewDiv.querySelector('.preview-author');
     if (!author) return;
+
+    var authorName = previewDiv.dataset.authorName;
+    if (!authorName) return;
+
+    // Show the header first.
     author.style.display = '';
-    // Force avatar re-render: browsers skip images in display:none containers.
-    var img = author.querySelector('img');
-    if (img) {
-        var src = img.getAttribute('src');
-        img.removeAttribute('src');
-        img.setAttribute('src', src);
-    }
-    var form = previewDiv.closest('form');
-    if (form) {
-        var nameInput = form.querySelector('[name="anonymous_name"]');
-        if (nameInput) {
-            var name = nameInput.value.trim() || 'Anonymous';
-            var strong = author.querySelector('.preview-anon-name');
-            if (strong) strong.textContent = name;
+
+    // Set author name.
+    var strong = author.querySelector('.preview-anon-name');
+    if (strong) {
+        var form = previewDiv.closest('form');
+        if (form && previewDiv.dataset.authorAnon) {
+            var nameInput = form.querySelector('[name="anonymous_name"]');
+            var name = (nameInput && nameInput.value.trim()) || 'Anonymous';
+            strong.textContent = name;
+        } else {
+            strong.textContent = authorName;
         }
+    }
+
+    // Create avatar img once, via DOM API on visible parent.
+    if (previewDiv.dataset.avatarSrc && !author.querySelector('img.avatar')) {
+        var img = document.createElement('img');
+        img.className = 'avatar nested-avatar';
+        img.align = 'left';
+        img.width = parseInt(previewDiv.dataset.avatarSize) || 35;
+        img.height = parseInt(previewDiv.dataset.avatarSize) || 35;
+        img.src = previewDiv.dataset.avatarSrc;
+        author.insertBefore(img, author.firstChild);
     }
 }
 
