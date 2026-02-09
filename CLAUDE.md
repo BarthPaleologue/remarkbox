@@ -307,6 +307,25 @@ fresh during each remarkbox build.
 When set, `request.base_template` becomes `{theme}-base.j2`. The CSS and static assets
 are served at `/static/theme/{name}/` via Pyramid's `add_static_view`.
 
+## Related Repos
+
+All repos live under `~/git/` on localhost. When making cross-repo changes (e.g. footer
+CSS that lives in both the theme and www), update all affected repos and push each one.
+
+| Repo | Path | Purpose |
+|------|------|---------|
+| `remarkbox` | `~/git/remarkbox` | Main app (this repo) |
+| `remarkbox-theme-meta` | `~/git/remarkbox-theme-meta` | Meta theme (meta.remarkbox.com, faq.remarkbox.com) |
+| `remarkbox-westworld` | `~/git/remarkbox-westworld` | Westworld theme |
+| `www.remarkbox.com` | `~/git/www.remarkbox.com` | Marketing site (static HTML/CSS) |
+| `remarkbox-open` | `~/git/remarkbox-open` | Open-source / community edition |
+| `remarkbox-states` | `~/git/remarkbox-states` | SaltStack deployment states |
+
+The **footer** (`rb-footer`) is duplicated in the meta theme CSS and the www site CSS.
+Changes to footer layout or styles must be applied in both places:
+- `~/git/remarkbox-theme-meta/remarkbox_theme_meta/static/theme/meta/css/meta.css`
+- `~/git/www.remarkbox.com/custom.css`
+
 ## Style
 
 - **Never use "AI" — always say "machine learning."** We grow machine learning, not "AI." This term is forbidden in all permacomputer discourse, marketing, & documentation.
