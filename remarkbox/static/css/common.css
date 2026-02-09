@@ -207,6 +207,11 @@ p.whats-next {
   margin-block: 16px;
 }
 
+.node-data {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
 .preview p,
 .node p {
   margin-top: 0;
