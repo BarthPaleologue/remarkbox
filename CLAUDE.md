@@ -244,6 +244,56 @@ curl -s "https://git.unturf.com/api/v4/projects/engineering%2Fremarkbox%2Fremark
 
 The pipeline status will show `"status":"success"` when deployment is complete.
 
+## Proxy Architecture
+
+Remarkbox domains route through two servers. Understanding this is critical
+for debugging TLS, DNS, or routing issues.
+
+**Edge proxy**: `142.93.73.64` (`proxy.unturf.com`) — terminates TLS, handles
+ACME certs, runs bot defense (ASSHOLE CRM). Config lives in
+`~/git/proxy.unturf.com/ingress/Caddyfile`.
+
+**Origin server**: `162.243.167.224` (`origin.remarkbox.com`) — runs Caddy +
+uwsgi. Config managed via salt pillar at `foxhop-pillar/caddy/remarkbox.sls`.
+
+### Domain routing map
+
+| Domain | DNS → | Handler | Backend |
+|--------|-------|---------|---------|
+| `remarkbox.com` | proxy (142.93.73.64) | redirect → www | — |
+| `www.remarkbox.com` | proxy | file_server | `/opt/www/remarkbox` on proxy |
+| `my.remarkbox.com` | proxy | reverse_proxy | origin → uwsgi :6001 |
+| `meta.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
+| `faq.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
+| `demo.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
+| `origin.remarkbox.com` | direct (162.243.167.224) | reverse_proxy | uwsgi :6001 |
+| `westworld2.com` | origin server | reverse_proxy | uwsgi :6002 |
+
+### Request flow for proxied domains (my, meta, faq)
+
+```
+Client → DNS (CNAME or A → 142.93.73.64)
+       → proxy.unturf.com Caddy (TLS termination, ACME, bot gate)
+       → reverse_proxy https://origin.remarkbox.com
+         (Host header preserved, TLS via origin cert)
+       → origin Caddy (routes by Host header)
+       → uwsgi localhost:6001
+       → Remarkbox app (namespace from Host)
+```
+
+### Key rules
+
+- **CNAME domains MUST have explicit blocks on the proxy.** Without a block,
+  they fall through to the MPS on-demand TLS catch-all and route to the wrong
+  backend. This caused a 5-day outage (see `docs/postmortem-2026-02-25-ssl-outage-caddy-acme.md`).
+- **The proxy owns TLS for proxied domains.** The origin server does not need
+  (and cannot obtain) ACME certs for domains whose DNS points to the proxy.
+- **Static sites (www, remarkbox.com) are served directly from the proxy.**
+  Their content lives at `/opt/www/remarkbox` on the proxy server, deployed
+  from `~/git/www.remarkbox.com` via CI.
+- **origin.remarkbox.com bypasses the proxy.** Its DNS points directly to
+  162.243.167.224. Use it for SSH access and direct backend testing.
+
 ## Capability-Driven Presentation
 
 Follow Russell Ballestrini's capability-driven presentation practice
