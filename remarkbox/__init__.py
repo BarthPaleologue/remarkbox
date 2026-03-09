@@ -26,7 +26,7 @@ from pyramid.session import SignedCookieSessionFactory
 import re
 
 # needed to load themes.
-from pkg_resources import iter_entry_points
+from importlib.metadata import entry_points
 
 import logging
 import os
@@ -139,10 +139,10 @@ def get_children_settings(settings, parent_key):
 
 def load_entry_points(group_name):
     """Return a dictionary of entry_points related to given group_name"""
-    entry_points = {}
-    for entry_point in iter_entry_points(group=group_name, name=None):
-        entry_points[entry_point.name] = entry_point.load()
-    return entry_points
+    result = {}
+    for ep in entry_points(group=group_name):
+        result[ep.name] = ep.load()
+    return result
 
 
 def load_jinja2_themes(config):
