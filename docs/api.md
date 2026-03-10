@@ -190,6 +190,7 @@ Request body:
 - `namespace` (required)
 - `title` (required)
 - `data` (required, max 500000 chars)
+- `source_format` (optional, default `"markdown"`) — any pandoc input format
 - `anonymous_name` (optional, used when namespace allows anonymous)
 - `email` (optional, creates an unverified user)
 
@@ -220,6 +221,7 @@ Request body:
 ```
 
 - `data` (required, max 500000 chars)
+- `source_format` (optional, default `"markdown"`)
 - `anonymous_name` (optional)
 - `email` (optional)
 
@@ -264,12 +266,14 @@ Request body:
 ```json
 {
   "data": "Updated markdown",
-  "title": "Updated Title"
+  "title": "Updated Title",
+  "source_format": "markdown"
 }
 ```
 
 - `data` (optional, updates content)
 - `title` (optional, only applies to root nodes)
+- `source_format` (optional, default `"markdown"`)
 
 At least one of `data` or `title` is required.
 
@@ -349,6 +353,214 @@ Error `401`:
   "error": "Invalid verification code"
 }
 ```
+
+### Multi-Syntax Input
+
+All write endpoints (`POST /threads`, `POST /replies`, `PATCH /nodes`) accept
+an optional `source_format` parameter. Default is `"markdown"`.
+
+Supported input formats include any pandoc-supported format: `markdown`, `html`,
+`rst`, `mediawiki`, `latex`, `textile`, `org`, `docbook`, `commonmark`, etc.
+
+```json
+{
+  "data": "Title\n=====\n\nA paragraph in reStructuredText.",
+  "source_format": "rst"
+}
+```
+
+HTML input is round-tripped through pandoc (html → markdown) to produce a clean
+canonical source. All formats are rendered to HTML via pandoc and sanitized
+through the bleach pipeline before storage.
+
+The `source_format` field is included in all node serializations.
+
+---
+
+### Export Formats
+
+```
+GET /api/v1/export/formats
+```
+
+Returns all available pandoc output formats.
+
+Response `200`:
+```json
+{
+  "formats": ["asciidoc", "commonmark", "docx", "epub", "html5", "latex", "markdown", "pdf", "rst", "..."],
+  "count": 67
+}
+```
+
+---
+
+### Export Thread
+
+```
+GET /api/v1/export/threads/{node_id}.{format}
+```
+
+Exports a single thread (root + replies) as a document.
+
+Examples:
+```
+GET /api/v1/export/threads/9f970183-ffaf-11f0-b565-040140774501.pdf
+GET /api/v1/export/threads/9f970183-ffaf-11f0-b565-040140774501.epub
+GET /api/v1/export/threads/9f970183-ffaf-11f0-b565-040140774501.md
+```
+
+Binary formats (pdf, epub, docx) return the file with `Content-Disposition: attachment`.
+Text formats return inline with appropriate content type.
+
+---
+
+### Export Namespace
+
+```
+GET /api/v1/export/namespace/{namespace_name}.{format}
+```
+
+Exports an entire namespace as a book. Each root thread becomes a chapter.
+
+Examples:
+```
+GET /api/v1/export/namespace/meta.remarkbox.com.epub
+GET /api/v1/export/namespace/meta.remarkbox.com.pdf
+```
+
+---
+
+### Export Node (On-Demand)
+
+```
+GET /api/v1/export/nodes/{node_id}.{format}
+```
+
+Exports any node and its subtree. Useful for exporting a specific subthread
+at any nesting depth.
+
+---
+
+### Wiki Edit
+
+```
+POST /api/v1/nodes/{node_id}/wiki-edit
+```
+
+Wiki-edit a root node. Creates a revision snapshot before applying the edit.
+Requires authentication. The namespace must have `wiki = True`, or the user
+must be the node owner/moderator.
+
+Request body:
+```json
+{
+  "data": "Updated wiki content",
+  "source_format": "markdown"
+}
+```
+
+Response `200`:
+```json
+{
+  "node": {"id": "...", "data": "Updated wiki content", "...": "..."},
+  "revision": {"id": "...", "revision_number": 2, "...": "..."}
+}
+```
+
+Errors:
+- `401` if not authenticated
+- `403` if wiki editing not allowed for this user/node
+- `404` if node not found
+
+---
+
+### Node Revisions
+
+```
+GET /api/v1/nodes/{node_id}/revisions
+```
+
+Returns the revision history for a node.
+
+Response `200`:
+```json
+{
+  "node_id": "...",
+  "revisions": [
+    {
+      "id": "...",
+      "revision_number": 1,
+      "data": "Original content",
+      "source_format": "markdown",
+      "created": 1710043200000,
+      "user": {"id": "...", "name": "timehexon"}
+    }
+  ]
+}
+```
+
+---
+
+### Get Revision
+
+```
+GET /api/v1/revisions/{revision_id}
+```
+
+Returns a specific revision by ID.
+
+Response `200`:
+```json
+{
+  "revision": {
+    "id": "...",
+    "node_id": "...",
+    "revision_number": 1,
+    "data": "Content at this revision",
+    "source_format": "markdown",
+    "created": 1710043200000,
+    "user": {"id": "...", "name": "timehexon"}
+  }
+}
+```
+
+---
+
+### Theme CSS
+
+```
+GET /api/v1/themes/{namespace_name}/css
+```
+
+Returns auto-generated CSS theme for a namespace. Deterministic — same
+namespace always produces the same theme. Includes light mode (`:root`,
+`.theme-light`) and dark mode (`@media (prefers-color-scheme: dark)`,
+`.theme-dark`).
+
+Response: `200 text/css` with 1-day cache header.
+
+---
+
+### Theme Preview
+
+```
+GET /api/v1/themes/{namespace_name}/preview
+```
+
+Returns the theme color palette as JSON for previewing without loading CSS.
+
+Response `200`:
+```json
+{
+  "namespace": "meta.remarkbox.com",
+  "hue": 217,
+  "light": {"bg": "#f8f9fa", "text": "#1a1a2e", "link": "#2563eb", "...": "..."},
+  "dark": {"bg": "#0f0f1a", "text": "#e8e8f0", "link": "#60a5fa", "...": "..."}
+}
+```
+
+---
 
 ## Error Format
 

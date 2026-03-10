@@ -100,6 +100,111 @@ curl -s -X PATCH "$REMARKBOX/api/v1/nodes/$NODE_ID" \
   -d '{"data": "Updated content."}' | python3 -m json.tool
 ```
 
+## Multi-Syntax Input
+
+### Create Thread with RST
+
+```bash
+curl -s -X POST "$REMARKBOX/api/v1/threads" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "namespace": "meta.remarkbox.com",
+    "title": "RST thread",
+    "data": "Title\n=====\n\nA paragraph in **reStructuredText**.",
+    "source_format": "rst"
+  }' | python3 -m json.tool
+```
+
+### Reply with HTML
+
+```bash
+curl -s -X POST "$REMARKBOX/api/v1/threads/$THREAD_ID/replies" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{
+    "data": "<p>A reply in <strong>HTML</strong>.</p>",
+    "source_format": "html"
+  }' | python3 -m json.tool
+```
+
+## Export
+
+### List Available Formats
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/formats" | python3 -m json.tool
+```
+
+### Export Thread as Markdown
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/threads/$THREAD_ID.md"
+```
+
+### Export Thread as PDF
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/threads/$THREAD_ID.pdf" -o thread.pdf
+```
+
+### Export Thread as EPUB
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/threads/$THREAD_ID.epub" -o thread.epub
+```
+
+### Export Namespace as Book
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/namespace/meta.remarkbox.com.epub" -o meta.epub
+curl -s "$REMARKBOX/api/v1/export/namespace/meta.remarkbox.com.pdf" -o meta.pdf
+curl -s "$REMARKBOX/api/v1/export/namespace/meta.remarkbox.com.md"
+```
+
+### Export Node Subtree
+
+```bash
+curl -s "$REMARKBOX/api/v1/export/nodes/$NODE_ID.html"
+```
+
+## Wiki Mode
+
+### Wiki Edit a Node
+
+```bash
+curl -s -X POST "$REMARKBOX/api/v1/nodes/$NODE_ID/wiki-edit" \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"data": "Updated wiki content."}' | python3 -m json.tool
+```
+
+### Get Revision History
+
+```bash
+curl -s "$REMARKBOX/api/v1/nodes/$NODE_ID/revisions" | python3 -m json.tool
+```
+
+### Get Specific Revision
+
+```bash
+curl -s "$REMARKBOX/api/v1/revisions/$REVISION_ID" | python3 -m json.tool
+```
+
+## Themes
+
+### Get Namespace Theme CSS
+
+```bash
+curl -s "$REMARKBOX/api/v1/themes/meta.remarkbox.com/css"
+```
+
+### Preview Theme Palette
+
+```bash
+curl -s "$REMARKBOX/api/v1/themes/meta.remarkbox.com/preview" | python3 -m json.tool
+```
+
 ## Error Cases
 
 ### Missing namespace
