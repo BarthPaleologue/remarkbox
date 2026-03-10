@@ -71,6 +71,7 @@ class Node(RBase, Base):
     title = Column(Unicode(256), default=None)
     data = Column(UnicodeText, default=None)
     data_html = Column(UnicodeText, default=None)
+    source_format = Column(Unicode(16), default="markdown", nullable=False)
     # the depth of this node in the thread's graph / tree.
     graph_depth = Column(Integer, nullable=False, default=-1)
     # TODO: someday this should be renamed to created_timestamp
@@ -315,13 +316,34 @@ class Node(RBase, Base):
     def enabled(self):
         return not self.disabled
 
-    def set_data(self, data, namespace=None, dbsession=None):
+    def set_data(self, data, namespace=None, dbsession=None, source_format=None):
         if namespace is None:
             namespace = self.root.namespace
         if dbsession is None:
             dbsession = self.dbsession
+        if source_format is not None:
+            self.source_format = source_format
         self.data = data
-        self.data_html = markdown_to_html(data, namespace, dbsession=dbsession)
+        if not self.source_format or self.source_format == "markdown":
+            self.data_html = markdown_to_html(data, namespace, dbsession=dbsession)
+        elif self.source_format == "html":
+            from remarkbox.lib.pandoc import convert
+            # Convert HTML to markdown (clean it), then render through standard pipeline
+            cleaned = convert(data, from_format="html", to_format="markdown")
+            self.data = cleaned
+            self.source_format = "markdown"
+            self.data_html = markdown_to_html(cleaned, namespace, dbsession=dbsession)
+        else:
+            # Any other pandoc input format (rst, mediawiki, latex, etc.)
+            from remarkbox.lib.pandoc import convert
+            from remarkbox.lib.render import make_cleaner_from_namespace
+            from remarkbox.lib.sanitize_html import default_cleaner, clean_raw_html
+            html = convert(data, from_format=self.source_format, to_format="html5")
+            if namespace:
+                cleaner = make_cleaner_from_namespace(namespace)
+            else:
+                cleaner = default_cleaner()
+            self.data_html = clean_raw_html(html, cleaner)
 
     def _invalidate_cache(self):
         if self.root.cache:
@@ -332,6 +354,30 @@ class Node(RBase, Base):
         self.set_data(data)
         self.changed = now_timestamp()
         self._invalidate_cache()
+
+    def wiki_edit(self, data, user=None, source_format=None):
+        """Edit node in wiki mode, creating a revision of the previous state."""
+        from .revision import Revision
+
+        # Count existing revisions for this node
+        rev_count = self.dbsession.query(Revision).filter(
+            Revision.node_id == self.id
+        ).count()
+
+        # Save current state as a revision
+        revision = Revision(
+            node=self,
+            user=user,
+            data=self.data or "",
+            source_format=self.source_format,
+            revision_number=rev_count + 1,
+        )
+        self.dbsession.add(revision)
+
+        # Apply the edit
+        if source_format:
+            self.source_format = source_format
+        self.edit(data)
 
     def disable(self):
         """disable node."""

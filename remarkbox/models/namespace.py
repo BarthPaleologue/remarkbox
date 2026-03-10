@@ -393,6 +393,20 @@ class Namespace(RBase, Base):
     def can_alter_node(self, node, user):
         return self.is_moderator(user) or node.is_owner(user)
 
+    def can_wiki_edit(self, node, user):
+        """Return True if user can wiki-edit this node.
+
+        Wiki mode: any authenticated user can edit root nodes.
+        Normal mode: only owner/moderator can edit.
+        """
+        if not user or not user.authenticated:
+            return False
+        if self.can_alter_node(node, user):
+            return True
+        if self.wiki and node.is_root:
+            return True
+        return False
+
     def can_see_node(self, node, user):
         visible = True
         if node.disabled:

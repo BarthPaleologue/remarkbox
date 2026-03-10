@@ -87,6 +87,26 @@ c.approve_node(node_id)
 c.lock_node(node_id)
 c.unlock_node(node_id)
 c.delete_node(node_id)  # permanent, moderator only
+
+# Export (pandoc-powered, 67 output formats)
+formats = c.export_formats()
+md = c.export_thread(node_id, "markdown")
+pdf = c.export_thread(node_id, "pdf")
+epub = c.export_namespace("meta.remarkbox.com", "epub")
+docx = c.export_node(node_id, "docx")
+
+# Wiki mode (namespace.wiki=True, any authenticated user can edit root nodes)
+c.wiki_edit(node_id, data="Updated content")  # creates revision first
+revisions = c.get_revisions(node_id)
+revision = c.get_revision(revision_id)
+
+# Themes (auto-generated per namespace, light + dark mode)
+css = c.get_theme_css("meta.remarkbox.com")
+preview = c.get_theme_preview("meta.remarkbox.com")
+
+# Multi-syntax input (source_format parameter on create/reply/edit)
+c.create_thread(namespace="ns", title="RST", data="Title\n=====\n\nParagraph.", source_format="rst")
+c.reply(node_id, data="<p>HTML reply</p>", source_format="html")
 ```
 
 ### Key details
@@ -119,6 +139,15 @@ c.delete_node(node_id)  # permanent, moderator only
 | GET | `/api/v1/clients/c` | Download C client (rb.c) |
 | GET | `/api/v1/admin/namespaces` | List all namespaces (superuser only) |
 | GET | `/api/v1/admin/recent-nodes?days=7` | Recent nodes network-wide (superuser only) |
+| GET | `/api/v1/export/formats` | List available pandoc export formats |
+| GET | `/api/v1/export/namespace/{name}.{fmt}` | Export namespace as book |
+| GET | `/api/v1/export/threads/{node_id}.{fmt}` | Export thread as document |
+| GET | `/api/v1/export/nodes/{node_id}.{fmt}` | Export node subtree (on-demand) |
+| GET | `/api/v1/nodes/{id}/revisions` | Revision history for a node |
+| POST | `/api/v1/nodes/{id}/wiki-edit` | Wiki-edit a node (creates revision) |
+| GET | `/api/v1/revisions/{id}` | Get a specific revision |
+| GET | `/api/v1/themes/{namespace}/css` | Auto-generated theme CSS |
+| GET | `/api/v1/themes/{namespace}/preview` | Theme palette preview (JSON) |
 
 ### Authentication
 

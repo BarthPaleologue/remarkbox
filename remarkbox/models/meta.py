@@ -41,6 +41,7 @@ CLASS_TO_TABLE = {
     "PayWhatYouCan": "rb_pay_what_you_can",
     "Payment": "rb_payment",
     "Webmention": "rb_webmention",
+    "Revision": "rb_revision",
 }
 
 # node (threads), namespace (forum)

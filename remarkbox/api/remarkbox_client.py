@@ -225,15 +225,18 @@ class RemarkboxClient:
             path += "?" + urllib.parse.urlencode(params)
         return self._request("GET", path)
 
-    def create_thread(self, namespace, title, data, anonymous_name=None, email=None):
+    def create_thread(self, namespace, title, data, anonymous_name=None, email=None,
+                       source_format=None):
         """Create a new thread.
 
         Args:
             namespace: Target namespace name
             title: Thread title
-            data: Markdown content (max 500000 chars)
+            data: Content (max 500000 chars)
             anonymous_name: Name for anonymous posting (optional)
             email: Email to associate with post (optional)
+            source_format: Input format — markdown (default), html, rst,
+                mediawiki, latex, textile, org, etc. (any pandoc input format)
 
         Returns:
             dict with keys: node, verified
@@ -243,18 +246,21 @@ class RemarkboxClient:
             body["anonymous_name"] = anonymous_name
         if email:
             body["email"] = email
+        if source_format:
+            body["source_format"] = source_format
         return self._request("POST", "/api/v1/threads", body)
 
     # ----- Replies -----
 
-    def reply(self, node_id, data, anonymous_name=None, email=None):
+    def reply(self, node_id, data, anonymous_name=None, email=None, source_format=None):
         """Reply to a thread or another reply.
 
         Args:
             node_id: UUID of the parent node (thread or reply)
-            data: Markdown content (max 500000 chars)
+            data: Content (max 500000 chars)
             anonymous_name: Name for anonymous posting (optional)
             email: Email to associate with post (optional)
+            source_format: Input format (default: markdown)
 
         Returns:
             dict with keys: node, verified
@@ -264,6 +270,8 @@ class RemarkboxClient:
             body["anonymous_name"] = anonymous_name
         if email:
             body["email"] = email
+        if source_format:
+            body["source_format"] = source_format
         return self._request("POST", "/api/v1/threads/{}/replies".format(node_id), body)
 
     # ----- Nodes -----
@@ -279,13 +287,14 @@ class RemarkboxClient:
         """
         return self._request("GET", "/api/v1/nodes/{}".format(node_id))
 
-    def edit_node(self, node_id, data=None, title=None):
+    def edit_node(self, node_id, data=None, title=None, source_format=None):
         """Edit a node (requires authentication).
 
         Args:
             node_id: UUID of the node to edit
-            data: New markdown content (optional)
+            data: New content (optional)
             title: New title, only for root nodes (optional)
+            source_format: Input format (default: markdown)
 
         Returns:
             dict with key: node
@@ -295,6 +304,8 @@ class RemarkboxClient:
             body["data"] = data
         if title is not None:
             body["title"] = title
+        if source_format is not None:
+            body["source_format"] = source_format
         if not body:
             raise ValueError("data or title is required")
         return self._request("PATCH", "/api/v1/nodes/{}".format(node_id), body)
@@ -431,6 +442,145 @@ class RemarkboxClient:
         """
         return self._request("PATCH", "/api/v1/user/profile", {"name": name})
 
+    # ----- Export -----
+
+    def export_formats(self):
+        """List all available export formats.
+
+        Returns:
+            dict with keys: formats (list of strings), count
+        """
+        return self._request("GET", "/api/v1/export/formats")
+
+    def export_thread(self, node_id, fmt="markdown"):
+        """Export a thread in the specified format.
+
+        Args:
+            node_id: UUID of the root thread node
+            fmt: Pandoc output format (e.g. markdown, html5, pdf, epub, docx)
+
+        Returns:
+            bytes (binary formats) or str (text formats)
+        """
+        return self._raw_request(
+            "GET", "/api/v1/export/threads/{}.{}".format(node_id, fmt)
+        )
+
+    def export_namespace(self, namespace, fmt="markdown"):
+        """Export an entire namespace as a book in the specified format.
+
+        Args:
+            namespace: Namespace name (e.g. "meta.remarkbox.com")
+            fmt: Pandoc output format
+
+        Returns:
+            bytes (binary formats) or str (text formats)
+        """
+        return self._raw_request(
+            "GET", "/api/v1/export/namespace/{}.{}".format(namespace, fmt)
+        )
+
+    def export_node(self, node_id, fmt="markdown"):
+        """Export a node and its subtree in the specified format (on-demand).
+
+        Args:
+            node_id: UUID of the node
+            fmt: Pandoc output format
+
+        Returns:
+            bytes (binary formats) or str (text formats)
+        """
+        return self._raw_request(
+            "GET", "/api/v1/export/nodes/{}.{}".format(node_id, fmt)
+        )
+
+    def _raw_request(self, method, path):
+        """Make an HTTP request and return raw response body."""
+        url = self.url + path
+        req = urllib.request.Request(url, method=method)
+        try:
+            resp = self._opener.open(req)
+            content_type = resp.headers.get("Content-Type", "")
+            body = resp.read()
+            if "text/" in content_type or "json" in content_type or "xml" in content_type:
+                return body.decode("utf-8")
+            return body
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8")
+            try:
+                body = json.loads(raw)
+            except Exception:
+                body = {"error": raw}
+            raise RemarkboxError(e.code, body)
+
+    # ----- Wiki / Revisions -----
+
+    def wiki_edit(self, node_id, data, source_format=None):
+        """Wiki-edit a node (creates revision, any authenticated user if wiki mode).
+
+        Args:
+            node_id: UUID of the node to edit
+            data: New content
+            source_format: Input format (default: markdown)
+
+        Returns:
+            dict with key: node
+        """
+        body = {"data": data}
+        if source_format:
+            body["source_format"] = source_format
+        return self._request("POST", "/api/v1/nodes/{}/wiki-edit".format(node_id), body)
+
+    def get_revisions(self, node_id):
+        """Get revision history for a node.
+
+        Args:
+            node_id: UUID of the node
+
+        Returns:
+            dict with keys: node_id, revisions, count
+        """
+        return self._request("GET", "/api/v1/nodes/{}/revisions".format(node_id))
+
+    def get_revision(self, revision_id):
+        """Get a specific revision by ID.
+
+        Args:
+            revision_id: UUID of the revision
+
+        Returns:
+            dict with key: revision
+        """
+        return self._request("GET", "/api/v1/revisions/{}".format(revision_id))
+
+    # ----- Themes -----
+
+    def get_theme_css(self, namespace):
+        """Get the auto-generated theme CSS for a namespace.
+
+        Args:
+            namespace: Namespace name
+
+        Returns:
+            CSS string
+        """
+        return self._raw_request(
+            "GET", "/api/v1/themes/{}/css".format(namespace)
+        )
+
+    def get_theme_preview(self, namespace):
+        """Get theme palette preview for a namespace.
+
+        Args:
+            namespace: Namespace name
+
+        Returns:
+            dict with keys: namespace, palette, css_url
+        """
+        return self._request(
+            "GET", "/api/v1/themes/{}/preview".format(namespace)
+        )
+
     # ----- Admin (superuser only) -----
 
     def admin_list_namespaces(self):
@@ -477,11 +627,15 @@ Commands:
     delete <node_id>                        Delete a node (moderator only)
     login <email>                           Request OTP
     verify <email> <otp>                    Verify OTP
+    formats                                 List export formats
+    export-thread <node_id> [format]        Export thread (default: markdown)
+    export-ns <namespace> [format]          Export namespace as book
+    export-node <node_id> [format]          Export node subtree
 
 Examples:
     python remarkbox_client.py https://my.remarkbox.com threads meta.remarkbox.com
-    python remarkbox_client.py https://my.remarkbox.com post meta.remarkbox.com "Hello" "World" MyBot
-    python remarkbox_client.py https://my.remarkbox.com disable <node_id>
+    python remarkbox_client.py https://my.remarkbox.com export-ns meta.remarkbox.com epub
+    python remarkbox_client.py https://my.remarkbox.com export-thread <node_id> pdf
 """
 
     if len(sys.argv) < 3:
@@ -522,6 +676,32 @@ Examples:
             result = client.login(args[0])
         elif cmd == "verify" and len(args) >= 2:
             result = client.verify(args[0], args[1])
+        elif cmd == "formats":
+            result = client.export_formats()
+        elif cmd == "export-thread" and len(args) >= 1:
+            fmt = args[1] if len(args) > 1 else "markdown"
+            output = client.export_thread(args[0], fmt)
+            if isinstance(output, bytes):
+                sys.stdout.buffer.write(output)
+            else:
+                print(output)
+            sys.exit(0)
+        elif cmd == "export-ns" and len(args) >= 1:
+            fmt = args[1] if len(args) > 1 else "markdown"
+            output = client.export_namespace(args[0], fmt)
+            if isinstance(output, bytes):
+                sys.stdout.buffer.write(output)
+            else:
+                print(output)
+            sys.exit(0)
+        elif cmd == "export-node" and len(args) >= 1:
+            fmt = args[1] if len(args) > 1 else "markdown"
+            output = client.export_node(args[0], fmt)
+            if isinstance(output, bytes):
+                sys.stdout.buffer.write(output)
+            else:
+                print(output)
+            sys.exit(0)
         else:
             print(usage)
             sys.exit(1)

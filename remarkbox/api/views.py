@@ -29,6 +29,7 @@ from remarkbox.models.sudo_otp import create_sudo_otp, verify_sudo_otp
 from remarkbox.lib.notify import schedule_notifications
 from remarkbox.views import verify_pending_nodes_in_session
 
+from remarkbox.models.meta import now_timestamp
 from remarkbox.models.spam import score_content
 from remarkbox.models.spam_llm import check_thread_relevance, check_reply_relevance
 
@@ -473,6 +474,8 @@ def api_create_thread(request):
         body.get("anonymous_name") or request.params.get("anonymous_name", "")
     ).strip()
     email = body.get("email") or request.params.get("email", "")
+    source_format = body.get("source_format") or request.params.get("source_format", "")
+    source_format = source_format.strip() if source_format else None
 
     if not namespace_name:
         request.response.status_code = 400
@@ -538,7 +541,8 @@ def api_create_thread(request):
         # Create the comment as a child of the root (same as api_reply)
         node = root.new_child()
         node.ip_address = str(request.client_addr)
-        node.set_data(data, namespace=namespace, dbsession=request.dbsession)
+        node.set_data(data, namespace=namespace, dbsession=request.dbsession,
+                      source_format=source_format)
 
         if user_surrogate:
             node.user_surrogate = user_surrogate
@@ -583,7 +587,7 @@ def api_create_thread(request):
     node.namespace = namespace
     node.ip_address = str(request.client_addr)
     node.title = title
-    node.set_data(data, dbsession=request.dbsession)
+    node.set_data(data, dbsession=request.dbsession, source_format=source_format)
 
     if user_surrogate:
         node.user_surrogate = user_surrogate
@@ -661,6 +665,8 @@ def api_reply(request):
         body.get("anonymous_name") or request.params.get("anonymous_name", "")
     ).strip()
     email = body.get("email") or request.params.get("email", "")
+    source_format = body.get("source_format") or request.params.get("source_format", "")
+    source_format = source_format.strip() if source_format else None
 
     if not data:
         request.response.status_code = 400
@@ -706,7 +712,8 @@ def api_reply(request):
     # Create child node
     child = parent.new_child()
     child.ip_address = str(request.client_addr)
-    child.set_data(data, namespace=namespace, dbsession=request.dbsession)
+    child.set_data(data, namespace=namespace, dbsession=request.dbsession,
+                   source_format=source_format)
 
     if user_surrogate:
         child.user_surrogate = user_surrogate
@@ -812,6 +819,8 @@ def api_edit_node(request):
     body = get_json_body(request)
     data = body.get("data") or request.params.get("thread_data", "")
     title = body.get("title") or request.params.get("thread_title", "")
+    source_format = body.get("source_format") or request.params.get("source_format", "")
+    source_format = source_format.strip() if source_format else None
 
     # Moderation flags (require can_alter_node, already checked above)
     disabled = body.get("disabled")
@@ -837,7 +846,9 @@ def api_edit_node(request):
     if title and node.is_root:
         node.title = title
     if data:
-        node.edit(data)
+        node.set_data(data, source_format=source_format)
+        node.changed = now_timestamp()
+        node._invalidate_cache()
 
     if disabled is True:
         node.disable()

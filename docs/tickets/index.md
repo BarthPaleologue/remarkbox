@@ -19,3 +19,4 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T12](12.md) | Reply to API-only CRUD thread confirming done | resolved | low | meta `6db01560` |
 | [T13](13.md) | Reply to lock/archive thread confirming done | resolved | low | meta `7e9d5864` |
 | [T14](14.md) | meta/faq SSL outage — missing proxy blocks | resolved | critical | postmortem 2026-02-25 |
+| [T15](15.md) | Operation Undigg — Pandoc export & wiki mode | in-progress | high | fox directive 2026-03-09 |

@@ -21,6 +21,7 @@ from .pay_what_you_can import *
 from .payment import *
 from .webmention import *
 from .sudo_otp import *
+from .revision import *
 
 # run configure_mappers after defining all of the models to ensure
 # all relationships can be setup

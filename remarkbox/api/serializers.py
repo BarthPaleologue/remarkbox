@@ -7,6 +7,7 @@ def serialize_node(node, include_children=False):
         "title": node.title,
         "data": node.data,
         "data_html": node.data_html,
+        "source_format": node.source_format,
         "is_root": node.is_root,
         "depth": node.graph_depth,
         "created": node.created,
