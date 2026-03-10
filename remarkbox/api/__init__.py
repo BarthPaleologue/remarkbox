@@ -9,6 +9,7 @@ def includeme(config):
     config.add_route("api-node-wiki-edit", "/api/v1/nodes/{node_id}/wiki-edit")
     config.add_route("api-node-detail", "/api/v1/nodes/{node_id}")
     config.add_route("api-revision-detail", "/api/v1/revisions/{revision_id}")
+    config.add_route("api-revision-diff", "/api/v1/revisions/{revision_id}/diff/{other_id}")
     config.add_route("api-auth-login", "/api/v1/auth/login")
     config.add_route("api-auth-verify", "/api/v1/auth/verify")
     config.add_route("api-user-profile", "/api/v1/user/profile")

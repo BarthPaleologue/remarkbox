@@ -239,6 +239,42 @@
   {% endif %}
 {% endmacro %}
 
+{% macro export_menu(node) %}
+<details class="export-menu">
+  <summary class="action link">export</summary>
+  <div class="export-options">
+    <a href="/api/v1/export/threads/{{ node.id }}.md" class="export-link">markdown</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.html" class="export-link">html</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.pdf" class="export-link">pdf</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.epub" class="export-link">epub</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.docx" class="export-link">docx</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.rst" class="export-link">rst</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.latex" class="export-link">latex</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.odt" class="export-link">odt</a>
+    <a href="/api/v1/export/threads/{{ node.id }}.plain" class="export-link">plain text</a>
+  </div>
+</details>
+{% endmacro %}
+
+{% macro export_node_menu(node) %}
+<details class="export-menu">
+  <summary class="action link">export</summary>
+  <div class="export-options">
+    <a href="/api/v1/export/nodes/{{ node.id }}.md" class="export-link">markdown</a>
+    <a href="/api/v1/export/nodes/{{ node.id }}.html" class="export-link">html</a>
+    <a href="/api/v1/export/nodes/{{ node.id }}.pdf" class="export-link">pdf</a>
+    <a href="/api/v1/export/nodes/{{ node.id }}.epub" class="export-link">epub</a>
+    <a href="/api/v1/export/nodes/{{ node.id }}.docx" class="export-link">docx</a>
+  </div>
+</details>
+{% endmacro %}
+
+{% macro wiki_actions(node) %}
+{% if request.namespace.wiki and node.is_root and request.user and request.user.authenticated %}
+  <a href="/api/v1/nodes/{{ node.id }}/revisions" class="action" target="_blank">history</a>
+{% endif %}
+{% endmacro %}
+
 {% macro namespace_actions(namespace) %}
     {% if request.mode != "embed" %}
 

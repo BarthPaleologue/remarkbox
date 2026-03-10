@@ -1,5 +1,7 @@
 """Wiki mode and revision history API endpoints."""
 
+import difflib
+
 from pyramid.view import view_config
 
 from remarkbox.models.node import get_node_by_id, Node
@@ -132,3 +134,54 @@ def api_get_revision(request):
             return denied
 
     return {"revision": serialize_revision(revision)}
+
+
+@view_config(
+    route_name="api-revision-diff",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_revision_diff(request):
+    """Compare two revisions of the same node via unified diff."""
+    revision_id = request.matchdict["revision_id"]
+    other_id = request.matchdict["other_id"]
+
+    revision = get_object_by_id(request.dbsession, revision_id, Revision)
+    if revision is None:
+        request.response.status_code = 404
+        return {"error": "Revision not found: {}".format(revision_id)}
+
+    other = get_object_by_id(request.dbsession, other_id, Revision)
+    if other is None:
+        request.response.status_code = 404
+        return {"error": "Revision not found: {}".format(other_id)}
+
+    if revision.node_id != other.node_id:
+        request.response.status_code = 400
+        return {"error": "Revisions belong to different nodes"}
+
+    node = get_node_by_id(request.dbsession, revision.node_id)
+    if node:
+        namespace = node.root.namespace
+        denied = check_namespace_api_access(request, namespace)
+        if denied:
+            return denied
+
+    from_lines = revision.data.splitlines(keepends=True)
+    to_lines = other.data.splitlines(keepends=True)
+    diff = difflib.unified_diff(
+        from_lines,
+        to_lines,
+        fromfile="revision {}".format(revision.revision_number),
+        tofile="revision {}".format(other.revision_number),
+    )
+
+    return {
+        "from_revision": str(revision.id),
+        "to_revision": str(other.id),
+        "from_number": revision.revision_number,
+        "to_number": other.revision_number,
+        "node_id": str(revision.node_id),
+        "diff": "".join(diff),
+    }

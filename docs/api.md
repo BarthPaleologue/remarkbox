@@ -527,6 +527,32 @@ Response `200`:
 
 ---
 
+### Diff Revisions
+
+```
+GET /api/v1/revisions/{revision_id}/diff/{other_id}
+```
+
+Compares two revisions of the same node. Returns a unified diff.
+
+Response `200`:
+```json
+{
+  "from_revision": "...",
+  "to_revision": "...",
+  "from_number": 1,
+  "to_number": 2,
+  "node_id": "...",
+  "diff": "--- revision 1\n+++ revision 2\n@@ ... @@\n..."
+}
+```
+
+Errors:
+- `400` if the two revisions belong to different nodes
+- `404` if either revision is not found
+
+---
+
 ### Theme CSS
 
 ```

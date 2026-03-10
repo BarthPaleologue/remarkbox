@@ -553,6 +553,21 @@ class RemarkboxClient:
         """
         return self._request("GET", "/api/v1/revisions/{}".format(revision_id))
 
+    def diff_revisions(self, revision_id, other_id):
+        """Compare two revisions of the same node via unified diff.
+
+        Args:
+            revision_id: UUID of the first (from) revision
+            other_id: UUID of the second (to) revision
+
+        Returns:
+            dict with keys: from_revision, to_revision, from_number,
+            to_number, node_id, diff
+        """
+        return self._request(
+            "GET", "/api/v1/revisions/{}/diff/{}".format(revision_id, other_id)
+        )
+
     # ----- Themes -----
 
     def get_theme_css(self, namespace):

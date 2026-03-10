@@ -191,6 +191,12 @@ curl -s "$REMARKBOX/api/v1/nodes/$NODE_ID/revisions" | python3 -m json.tool
 curl -s "$REMARKBOX/api/v1/revisions/$REVISION_ID" | python3 -m json.tool
 ```
 
+### Diff Revisions
+
+```bash
+curl -s "$REMARKBOX/api/v1/revisions/$REVISION_ID/diff/$OTHER_REVISION_ID" | python3 -m json.tool
+```
+
 ## Themes
 
 ### Get Namespace Theme CSS

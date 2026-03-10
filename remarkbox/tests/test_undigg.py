@@ -676,6 +676,122 @@ class TestWikiModeAndRevisions(UndiggFunctionalTests):
         self.assertEqual(res.status_int, 404)
 
 
+class TestRevisionDiff(UndiggFunctionalTests):
+    """Test GET /api/v1/revisions/{id}/diff/{other_id}."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            UndiggFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            UndiggFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        ns = get_or_create_namespace(self.dbsession, "diff-test.example.com")
+        ns.allow_anonymous = True
+        ns.subscription_type = "production"
+        ns.wiki = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+    def tearDown(self):
+        super(TestRevisionDiff, self).tearDown()
+        self.dbsession.query(Revision).filter(
+            Revision.node_id.in_(
+                self.dbsession.query(Node.id).filter(
+                    Node.namespace_id == self.namespace_id
+                )
+            )
+        ).delete(synchronize_session=False)
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.namespace_id
+        ).delete(synchronize_session=False)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _create_thread(self, title="Diff Thread", data="Original content."):
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": title,
+                "data": data,
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        return res.json["node"]["id"]
+
+    def _create_revisions(self, node_id, data_v1, data_v2):
+        """Manually create two revisions for a node."""
+        node = self.dbsession.query(Node).get(node_id)
+        rev1 = Revision(node=node, data=data_v1, revision_number=1)
+        rev2 = Revision(node=node, data=data_v2, revision_number=2)
+        self.dbsession.add(rev1)
+        self.dbsession.add(rev2)
+        self.dbsession.flush()
+        rev1_id = str(rev1.id)
+        rev2_id = str(rev2.id)
+        self.tm.commit()
+        return rev1_id, rev2_id
+
+    def test_diff_same_revision(self):
+        node_id = self._create_thread()
+        rev1_id, rev2_id = self._create_revisions(
+            node_id, "Same content.", "Same content."
+        )
+        res = self.testapp.get(
+            "/api/v1/revisions/{}/diff/{}".format(rev1_id, rev1_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertEqual(res.json["diff"], "")
+        self.assertEqual(res.json["from_revision"], rev1_id)
+        self.assertEqual(res.json["to_revision"], rev1_id)
+
+    def test_diff_different_revisions(self):
+        node_id = self._create_thread()
+        rev1_id, rev2_id = self._create_revisions(
+            node_id, "Original content.", "Updated content."
+        )
+        res = self.testapp.get(
+            "/api/v1/revisions/{}/diff/{}".format(rev1_id, rev2_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("from_revision", res.json)
+        self.assertIn("to_revision", res.json)
+        self.assertEqual(res.json["from_number"], 1)
+        self.assertEqual(res.json["to_number"], 2)
+        self.assertIn("Original", res.json["diff"])
+        self.assertIn("Updated", res.json["diff"])
+
+    def test_diff_not_found(self):
+        res = self.testapp.get(
+            "/api/v1/revisions/00000000-0000-0000-0000-000000000000/diff/00000000-0000-0000-0000-000000000001",
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 404)
+
+    def test_diff_different_nodes(self):
+        node1_id = self._create_thread(title="Thread 1", data="Content 1.")
+        node2_id = self._create_thread(title="Thread 2", data="Content 2.")
+        rev1_id, _ = self._create_revisions(node1_id, "A", "B")
+        rev2_id, _ = self._create_revisions(node2_id, "C", "D")
+        res = self.testapp.get(
+            "/api/v1/revisions/{}/diff/{}".format(rev1_id, rev2_id),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 400)
+        self.assertIn("different nodes", res.json["error"])
+
+
 # ---------------------------------------------------------------------------
 # Theme API
 # ---------------------------------------------------------------------------

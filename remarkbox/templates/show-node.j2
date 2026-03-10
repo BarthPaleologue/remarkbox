@@ -70,6 +70,10 @@
 
   <div class="node-actions">
   {{ snippets.actions(request.node) }}
+  {% if request.node.is_root %}
+  {{ snippets.export_menu(request.node) }}
+  {{ snippets.wiki_actions(request.node) }}
+  {% endif %}
   </div>
 
 </div>
@@ -145,6 +149,7 @@
     <div class="node-actions">
     {{ snippets.permalinks(parent, prev_parent, request.root_node) }}
     {{ snippets.actions(parent) }}
+    {{ snippets.export_node_menu(parent) }}
     {%- if children_ids %}
     {{ snippets.button_collapse(parent) }}
     {% endif -%}
