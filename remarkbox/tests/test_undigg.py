@@ -4,9 +4,12 @@ Tests the export, multi-syntax, wiki mode, and theme APIs end-to-end
 via webtest against the full Pyramid app.
 """
 
+import shutil
 import transaction
 import unittest
 import webtest
+
+import pytest
 
 from remarkbox.models import (
     Node,
@@ -142,6 +145,10 @@ class TestExportThread(UndiggFunctionalTests):
         self.assertEqual(res.status_int, 200)
         self.assertIn(b"Test Thread", res.body)
 
+    @pytest.mark.skipif(
+        shutil.which("wkhtmltopdf") is None,
+        reason="wkhtmltopdf not installed",
+    )
     def test_export_thread_pdf(self):
         node_id = self._create_thread()
         res = self.testapp.get(

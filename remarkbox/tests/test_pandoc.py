@@ -1,7 +1,10 @@
 """Unit tests for remarkbox.lib.pandoc — pandoc subprocess wrapper."""
 
+import shutil
 import unittest
 import subprocess
+
+import pytest
 
 from remarkbox.lib.pandoc import (
     convert,
@@ -63,6 +66,10 @@ class TestConvert(unittest.TestCase):
         self.assertIsInstance(result, bytes)
         self.assertGreater(len(result), 100)
 
+    @pytest.mark.skipif(
+        shutil.which("wkhtmltopdf") is None,
+        reason="wkhtmltopdf not installed",
+    )
     def test_markdown_to_pdf_returns_bytes(self):
         result = convert("# Test\n\nContent.", "markdown", "pdf", title="Test")
         self.assertIsInstance(result, bytes)
