@@ -226,6 +226,10 @@ python scripts/spam/scan.py --json --threshold=0.8 | python scripts/spam/disable
 python scripts/spam/disable_spam.py node-uuid-1 node-uuid-2
 ```
 
+## Credential Access
+
+**Never access credentials without explicit instruction from fox.** This includes `pass show`, reading API key files, private keys, session cookies, tokens, or any secrets. Propose first. Fox decides. Then execute.
+
 ## Production Rules
 
 **NEVER run direct SQL or raw database commands on production.** No `sqlite3`, no `UPDATE`, no `DELETE`, no direct file edits on the production database. Ever. If the API doesn't support what you need, add the endpoint first, push it, then use the client.
