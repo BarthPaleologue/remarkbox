@@ -514,9 +514,10 @@ def get_root_nodes_by_keywords(dbsession, keywords, namespace=None):
 
     for keyword in keywords:
 
-        # extend nodes, with a list of nodes which match this keyword. 
+        # extend nodes, with a list of nodes which match this keyword.
+        # Limit per-keyword results to prevent memory exhaustion (CWE-407).
         keyword_filter = Node.data.ilike("%{}%".format(keyword))
-        nodes.extend(node_query.filter(keyword_filter).all())
+        nodes.extend(node_query.filter(keyword_filter).limit(200).all())
 
     # accumulate scores and root node objects.
     for node in nodes:

@@ -437,8 +437,9 @@ class Namespace(RBase, Base):
                 # TODO: fix when root.created becomes root.created_timestamp.
                 "timestamp" : root.created,
             }
-            comments = [] 
-            for node in root.children:
+            comments = []
+            # Limit children per root to prevent unbounded JSON serialization (CWE-407).
+            for node in root.children.limit(500):
                 comment = {
                     "date" : node.created_date,
                     # TODO: when root.created becomes root.created_timestamp.

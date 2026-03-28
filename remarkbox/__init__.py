@@ -512,6 +512,8 @@ def main(global_config, **settings):
     def add_page_number(request):
         """Attach page_number starting at 0"""
         page_number = int(request.params.get("page", 1))
+        # Cap to prevent OFFSET DoS — large offsets force full table scans (CWE-407).
+        page_number = min(page_number, 1000)
         return page_number if page_number >= 1 else 1
 
     def add_page_size(request):

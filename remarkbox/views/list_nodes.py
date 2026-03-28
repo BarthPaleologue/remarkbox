@@ -146,9 +146,11 @@ def search(request):
         return HTTPFound(get_referer_or_home(request))
 
     # Note: a search from topsecret page does not pass a namespace.
+    # Cap keywords to prevent O(k*n) amplification (CWE-407).
+    keyword_list = [k for k in keywords.split(" ") if k][:10]
     nodes = get_root_nodes_by_keywords(
         request.dbsession,
-        keywords.split(" "),
+        keyword_list,
         request.namespace
     )
 
