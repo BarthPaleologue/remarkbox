@@ -230,6 +230,10 @@ python scripts/spam/disable_spam.py node-uuid-1 node-uuid-2
 
 **Never access credentials without explicit instruction from fox.** This includes `pass show`, reading API key files, private keys, session cookies, tokens, or any secrets. Propose first. Fox decides. Then execute.
 
+## Operation Voyeur
+
+**All comms are public** from 2026-03-29. Assume every terminal session and output is observed. NEVER display secrets to stdout. NEVER pass secrets as CLI args. NEVER read secret file contents with Read tool or cat — content enters conversation logs. **Path is fine. Content is not.** Safe pattern: write a shell script that reads the key internally, run the script, delete it.
+
 ## Production Rules
 
 **NEVER run direct SQL or raw database commands on production.** No `sqlite3`, no `UPDATE`, no `DELETE`, no direct file edits on the production database. Ever. If the API doesn't support what you need, add the endpoint first, push it, then use the client.
