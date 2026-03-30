@@ -25,6 +25,8 @@ Commit message here.
 
 **Only attribute real humans** as co-authors when collaborating.
 
+**When fox approves a proposed commit, always commit AND push immediately.** No second confirmation needed. "yes" = commit + `git push`.
+
 ## Database Migrations (Alembic)
 
 When adding new columns or modifying the database schema:
@@ -412,6 +414,52 @@ The **footer** (`rb-footer`) is duplicated in the meta theme CSS and the www sit
 Changes to footer layout or styles must be applied in both places:
 - `~/git/remarkbox-theme-meta/remarkbox_theme_meta/static/theme/meta/css/meta.css`
 - `~/git/www.remarkbox.com/custom.css`
+
+## Security: CWE-407 Algorithmic Complexity
+
+**Audit completed 2026-03-30.** Known algorithmic complexity risks and their mitigations.
+
+### Already fixed (committed c87fb0b)
+
+| Surface | Root cause | Fix |
+|---------|-----------|-----|
+| `/search?keywords=` | Unbounded keyword count → O(k·n) full-table scans | Capped keywords to 10 in `list_nodes.py` |
+| `?page=N` offset | Unbounded `OFFSET` → O(offset) full table scan | Capped page_number to 1000 in `__init__.py` |
+| `/ns/{ns}/dump.json` | Unbounded `root.children` iteration | Added `.limit(500)` in `namespace.py` |
+| Node keyword queries | Unbounded `.all()` per keyword | Added `.limit(200)` per query in `node.py` |
+
+### bleach sanitization pipeline — mitigated at runtime, not at code level
+
+**Attack surface**: `remarkbox/lib/sanitize_html.py:200` — `clean_raw_html()` uses
+`bleach.Cleaner` + `LinkifyFilter`. The URL regex `([\w-]+\.)+(?:tlds)` exhibits
+O(2^N) catastrophic backtracking on adversarial input in Python < 3.11.
+
+**Demonstrated** (external finding, same pattern): N=30 chars → 1.0s, N=35 → 12.8s.
+That is textbook O(2^N): 10× per 5 chars.
+
+**Python 3.12 status**: tested on Python 3.12.3 — O(N) behaviour confirmed (linear).
+The runtime's `re` module prevents catastrophic backtracking. **This is a runtime
+mitigation, not a code-level fix.** A Python version downgrade re-exposes it.
+
+**Input size gap**: The API path (`remarkbox/api/views.py:38`) caps data at
+`MAX_CONTENT_LENGTH = 500_000` chars before `set_data()` → `clean_raw_html()`.
+The browser form path (`reply_node.py`, `edit_node.py`) has **no equivalent cap**.
+A future fix should add the same guard to both paths.
+
+**Requirements pin**: `requirements.py3.txt` says `bleach>=2.1.4` — too loose.
+bleach < 3.3.0 had unpatched ReDoS (CVE-2021-23980). Current install: 6.3.0.
+Tighten to `bleach>=6.0.0` when next touching requirements.
+
+### Build tools
+
+| Package | Installed | Notes |
+|---------|-----------|-------|
+| setuptools | 80.10.1 | CVE-2022-40897 (ReDoS in `pkg_resources`) fixed in 65.5.1 — OK |
+| pip | 25.3 | No known CWE-407 issues at this version |
+
+**Deprecation risk**: pyramid imports `pkg_resources` (deprecated; removal targeted
+2025-11-30 per setuptools). Pin `setuptools<81` or wait for pyramid to migrate.
+This is a compatibility risk, not a security risk.
 
 ## Style
 
