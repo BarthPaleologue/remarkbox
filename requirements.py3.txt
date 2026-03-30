@@ -34,7 +34,9 @@ html5lib
 BeautifulSoup4
 
 # Bleach sanitizes MarkDown (removes HTML/Javascript) to prevent XSS.
-bleach>=2.1.4
+# Pin >=6.0.0: bleach <3.3.0 had CVE-2021-23980 (ReDoS in linkifier URL regex);
+# bleach <6.0.0 had LinkifyFilter API differences that break sanitize_html.py.
+bleach>=6.0.0
 bleach-allowlist
 
 # codehilite.

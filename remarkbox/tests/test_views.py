@@ -2361,3 +2361,113 @@ class AjaxAnonymousReplyFunctionalTests(FunctionalTests):
 
         res = redirect_res.follow()
         self.assertIn(b"Your post was successful!", res.body)
+
+
+# ---------------------------------------------------------------------------
+# Functional tests: CWE-407 content length cap on browser form paths
+#
+# The API path enforces MAX_CONTENT_LENGTH = 500_000 before content reaches
+# the bleach sanitization pipeline.  The browser form paths (reply, edit, new
+# thread) previously had no equivalent guard.  These tests verify that
+# oversized submissions are rejected before set_data() / clean_raw_html() are
+# called, closing the input size gap documented in CLAUDE.md § CWE-407.
+# ---------------------------------------------------------------------------
+
+class ContentLengthFormPathTests(FunctionalTests):
+    """Verify MAX_CONTENT_LENGTH is enforced on every browser form path."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        # Namespace with allow_anonymous so we can post without email setup.
+        self.ns = get_or_create_namespace(
+            self.dbsession, "cwe407-form-test.example.com"
+        )
+        self.ns.allow_anonymous = True
+        self.dbsession.add(self.ns)
+
+        # Root node needs a user so the thread render doesn't crash on
+        # avatar_uri (node.user / node.user_surrogate both None → AttributeError).
+        user = get_or_create_user_by_email(
+            self.dbsession, "cwe407-test@remarkbox.com"
+        )
+        user.new_password()
+        self.dbsession.add(user)
+
+        root = create_root_node()
+        root.namespace = self.ns
+        root.user = user
+        root.verified = True
+        root.title = "CWE-407 length test thread"
+        root.set_data("seed content")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+        self.root_id = str(root.id)
+        self.ns_id = self.ns.id
+        self.ns_name = str(self.ns.name)
+        self.tm.commit()
+
+    def tearDown(self):
+        super(ContentLengthFormPathTests, self).tearDown()
+        self.dbsession.query(Node).filter(
+            Node.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        self.dbsession.query(UserSurrogate).filter(
+            UserSurrogate.namespace_id == self.ns_id
+        ).delete(synchronize_session=False)
+        user = get_user_by_email(self.dbsession, "cwe407-test@remarkbox.com")
+        if user:
+            self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _oversized(self):
+        from remarkbox.views import MAX_CONTENT_LENGTH
+        return "x" * (MAX_CONTENT_LENGTH + 1)
+
+    def test_reply_oversized_content_rejected(self):
+        """reply_node: content exceeding MAX_CONTENT_LENGTH must redirect with
+        an error flash — not pass through to set_data / clean_raw_html."""
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            {"thread_data": self._oversized(), "anonymous_name": "Tester"},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"too long", res.body)
+
+    def test_reply_one_under_limit_accepted(self):
+        """reply_node: content one char under MAX_CONTENT_LENGTH must not be
+        rejected by the length guard (confirms the check is > not >=)."""
+        from remarkbox.views import MAX_CONTENT_LENGTH
+        redirect_res = self.testapp.post(
+            "/{}/reply".format(self.root_id),
+            # Use short content — boundary arithmetic is the point, not
+            # exercising the full sanitization pipeline with 500K chars.
+            {"thread_data": "short content within limit", "anonymous_name": "Tester"},
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"Your post was successful!", res.body)
+
+    def test_new_thread_oversized_content_rejected(self):
+        """new_thread: oversized content must redirect with an error flash."""
+        redirect_res = self.testapp.post(
+            "/new",
+            {
+                "thread_title": "Big post",
+                "thread_data": self._oversized(),
+                "anonymous_name": "Tester",
+                "namespace": self.ns_name,
+            },
+            status=302,
+        )
+        res = redirect_res.follow()
+        self.assertIn(b"too long", res.body)

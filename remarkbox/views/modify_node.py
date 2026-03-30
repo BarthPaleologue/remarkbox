@@ -5,7 +5,7 @@ from pyramid.response import Response
 
 from remarkbox.models.node import Node
 
-from . import get_referer_or_home, get_node_route_uri, get_embed_route_uri
+from . import get_referer_or_home, get_node_route_uri, get_embed_route_uri, MAX_CONTENT_LENGTH
 
 
 @view_config(route_name="embed-edit", renderer="edit-node.j2")
@@ -22,6 +22,13 @@ def edit_node(request):
 
     if not request.namespace.can_alter_node(request.node, request.user):
         request.session.flash(("You do not own this message.", "error"))
+        return HTTPFound(get_referer_or_home(request))
+
+    # CWE-407: reject oversized content before it reaches the bleach sanitization
+    # pipeline. Without this cap the browser form path bypassed the same guard
+    # that the API path enforces (api/views.py:MAX_CONTENT_LENGTH).
+    if thread_data and len(thread_data) > MAX_CONTENT_LENGTH:
+        request.session.flash(("Your message is too long.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
     if thread_data or thread_title:

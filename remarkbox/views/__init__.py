@@ -9,6 +9,14 @@ try:
 except:
     from six import u as unicode
 
+# CWE-407: cap user-submitted content before it reaches the bleach sanitization
+# pipeline (clean_raw_html / set_data). bleach's LinkifyFilter uses a URL regex
+# that exhibits O(2^N) catastrophic backtracking on adversarial input in Python
+# < 3.11. Python 3.12 mitigates this at the runtime level (O(N)), but a content
+# cap here ensures the code-level defence holds regardless of runtime version.
+# The API path enforces the same limit via api/views.py:MAX_CONTENT_LENGTH.
+MAX_CONTENT_LENGTH = 500_000
+
 
 # view decorator.
 def user_required(

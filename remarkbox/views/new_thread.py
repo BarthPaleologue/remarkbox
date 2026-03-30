@@ -6,7 +6,7 @@ from pyramid.httpexceptions import HTTPFound
 
 from remarkbox.models import create_root_node, get_or_create_user_surrogate_by_name
 
-from . import get_referer_or_home, get_node_route_uri, set_node_to_pending_in_session
+from . import get_referer_or_home, get_node_route_uri, set_node_to_pending_in_session, MAX_CONTENT_LENGTH
 
 from remarkbox.lib.notify import schedule_notifications
 
@@ -29,6 +29,13 @@ def new_thread(request):
     # check CSRF only if user is authenticated.
     if request.method == "POST" and request.csrf_token:
         check_csrf_token(request)
+
+    # CWE-407: reject oversized content before it reaches the bleach sanitization
+    # pipeline. Without this cap the browser form path bypassed the same guard
+    # that the API path enforces (api/views.py:MAX_CONTENT_LENGTH).
+    if len(thread_data) > MAX_CONTENT_LENGTH:
+        request.session.flash(("Your message is too long.", "error"))
+        return HTTPFound(get_referer_or_home(request))
 
     if thread_title and thread_data:
         # handle the submitted form new/create form.
