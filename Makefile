@@ -92,6 +92,23 @@ init-db: venv config
 	$(RB_INIT) $(DATA_DIR)/$(CONFIG_FILE)
 	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) stamp head
 
+# Create a new Alembic migration with a proper auto-generated revision ID.
+# Usage: make migration m="description of change"
+# Autogenerate compares current models against DB schema and writes the diff.
+# ALWAYS use this — NEVER hand-write revision IDs.
+migration: venv config
+	@if [ -z "$(m)" ]; then echo "ERROR: provide a message: make migration m=\"add foo column\""; exit 1; fi
+	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) revision --autogenerate -m "$(m)"
+
+# Apply all pending Alembic migrations.
+migrate: venv config
+	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) upgrade head
+
+# Show current migration status.
+migration-status: venv config
+	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) current
+	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) history --verbose
+
 # Start the development server with auto-reload
 serve: venv config
 	@echo "Starting the remarkbox development server..."
