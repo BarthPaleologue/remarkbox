@@ -361,7 +361,8 @@ def main(global_config, **settings):
             return get_or_create_namespace(request.dbsession, namespace_name)
         elif request.node:
             return request.node.root.namespace
-        return get_or_create_namespace(request.dbsession, request.domain)
+        forced = request.app.get("namespace")
+        return get_or_create_namespace(request.dbsession, forced if forced else request.domain)
 
     def add_mode(request):
         """return mode of 'embed' or 'basic'"""

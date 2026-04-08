@@ -50,7 +50,8 @@ def default_cleaner(tag_acl=None):
     if tag_acl is None:
         tag_acl = {}
 
-    maybe_safe_tags = ["pre", "table", "tr", "td"]
+    maybe_safe_tags = ["pre", "table", "tr", "td", "th", "thead", "tbody",
+                        "figure", "figcaption", "dl", "caption"]
 
     tags = maybe_safe_tags + list(tag_acl.keys()) + markdown_tags
     attrs = markdown_attrs
@@ -224,4 +225,9 @@ def clean_raw_html(raw_html, cleaner=None):
     # protect links from abuse.
     soup = protect_links(soup, cleaner)
 
+    # html5lib always wraps output in <html><head><body> — extract body
+    # contents only so data_html stores a fragment, not a full document.
+    body = soup.find("body")
+    if body is not None:
+        return body.decode_contents(eventual_encoding="utf-8")
     return soup.decode(eventual_encoding="utf-8")

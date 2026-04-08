@@ -317,16 +317,26 @@ uwsgi. Config managed via salt pillar at `foxhop-pillar/caddy/remarkbox.sls`.
 
 ### Domain routing map
 
-| Domain | DNS → | Handler | Backend |
-|--------|-------|---------|---------|
-| `remarkbox.com` | proxy (142.93.73.64) | redirect → www | — |
-| `www.remarkbox.com` | proxy | file_server | `/opt/www/remarkbox` on proxy |
-| `my.remarkbox.com` | proxy | reverse_proxy | origin → uwsgi :6001 |
-| `meta.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
-| `faq.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
-| `demo.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 |
-| `origin.remarkbox.com` | direct (162.243.167.224) | reverse_proxy | uwsgi :6001 |
-| `westworld2.com` | origin server | reverse_proxy | uwsgi :6002 |
+| Domain | DNS → | Handler | Backend | Status |
+|--------|-------|---------|---------|--------|
+| `remarkbox.com` | proxy (142.93.73.64) | redirect → www | — | live |
+| `www.remarkbox.com` | proxy | file_server | `/opt/www/remarkbox` on proxy | live |
+| `my.remarkbox.com` | proxy | reverse_proxy | origin → uwsgi :6001 | live |
+| `meta.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 | live |
+| `faq.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 | live |
+| `demo.remarkbox.com` | CNAME → my → proxy | reverse_proxy | origin → uwsgi :6001 | live |
+| `origin.remarkbox.com` | direct (162.243.167.224) | reverse_proxy | uwsgi :6001 | live |
+| `westworld2.com` | proxy | **parked** redirect → unturf.com | — | parked 2026-04-08 |
+| `www.foxhop.net` | proxy | **no Caddy block** — not yet routed | — | unrouted 2026-04-08 |
+
+**Planned multi-tenant consolidation (foxhop.net + westworld2.com → origin:6001):**
+- Merge `foxhop.net.sqlite` + `westworld2.com.sqlite` into origin DB
+- Set `rb_namespace.theme = 'chaostheory'` (foxhop) & `'westworld'` (westworld2) in DB
+- Remove `app.namespace` override from foxhop config — `request.domain` drives namespace
+- Add proxy Caddy blocks: `www.foxhop.net` & `westworld2.com` → origin:6001
+- Theme packages installed locally: `remarkbox_chaostheory`, `remarkbox_westworld`
+- Salt pillar ref: `~/git/foxhop-states/uwsgi/configs/westworld2.com.ini`
+- foxhop local dev: `~/git/remarkbox/foxhop-local.ini` (port 6004)
 
 ### Request flow for proxied domains (my, meta, faq)
 

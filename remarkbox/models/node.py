@@ -237,6 +237,9 @@ class Node(RBase, Base):
     def avatar_uri(self, **kwargs):
         """Return invatar URI. Optionally return gravatar URI."""
         u = self.user if self.user else self.user_surrogate
+        if u is None:
+            # Node has no user or surrogate (e.g. imported wiki pages).
+            return None
         if self.disabled:
             kwargs["text"] = "-"
             kwargs["bg"] = "#aaaaaa"
@@ -338,7 +341,7 @@ class Node(RBase, Base):
             from remarkbox.lib.pandoc import convert
             from remarkbox.lib.render import make_cleaner_from_namespace
             from remarkbox.lib.sanitize_html import default_cleaner, clean_raw_html
-            html = convert(data, from_format=self.source_format, to_format="html5")
+            html = convert(data, from_format=self.source_format, to_format="html5", standalone=False)
             if namespace:
                 cleaner = make_cleaner_from_namespace(namespace)
             else:

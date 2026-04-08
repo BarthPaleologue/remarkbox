@@ -137,7 +137,7 @@ def get_available_input_formats():
         return frozenset()
 
 
-def convert(source, from_format="markdown", to_format="html5", title=None):
+def convert(source, from_format="markdown", to_format="html5", title=None, standalone=True):
     """Convert source text from one format to another via pandoc.
 
     Args:
@@ -145,6 +145,8 @@ def convert(source, from_format="markdown", to_format="html5", title=None):
         from_format: Pandoc input format name.
         to_format: Pandoc output format name.
         title: Optional document title (sets pandoc metadata).
+        standalone: Pass --standalone to pandoc (full document). Set False
+            for body fragments — required when storing HTML in data_html.
 
     Returns:
         bytes for binary formats (pdf, docx, etc.), str for text formats.
@@ -155,7 +157,9 @@ def convert(source, from_format="markdown", to_format="html5", title=None):
     """
     is_binary = to_format in BINARY_FORMATS
 
-    cmd = ["pandoc", "-f", from_format, "-t", to_format, "--standalone"]
+    cmd = ["pandoc", "-f", from_format, "-t", to_format]
+    if standalone:
+        cmd.append("--standalone")
 
     if title:
         cmd.extend(["--metadata", "title={}".format(title)])

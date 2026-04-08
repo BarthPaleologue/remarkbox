@@ -1,9 +1,12 @@
 {% macro node_avatar(node, size=request.avatar_size, align='left') %}
+{% set _uri = node.avatar_uri(size=size) %}
+{% if _uri %}
 <img
-  src   = "{{ node.avatar_uri(size=size) }}"
+  src   = "{{ _uri }}"
   class = "avatar nested-avatar"
   align = "{{ align }}"
 />
+{% endif %}
 {% endmacro %}
 
 {% macro user_avatar(user, size) %}
