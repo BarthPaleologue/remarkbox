@@ -29,6 +29,8 @@ build:
     - cp -pr env/lib/python*/site-packages/remarkbox_westworld/static/* env/static
     # Copy static assets to env/static for meta theme.
     - cp -pr env/lib/python*/site-packages/remarkbox_theme_meta/static/* env/static
+    # Copy static assets to env/static for chaostheory theme.
+    - cp -pr env/lib/python*/site-packages/remarkbox_chaostheory/static/* env/static
     # Make tarball of the static files.
     - cp -pr env/static static
     - tar -zcf static.tar.gz static
