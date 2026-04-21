@@ -272,7 +272,7 @@ class Namespace(RBase, Base):
     @property
     def moderators(self):
         """Return a list of moderator role User objects."""
-        return self.enabled_users
+        return self.roles.get("moderator", [])
 
     @property
     def visible_roots(self):
@@ -382,11 +382,14 @@ class Namespace(RBase, Base):
         """Return True if given user moderates this namespace, else False.
 
         Superusers are treated as moderators on every namespace.
+        Owners are implicitly moderators.
         """
         if user and user.authenticated:
             if getattr(user, "is_superuser", False):
                 return True
             if user in self.moderators:
+                return True
+            if user in self.owners:
                 return True
         return False
 
