@@ -210,7 +210,7 @@
 
 {% macro actions(node) %}
 
-  {% if request.namespace.can_alter_node(node, request.user) %}
+  {% if request.namespace.can_wiki_edit(node, request.user) %}
 
     {% if node.disabled %}
       {{ enable_node(node=node) }} &nbsp;
@@ -255,6 +255,10 @@
     <a href="/api/v1/export/threads/{{ node.id }}.latex" class="export-link">latex</a>
     <a href="/api/v1/export/threads/{{ node.id }}.odt" class="export-link">odt</a>
     <a href="/api/v1/export/threads/{{ node.id }}.plain" class="export-link">plain text</a>
+    {% if request.namespace.wiki %}
+    <a href="/api/v1/nodes/{{ node.id }}/revisions" class="export-link" target="_blank">history (json)</a>
+    <a href="/{{ node.id }}/revisions" class="export-link">history (html)</a>
+    {% endif %}
   </div>
 </details>
 {% endmacro %}
@@ -268,6 +272,10 @@
     <a href="/api/v1/export/nodes/{{ node.id }}.pdf" class="export-link">pdf</a>
     <a href="/api/v1/export/nodes/{{ node.id }}.epub" class="export-link">epub</a>
     <a href="/api/v1/export/nodes/{{ node.id }}.docx" class="export-link">docx</a>
+    {% if request.namespace.wiki %}
+    <a href="/api/v1/nodes/{{ node.id }}/revisions" class="export-link" target="_blank">history (json)</a>
+    <a href="/{{ node.id }}/revisions" class="export-link">history (html)</a>
+    {% endif %}
   </div>
 </details>
 {% endmacro %}

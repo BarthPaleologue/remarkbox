@@ -145,5 +145,6 @@ def includeme(config):
     config.add_route("basic-reply2", "/{node_id}/{slug:.*}/reply")
     config.add_route("basic-show-count", "/{node_id}/count")
     config.add_route("basic-show-count2", "/{node_id}/{slug:.*}/count")
+    config.add_route("node-revisions-html", "/{node_id}/revisions")
     config.add_route("basic-show-node", "/{node_id}")
     config.add_route("basic-show-node2", "/{node_id}/{slug:.*}")  # must be last.

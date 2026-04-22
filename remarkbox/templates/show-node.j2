@@ -37,7 +37,7 @@
 {% block content -%}
 
 
-{% if request.mode != "embed" and request.node.root.uri %}
+{% if request.mode != "embed" and request.node.root.uri and request.domain not in request.node.root.uri.data %}
 <span class="topic">Topic: <a href="{{ request.node.root.uri.data }}" target="_blank" rel="nofollow">{{ request.node.root.uri.data }}</a></span>
 {% endif %}
 
@@ -46,6 +46,13 @@
 
 {% if request.node.title is not none %}
 <h2 class="title"><a href="{{ request.node.path }}">{{ request.node.title }}</a></h2>
+{% endif %}
+
+{% if request.node.is_root and request.namespace.wiki %}
+<div class="wiki-tabs">
+  <a href="{{ request.node.path }}" class="wiki-tab active">content</a>
+  <a href="/{{ request.node.id }}/revisions" class="wiki-tab">history</a>
+</div>
 {% endif %}
 
 <a class="anchor" id="{{ request.node.id }}"></a>

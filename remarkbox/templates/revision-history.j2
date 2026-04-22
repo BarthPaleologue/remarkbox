@@ -1,0 +1,41 @@
+{% extends request.base_template %}
+{% block title %}{{ title }} | {{ request.domain }}{% endblock %}
+
+{% block content %}
+<h2>{{ node.title or node.id }}</h2>
+
+<div class="wiki-tabs">
+  <a href="/r/{{ node.id }}" class="wiki-tab">content</a>
+  <a href="/{{ node.id }}/revisions" class="wiki-tab active">history</a>
+</div>
+
+<p style="margin-top:0.5em"><a href="/api/v1/nodes/{{ node.id }}/revisions" target="_blank" class="action">JSON</a></p>
+
+<style>
+  .diff-entry { margin-bottom: 2em; border-top: 1px solid #444; padding-top: 1em; }
+  .diff-meta { font-size: 0.85em; margin-bottom: 0.5em; }
+  table.diff { width: 100%; border-collapse: collapse; font-size: 0.8em; font-family: monospace; }
+  table.diff td { padding: 2px 4px; vertical-align: top; white-space: pre-wrap; word-break: break-word; }
+  table.diff .diff_header { background: #222; color: #888; }
+  table.diff .diff_next { display: none; }
+  .diff_add { background: #1a3a1a; }
+  .diff_chg { background: #3a3a00; }
+  .diff_sub { background: #3a0000; }
+</style>
+
+{% for entry in entries %}
+<div class="diff-entry">
+  <div class="diff-meta">
+    <strong>rev {{ entry.revision.revision_number }}</strong>
+    &nbsp;|&nbsp;
+    {% if entry.revision.user %}{{ entry.revision.user.name }}{% else %}unknown{% endif %}
+    &nbsp;|&nbsp;
+    {{ entry.revision.created }}
+    &nbsp;|&nbsp;
+    <a href="/api/v1/revisions/{{ entry.revision.id }}" target="_blank">JSON</a>
+  </div>
+  {{ entry.diff_html | safe }}
+</div>
+{% endfor %}
+
+{% endblock %}
