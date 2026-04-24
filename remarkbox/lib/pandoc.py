@@ -206,7 +206,15 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
         cmd.append("--standalone")
 
     if title:
-        cmd.extend(["--metadata", "title={}".format(title)])
+        # For HTML-family outputs (and PDF, which we render through HTML via
+        # wkhtmltopdf), set the template's pagetitle so we get <title> without
+        # an extra title-block in the body — the rendered document already
+        # carries its own H1 from the thread data. For every other format,
+        # set the proper document metadata.
+        if to_format in ("html", "html5", "html4", "chunkedhtml", "pdf"):
+            cmd.extend(["-V", "pagetitle={}".format(title)])
+        else:
+            cmd.extend(["--metadata", "title={}".format(title)])
 
     # PDF needs explicit engine since no pdflatex.
     if to_format == "pdf":
@@ -240,6 +248,33 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
         return result.stdout
 
 
+def _node_data_as_markdown(node):
+    """Return node.data rendered as markdown.
+
+    Nodes authored in non-markdown source_formats (rst, mediawiki, latex, html,
+    ...) keep their raw source in .data. For export we need real markdown, so
+    convert through pandoc when needed. A pandoc failure falls back to the raw
+    source — better a rough dump than an empty export.
+    """
+    if not node.data:
+        return ""
+    src_fmt = (getattr(node, "source_format", None) or "markdown").lower()
+    if src_fmt in ("markdown", "gfm", "commonmark", "commonmark_x"):
+        return node.data
+    try:
+        return convert(
+            node.data, from_format=src_fmt, to_format="markdown",
+            standalone=False,
+        ).rstrip()
+    except Exception:
+        log.exception(
+            "Pandoc failed converting node %s from %s to markdown; "
+            "falling back to raw source",
+            node.id, src_fmt,
+        )
+        return node.data
+
+
 def node_tree_to_markdown(root_node, nodes, include_root=True):
     """Render a node tree as a nested markdown document.
 
@@ -271,12 +306,11 @@ def node_tree_to_markdown(root_node, nodes, include_root=True):
 
     lines = []
 
-    if include_root and root_node.title:
-        lines.append("# {}".format(root_node.title))
-        lines.append("")
-
+    # Thread bodies already carry their own H1 (or RST ==== underline that
+    # becomes H1 after conversion). Don't prepend another `# {title}` — it
+    # triples the title when pandoc then also adds a title-block in HTML/PDF.
     if include_root and root_node.data:
-        lines.append(root_node.data)
+        lines.append(_node_data_as_markdown(root_node))
         lines.append("")
 
     def _render_children(parent_id, depth):
@@ -290,7 +324,7 @@ def node_tree_to_markdown(root_node, nodes, include_root=True):
             lines.append("{} {} — {}".format("#" * heading_level, author, date))
             lines.append("")
             if child.data:
-                lines.append(child.data)
+                lines.append(_node_data_as_markdown(child))
                 lines.append("")
             _render_children(child.id, depth + 1)
 
@@ -325,7 +359,7 @@ def namespace_to_markdown(namespace, roots, node_fetcher):
         lines.append("## {}".format(chapter_title))
         lines.append("")
         if root.data:
-            lines.append(root.data)
+            lines.append(_node_data_as_markdown(root))
             lines.append("")
 
         # Fetch all nodes in this thread
@@ -354,7 +388,7 @@ def namespace_to_markdown(namespace, roots, node_fetcher):
                 ))
                 lines.append("")
                 if child.data:
-                    lines.append(child.data)
+                    lines.append(_node_data_as_markdown(child))
                     lines.append("")
                 _render(child.id, depth + 1)
 

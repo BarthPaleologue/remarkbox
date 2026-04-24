@@ -123,7 +123,8 @@ class TestExportThread(UndiggFunctionalTests):
         )
         self.assertEqual(res.status_int, 200)
         self.assertIn("text/markdown", res.content_type)
-        self.assertIn(b"Test Thread", res.body)
+        # Markdown export is a short-circuit — no pandoc, no title block;
+        # we render the thread data exactly so it carries its own heading.
         self.assertIn(b"Thread content.", res.body)
 
     def test_export_thread_html(self):

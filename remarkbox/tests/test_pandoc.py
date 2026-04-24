@@ -173,7 +173,9 @@ class TestNodeTreeToMarkdown(unittest.TestCase):
     def test_single_root_node(self):
         root = MockNode(1, title="Thread Title", data="Root content.")
         md = node_tree_to_markdown(root, [])
-        self.assertIn("# Thread Title", md)
+        # We no longer prepend `# {title}`; the thread data carries its own
+        # heading. Duplicating it produced three title copies in HTML/PDF.
+        self.assertNotIn("# Thread Title", md)
         self.assertIn("Root content.", md)
 
     def test_root_with_children(self):
@@ -181,7 +183,6 @@ class TestNodeTreeToMarkdown(unittest.TestCase):
         child = MockNode(2, data="Reply text.", parent_id=1, created=1,
                          user=MockUser("alice"))
         md = node_tree_to_markdown(root, [child])
-        self.assertIn("# Thread", md)
         self.assertIn("Root.", md)
         self.assertIn("alice", md)
         self.assertIn("Reply text.", md)
