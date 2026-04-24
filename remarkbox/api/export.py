@@ -24,6 +24,7 @@ from remarkbox.lib.pandoc import (
     node_tree_to_markdown,
     namespace_to_markdown,
     get_available_output_formats,
+    resolve_format,
     CONTENT_TYPES,
     FILE_EXTENSIONS,
     BINARY_FORMATS,
@@ -35,10 +36,14 @@ log = logging.getLogger(__name__)
 
 
 def _parse_format_from_subpath(subpath):
-    """Extract format from the subpath (e.g. 'abc-123.epub' -> ('abc-123', 'epub'))."""
+    """Extract format from the subpath (e.g. 'abc-123.md' -> ('abc-123', 'markdown')).
+
+    Extensions are resolved through EXTENSION_ALIASES so users can hit common
+    file extensions (.md, .html, .tex) instead of pandoc's internal names.
+    """
     if "." in subpath:
-        parts = subpath.rsplit(".", 1)
-        return parts[0], parts[1]
+        stem, ext = subpath.rsplit(".", 1)
+        return stem, resolve_format(ext)
     return subpath, "markdown"
 
 

@@ -111,6 +111,50 @@ FILE_EXTENSIONS = {
 }
 
 
+# URL extension → pandoc format name. Lets users hit intuitive extensions
+# (`thread.md`, `thread.html`, `thread.tex`) instead of pandoc's internal
+# names (`markdown`, `html5`, `latex`).
+EXTENSION_ALIASES = {
+    "md": "markdown",
+    "markdown": "markdown",
+    "htm": "html5",
+    "html": "html5",
+    "tex": "latex",
+    "txt": "plain",
+    "1": "man",
+    "wiki": "mediawiki",
+    "adoc": "asciidoc",
+    "asciidoc": "asciidoc",
+    "rst": "rst",
+    "org": "org",
+    "rtf": "rtf",
+    "docx": "docx",
+    "odt": "odt",
+    "epub": "epub3",
+    "pdf": "pdf",
+    "pptx": "pptx",
+    "fb2": "fb2",
+    "jira": "jira",
+    "typ": "typst",
+    "texi": "texinfo",
+    "opml": "opml",
+    "icml": "icml",
+    "json": "json",
+    "xml": "docbook5",
+    "ipynb": "ipynb",
+}
+
+
+def resolve_format(ext):
+    """Map a URL extension (lowercase) to its pandoc format name.
+
+    Falls back to the raw extension so pandoc's own format names
+    (`commonmark_x`, `docbook5`, etc.) pass through unchanged.
+    """
+    ext = ext.lower()
+    return EXTENSION_ALIASES.get(ext, ext)
+
+
 def get_available_output_formats():
     """Return the set of output formats pandoc supports on this system."""
     try:
