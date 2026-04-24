@@ -249,30 +249,32 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
 
 
 def _node_data_as_markdown(node):
-    """Return node.data rendered as markdown.
+    """Return node content rendered as markdown.
 
-    Nodes authored in non-markdown source_formats (rst, mediawiki, latex, html,
-    ...) keep their raw source in .data. For export we need real markdown, so
-    convert through pandoc when needed. A pandoc failure falls back to the raw
-    source — better a rough dump than an empty export.
+    The canonical rendered form of a node is node.data_html — produced at
+    write time regardless of what source syntax the author used (markdown,
+    rst, mediawiki, latex, html...). Converting HTML → markdown always
+    yields real markdown, and sidesteps bugs where a node's source_format
+    label disagrees with the actual bytes stored in node.data (observed
+    in the wild: RST content labelled source_format="markdown").
+
+    Falls back to raw node.data if data_html is absent or the conversion
+    fails — better a rough dump than an empty export.
     """
-    if not node.data:
-        return ""
-    src_fmt = (getattr(node, "source_format", None) or "markdown").lower()
-    if src_fmt in ("markdown", "gfm", "commonmark", "commonmark_x"):
-        return node.data
-    try:
-        return convert(
-            node.data, from_format=src_fmt, to_format="markdown",
-            standalone=False,
-        ).rstrip()
-    except Exception:
-        log.exception(
-            "Pandoc failed converting node %s from %s to markdown; "
-            "falling back to raw source",
-            node.id, src_fmt,
-        )
-        return node.data
+    html = getattr(node, "data_html", None)
+    if html:
+        try:
+            return convert(
+                html, from_format="html", to_format="markdown",
+                standalone=False,
+            ).rstrip()
+        except Exception:
+            log.exception(
+                "Pandoc failed converting node %s data_html to markdown; "
+                "falling back to raw source",
+                node.id,
+            )
+    return (node.data or "")
 
 
 def node_tree_to_markdown(root_node, nodes, include_root=True):
