@@ -277,17 +277,23 @@ def _node_data_as_markdown(node):
     return (node.data or "")
 
 
-def node_tree_to_markdown(root_node, nodes, include_root=True):
+def node_tree_to_markdown(root_node, nodes, include_root=True, provenance=None):
     """Render a node tree as a nested markdown document.
 
     Args:
         root_node: The root Node object.
         nodes: Iterable of all Node objects in the tree (flat, any order).
         include_root: Whether to include the root node content.
+        provenance: Optional dict from `provenance.build(...)` — when present,
+            the document is wrapped in a header banner + QR code, with each
+            reply heading hyperlinking its date to the canonical permalink,
+            and a footer repeating the source URI.
 
     Returns:
         Markdown string with the full tree rendered as a document.
     """
+    from remarkbox.lib import provenance as prov
+
     # Build lookup: parent_id -> sorted children
     children_map = {}
     node_map = {}
@@ -308,6 +314,15 @@ def node_tree_to_markdown(root_node, nodes, include_root=True):
 
     lines = []
 
+    if provenance:
+        lines.append(prov.header_md(
+            canonical_uri=provenance["canonical_uri"],
+            snapshot_iso=provenance["snapshot_iso"],
+            version=provenance["version"],
+            qr_data_uri=provenance.get("qr_data_uri"),
+            kind=provenance.get("kind", "thread"),
+        ))
+
     # Thread bodies already carry their own H1 (or RST ==== underline that
     # becomes H1 after conversion). Don't prepend another `# {title}` — it
     # triples the title when pandoc then also adds a title-block in HTML/PDF.
@@ -323,7 +338,10 @@ def node_tree_to_markdown(root_node, nodes, include_root=True):
             heading_level = min(depth + 2, 6)
             author = _get_author_name(child)
             date = child.created_date or ""
-            lines.append("{} {} — {}".format("#" * heading_level, author, date))
+            permalink = prov.permalink_for_node(child) if provenance else None
+            lines.append(prov.reply_heading_md(
+                heading_level, author, date, permalink=permalink,
+            ))
             lines.append("")
             if child.data:
                 lines.append(_node_data_as_markdown(child))
@@ -332,21 +350,43 @@ def node_tree_to_markdown(root_node, nodes, include_root=True):
 
     _render_children(root_node.id, 0)
 
+    if provenance:
+        lines.append(prov.footer_md(
+            canonical_uri=provenance["canonical_uri"],
+            snapshot_iso=provenance["snapshot_iso"],
+            version=provenance["version"],
+        ))
+
     return "\n".join(lines)
 
 
-def namespace_to_markdown(namespace, roots, node_fetcher):
+def namespace_to_markdown(namespace, roots, node_fetcher, provenance=None):
     """Render an entire namespace as a markdown book.
 
     Args:
         namespace: The Namespace object.
         roots: Iterable of root Node objects (chapters).
         node_fetcher: Callable(root_node) -> list of all nodes in that tree.
+        provenance: Optional dict from `provenance.build(...)` — when present,
+            wraps the book with a header banner + QR pointing at the namespace
+            index, hyperlinks every chapter title to the live thread, and
+            hyperlinks every reply date to the live permalink.
 
     Returns:
         Markdown string with the full namespace as a document.
     """
+    from remarkbox.lib import provenance as prov
+
     lines = []
+
+    if provenance:
+        lines.append(prov.header_md(
+            canonical_uri=provenance["canonical_uri"],
+            snapshot_iso=provenance["snapshot_iso"],
+            version=provenance["version"],
+            qr_data_uri=provenance.get("qr_data_uri"),
+            kind=provenance.get("kind", "namespace"),
+        ))
 
     # Book title
     title = namespace.description or namespace.name
@@ -356,9 +396,14 @@ def namespace_to_markdown(namespace, roots, node_fetcher):
     for root in roots:
         if root.disabled:
             continue
-        # Chapter heading
+        # Chapter heading — hyperlink to the live thread when provenance is on
         chapter_title = root.title or str(root.id)
-        lines.append("## {}".format(chapter_title))
+        if provenance:
+            lines.append("## [{}]({})".format(
+                chapter_title, prov.canonical_uri_for_node(root),
+            ))
+        else:
+            lines.append("## {}".format(chapter_title))
         lines.append("")
         if root.data:
             lines.append(_node_data_as_markdown(root))
@@ -385,8 +430,9 @@ def namespace_to_markdown(namespace, roots, node_fetcher):
                 heading_level = min(depth + 3, 6)
                 author = _get_author_name(child)
                 date = child.created_date or ""
-                lines.append("{} {} — {}".format(
-                    "#" * heading_level, author, date
+                permalink = prov.permalink_for_node(child) if provenance else None
+                lines.append(prov.reply_heading_md(
+                    heading_level, author, date, permalink=permalink,
                 ))
                 lines.append("")
                 if child.data:
@@ -395,6 +441,13 @@ def namespace_to_markdown(namespace, roots, node_fetcher):
                 _render(child.id, depth + 1)
 
         _render(root.id, 0)
+
+    if provenance:
+        lines.append(prov.footer_md(
+            canonical_uri=provenance["canonical_uri"],
+            snapshot_iso=provenance["snapshot_iso"],
+            version=provenance["version"],
+        ))
 
     return "\n".join(lines)
 

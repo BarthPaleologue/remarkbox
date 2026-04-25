@@ -78,3 +78,7 @@ slacker
 
 # DKIM Signed Email from Python.
 dkimpy
+
+# QR codes for export provenance (links printed PDFs back to their living source).
+# Pure Python, zero deps, BSD license.
+segno

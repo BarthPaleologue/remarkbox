@@ -29,6 +29,7 @@ from remarkbox.lib.pandoc import (
     FILE_EXTENSIONS,
     BINARY_FORMATS,
 )
+from remarkbox.lib import provenance as prov
 
 from .views import check_namespace_api_access
 
@@ -131,8 +132,16 @@ def api_export_thread(request):
         visibility_filters={"disabled": False},
     ).all()
 
+    # Build provenance bundle so the exported document points back to its
+    # living source on Remarkbox (canonical URI + QR + per-reply permalinks).
+    provenance = prov.build(
+        canonical_uri=prov.canonical_uri_for_node(root),
+        version=request.static_version,
+        kind="thread",
+    )
+
     # Render tree to markdown
-    md = node_tree_to_markdown(root, nodes)
+    md = node_tree_to_markdown(root, nodes, provenance=provenance)
     title = root.title or str(root.id)
 
     if to_format in ("markdown", "gfm", "commonmark"):
@@ -201,7 +210,13 @@ def api_export_namespace(request):
             visibility_filters={"disabled": False},
         ).all()
 
-    md = namespace_to_markdown(namespace, roots, node_fetcher)
+    provenance = prov.build(
+        canonical_uri=prov.canonical_uri_for_namespace(namespace),
+        version=request.static_version,
+        kind="namespace",
+    )
+
+    md = namespace_to_markdown(namespace, roots, node_fetcher, provenance=provenance)
     title = namespace.description or namespace.name
 
     if to_format in ("markdown", "gfm", "commonmark"):
@@ -284,7 +299,15 @@ def api_export_node(request):
     # Filter to just the subtree
     subtree_nodes = [n for n in all_nodes if n.id in descendant_ids]
 
-    md = node_tree_to_markdown(node, subtree_nodes, include_root=True)
+    provenance = prov.build(
+        canonical_uri=prov.canonical_uri_for_node(node),
+        version=request.static_version,
+        kind="subthread",
+    )
+
+    md = node_tree_to_markdown(
+        node, subtree_nodes, include_root=True, provenance=provenance,
+    )
     title = node.title or "Thread {}".format(str(node.id)[:8])
 
     if to_format in ("markdown", "gfm", "commonmark"):
