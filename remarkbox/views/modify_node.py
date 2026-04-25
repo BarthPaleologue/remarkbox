@@ -20,7 +20,10 @@ def edit_node(request):
         request.session.flash(("You must log in to edit your messages.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
-    if not request.namespace.can_alter_node(request.node, request.user):
+    # In wiki mode, any authenticated user can edit root nodes — match the
+    # `can_wiki_edit` gate used by the edit-button macro. Outside wiki mode
+    # this collapses back to owner/moderator only.
+    if not request.namespace.can_wiki_edit(request.node, request.user):
         request.session.flash(("You do not own this message.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
@@ -34,7 +37,13 @@ def edit_node(request):
     if thread_data or thread_title:
         if thread_title:
             request.node.title = thread_title
-        request.node.edit(thread_data)
+        # In wiki-mode namespaces every edit gets a revision row so the history
+        # endpoint has something to show. The API wiki-edit endpoint already
+        # does this; the browser form path was silently dropping revisions.
+        if request.namespace.wiki:
+            request.node.wiki_edit(thread_data, user=request.user)
+        else:
+            request.node.edit(thread_data)
 
         # set return_to URI.
         return_to = get_node_route_uri(request, request.node.root, request.node.id)

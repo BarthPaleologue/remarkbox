@@ -675,6 +675,24 @@ form.node-action {
   font-size: 0.8em;
 }
 
+.export-menu {
+  font-size: 0.75em;
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.export-label {
+  color: var(--color-muted);
+  font-weight: bold;
+}
+
+.export-link {
+  color: var(--color-muted);
+}
+
 div.user-watching {
   display: grid;
   grid-template-columns: 1fr 1fr;
