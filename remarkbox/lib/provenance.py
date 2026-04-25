@@ -93,24 +93,39 @@ def header_md(canonical_uri, snapshot_iso=None, version="dev",
         qr_data_uri: Result of `qr_png_data_uri`; if None, no QR rendered.
         kind: "thread", "namespace", "subthread" — used in the snapshot caption.
 
-    Returns markdown intended to sit at the very top of a document. Pandoc
-    propagates this verbatim into HTML, then through wkhtmltopdf for PDF.
+    Returns markdown intended to sit at the very top of a document. When a QR
+    is present we lay out text on the left and QR on the right via an HTML
+    table; pandoc converts the table cleanly into HTML, PDF (wkhtmltopdf),
+    DOCX, ODT, EPUB native table cells. Without a QR we fall back to a plain
+    blockquote.
     """
     if snapshot_iso is None:
         snapshot_iso = _utc_now_iso()
 
-    lines = [
+    text_lines = [
         "> **Source:** [{}]({})  ".format(canonical_uri, canonical_uri),
         "> **Snapshot:** {}  ".format(snapshot_iso),
         "> **Generator:** Remarkbox `{}`  ".format(version),
         ">",
         "> *This is a {} snapshot. The living document lives at the source URI above — it may have been edited, extended, or replied-to since.*".format(kind),
-        "",
     ]
-    if qr_data_uri:
-        lines.append("![Scan to visit the living source]({})".format(qr_data_uri))
-        lines.append("")
-    return "\n".join(lines)
+
+    if not qr_data_uri:
+        return "\n".join(text_lines + [""])
+
+    text_block = "\n".join(text_lines)
+    return (
+        '<table class="provenance-header" style="border: 0; border-collapse: collapse; margin: 0 0 16px 0; width: 100%;">\n'
+        '<tr style="border: 0;">\n'
+        '<td style="border: 0; vertical-align: top; padding: 0 24px 0 0;">\n\n'
+        '{text}\n\n'
+        '</td>\n'
+        '<td style="border: 0; vertical-align: top; width: 160px; text-align: right;">\n\n'
+        '![Scan to visit the living source]({qr})\n\n'
+        '</td>\n'
+        '</tr>\n'
+        '</table>\n'
+    ).format(text=text_block, qr=qr_data_uri)
 
 
 def footer_md(canonical_uri, snapshot_iso=None, version="dev"):
