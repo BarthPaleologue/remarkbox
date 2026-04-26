@@ -220,6 +220,11 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
     # wkhtmltopdf defaults to ~25mm top which leaves a half-page of empty
     # space above content. 12mm/15mm is enough to look printed without
     # wasting paper.
+    #
+    # Pandoc's --standalone HTML5 template applies `max-width: 36em` and
+    # `padding: 50px` to body, centering content in a narrow column on
+    # any size paper. We want content to fill the page (minus wkhtmltopdf
+    # margins) so we override that CSS via header-includes.
     if to_format == "pdf":
         cmd.extend([
             "--pdf-engine=wkhtmltopdf",
@@ -227,6 +232,7 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
             "-V", "margin-bottom=12mm",
             "-V", "margin-left=15mm",
             "-V", "margin-right=15mm",
+            "-V", "header-includes=<style>html,body{max-width:none!important;padding:0!important;margin:0!important;}</style>",
         ])
 
     if is_binary:
