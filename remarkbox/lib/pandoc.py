@@ -216,9 +216,18 @@ def convert(source, from_format="markdown", to_format="html5", title=None, stand
         else:
             cmd.extend(["--metadata", "title={}".format(title)])
 
-    # PDF needs explicit engine since no pdflatex.
+    # PDF needs explicit engine since no pdflatex. Tighten margins —
+    # wkhtmltopdf defaults to ~25mm top which leaves a half-page of empty
+    # space above content. 12mm/15mm is enough to look printed without
+    # wasting paper.
     if to_format == "pdf":
-        cmd.extend(["--pdf-engine=wkhtmltopdf"])
+        cmd.extend([
+            "--pdf-engine=wkhtmltopdf",
+            "-V", "margin-top=12mm",
+            "-V", "margin-bottom=12mm",
+            "-V", "margin-left=15mm",
+            "-V", "margin-right=15mm",
+        ])
 
     if is_binary:
         # Binary formats need file output.
