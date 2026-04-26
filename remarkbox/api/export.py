@@ -134,10 +134,14 @@ def api_export_thread(request):
 
     # Build provenance bundle so the exported document points back to its
     # living source on Remarkbox (canonical URI + QR + per-reply permalinks).
+    # Use request.host (the host the export was actually fetched from) so
+    # canonical URIs preserve user-facing prefixes like `www.` that the
+    # namespace's stored name may omit.
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_node(root),
+        canonical_uri=prov.canonical_uri_for_node(root, host=request.host),
         version=request.static_version,
         kind="thread",
+        host=request.host,
     )
 
     # Render tree to markdown
@@ -211,9 +215,10 @@ def api_export_namespace(request):
         ).all()
 
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_namespace(namespace),
+        canonical_uri=prov.canonical_uri_for_namespace(namespace, host=request.host),
         version=request.static_version,
         kind="namespace",
+        host=request.host,
     )
 
     md = namespace_to_markdown(namespace, roots, node_fetcher, provenance=provenance)
@@ -300,9 +305,10 @@ def api_export_node(request):
     subtree_nodes = [n for n in all_nodes if n.id in descendant_ids]
 
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_node(node),
+        canonical_uri=prov.canonical_uri_for_node(node, host=request.host),
         version=request.static_version,
         kind="subthread",
+        host=request.host,
     )
 
     md = node_tree_to_markdown(

@@ -23,33 +23,34 @@ import segno
 # ---------------------------------------------------------------------------
 
 
-def canonical_uri_for_namespace(namespace):
+def canonical_uri_for_namespace(namespace, host=None):
     """Return the canonical URI of a namespace's living index.
 
-    A namespace's name IS its host (e.g. `meta.remarkbox.com`). This holds even
-    for namespaces fronted only by `my.remarkbox.com/ns/{name}` — the name
-    remains the unique identifier.
+    A namespace's name IS its host (e.g. `meta.remarkbox.com`). If a `host`
+    arg is given (typically `request.host`), prefer it — this preserves
+    user-facing prefixes like `www.` that the namespace's stored name may
+    omit. Falls back to `namespace.name` when no host is supplied.
     """
-    return "https://{}/".format(namespace.name)
+    return "https://{}/".format(host or namespace.name)
 
 
-def canonical_uri_for_node(node):
+def canonical_uri_for_node(node, host=None):
     """Return the canonical URI of a node's living source.
 
-    Uses the namespace's name as host. Path comes from `node.path`
-    (`/{id}/{slug}` or `/{id}`).
+    Uses `host` if given (typically `request.host`), otherwise the
+    namespace's name. Path comes from `node.path` (`/{id}/{slug}` or `/{id}`).
     """
-    return "https://{}{}".format(node.root.namespace.name, node.path)
+    return "https://{}{}".format(host or node.root.namespace.name, node.path)
 
 
-def permalink_for_node(node):
+def permalink_for_node(node, host=None):
     """Return a deep link to a single reply: thread URI plus node-id anchor.
 
     Replies live inside a thread page, so the deep link is the thread URI with
-    a fragment identifier.
+    a fragment identifier. `host` overrides the namespace name when supplied.
     """
     root = node.root
-    return "https://{}{}#{}".format(root.namespace.name, root.path, node.id)
+    return "https://{}{}#{}".format(host or root.namespace.name, root.path, node.id)
 
 
 # ---------------------------------------------------------------------------
@@ -159,11 +160,15 @@ def reply_heading_md(level, author, date, permalink=None):
 # ---------------------------------------------------------------------------
 
 
-def build(canonical_uri, version, kind="document", include_qr=True):
+def build(canonical_uri, version, kind="document", include_qr=True, host=None):
     """Build a complete provenance bundle in one call.
 
+    `host` (e.g. `request.host`) is stashed in the bundle so the per-reply
+    permalink helpers and chapter-title links can preserve `www.` (or any
+    user-facing host prefix) instead of falling back to `namespace.name`.
+
     Returns a dict suitable for splatting into `node_tree_to_markdown` or
-    `namespace_to_markdown` as `**provenance`.
+    `namespace_to_markdown`.
     """
     snapshot_iso = _utc_now_iso()
     qr_data_uri = qr_png_data_uri(canonical_uri) if include_qr else None
@@ -173,4 +178,5 @@ def build(canonical_uri, version, kind="document", include_qr=True):
         "version": version,
         "qr_data_uri": qr_data_uri,
         "kind": kind,
+        "host": host,
     }

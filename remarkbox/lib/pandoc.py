@@ -353,7 +353,10 @@ def node_tree_to_markdown(root_node, nodes, include_root=True, provenance=None):
             heading_level = min(depth + 2, 6)
             author = _get_author_name(child)
             date = child.created_date or ""
-            permalink = prov.permalink_for_node(child) if provenance else None
+            permalink = (
+                prov.permalink_for_node(child, host=provenance.get("host"))
+                if provenance else None
+            )
             lines.append(prov.reply_heading_md(
                 heading_level, author, date, permalink=permalink,
             ))
@@ -415,7 +418,8 @@ def namespace_to_markdown(namespace, roots, node_fetcher, provenance=None):
         chapter_title = root.title or str(root.id)
         if provenance:
             lines.append("## [{}]({})".format(
-                chapter_title, prov.canonical_uri_for_node(root),
+                chapter_title,
+                prov.canonical_uri_for_node(root, host=provenance.get("host")),
             ))
         else:
             lines.append("## {}".format(chapter_title))
@@ -445,7 +449,10 @@ def namespace_to_markdown(namespace, roots, node_fetcher, provenance=None):
                 heading_level = min(depth + 3, 6)
                 author = _get_author_name(child)
                 date = child.created_date or ""
-                permalink = prov.permalink_for_node(child) if provenance else None
+                permalink = (
+                    prov.permalink_for_node(child, host=provenance.get("host"))
+                    if provenance else None
+                )
                 lines.append(prov.reply_heading_md(
                     heading_level, author, date, permalink=permalink,
                 ))
