@@ -36,6 +36,20 @@ from .views import check_namespace_api_access
 log = logging.getLogger(__name__)
 
 
+def _public_host(request):
+    """Return the host the user is browsing from.
+
+    The edge proxy rewrites the Host header (e.g. www.foxhop.net → foxhop.net)
+    before reaching origin. Caddy preserves the original in X-Forwarded-Host,
+    so prefer that when present — otherwise fall back to request.host.
+    Handles a comma-separated chain by taking the first entry.
+    """
+    forwarded = request.headers.get("X-Forwarded-Host", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.host
+
+
 def _parse_format_from_subpath(subpath):
     """Extract format from the subpath (e.g. 'abc-123.md' -> ('abc-123', 'markdown')).
 
@@ -138,10 +152,10 @@ def api_export_thread(request):
     # canonical URIs preserve user-facing prefixes like `www.` that the
     # namespace's stored name may omit.
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_node(root, host=request.host),
+        canonical_uri=prov.canonical_uri_for_node(root, host=_public_host(request)),
         version=request.static_version,
         kind="thread",
-        host=request.host,
+        host=_public_host(request),
     )
 
     # Render tree to markdown
@@ -215,10 +229,10 @@ def api_export_namespace(request):
         ).all()
 
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_namespace(namespace, host=request.host),
+        canonical_uri=prov.canonical_uri_for_namespace(namespace, host=_public_host(request)),
         version=request.static_version,
         kind="namespace",
-        host=request.host,
+        host=_public_host(request),
     )
 
     md = namespace_to_markdown(namespace, roots, node_fetcher, provenance=provenance)
@@ -305,10 +319,10 @@ def api_export_node(request):
     subtree_nodes = [n for n in all_nodes if n.id in descendant_ids]
 
     provenance = prov.build(
-        canonical_uri=prov.canonical_uri_for_node(node, host=request.host),
+        canonical_uri=prov.canonical_uri_for_node(node, host=_public_host(request)),
         version=request.static_version,
         kind="subthread",
-        host=request.host,
+        host=_public_host(request),
     )
 
     md = node_tree_to_markdown(
