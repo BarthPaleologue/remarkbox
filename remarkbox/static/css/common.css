@@ -1,43 +1,43 @@
-/* Variables - Chaostheory Dark (default) */
+/* Variables - Light Mode (default) */
 :root {
-  --color: #dddddd;
-  --color-muted: #aaaaaa;
+  --color: #222222;
+  --color-muted: #3f3f3f;
 
-  --color-code: #eeeeee;
+  --color-code: #000000;
 
-  --background: #1c4e63;
-  --background-faint: #184254;
+  --background: #ffffff;
+  --background-faint: #fafafa;
 
-  --primary: #6dcff6; /* Chaostheory ice blue */
-  --primary-hover: #9de3fb;
-  --primary-inverse: #111111;
+  --primary: #d40000; /* Remarkbox logo color */
+  --primary-hover: #e4241a;
+  --primary-inverse: #ffffff;
 
-  --border: #336173;
-  --border-faint: #2a5468;
+  --border: #bbbbbb;
+  --border-faint: #e4e4e4;
 
-  --color-mod: #6dcff6;
+  --color-mod: #aa0000; /* Consistency with Remarkbox style */
 
   --line-height: 1.6;
 }
 
-/* Deep Dark Mode */
+/* Dark Mode Variables */
 :root.dark-mode {
-  --color: #dddddd;
-  --color-muted: #999999;
+  --color: #e8e8e8;
+  --color-muted: #b0b0b0;
 
-  --color-code: #eeeeee;
+  --color-code: #e8e8e8;
 
-  --background: #111111;
-  --background-faint: #0a0a0a;
+  --background: #1a1a1a;
+  --background-faint: #2a2a2a;
 
-  --primary: #6dcff6;
-  --primary-hover: #9de3fb;
-  --primary-inverse: #111111;
+  --primary: #ff5555; /* Brighter red for dark mode */
+  --primary-hover: #ff7777;
+  --primary-inverse: #1a1a1a;
 
-  --border: #1c4e63;
-  --border-faint: #184254;
+  --border: #444444;
+  --border-faint: #333333;
 
-  --color-mod: #6dcff6;
+  --color-mod: #ff5555;
 
   --line-height: 1.6;
 }
@@ -166,7 +166,7 @@ blockquote {
   margin-bottom: 10px;
   margin-left: 15px;
   padding-left: 15px;
-  border-left: 3px solid var(--border);
+  border-left: 3px solid #ccc;
 }
 
 button.link,
@@ -271,15 +271,15 @@ form.node-action {
 
 .focused {
   animation: fade 4s forwards;
-  background-color: rgba(109, 207, 246, 0.15);
+  background-color: rgba(237, 237, 237, 1);
 }
 
 @keyframes fade {
   from {
-    background-color: rgba(109, 207, 246, 0.15);
+    background-color: rgba(237, 237, 237, 1);
   }
   to {
-    background-color: rgba(109, 207, 246, 0);
+    background-color: rgba(237, 237, 237, 0);
   }
 }
 
@@ -310,28 +310,28 @@ form.node-action {
 
 .alert-danger,
 .alert-error {
-  color: #ffaaaa;
-  background-color: #4a1a1a;
-  border-color: #7a2020;
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
 }
 
 .alert-warning {
-  color: #ffe08a;
-  background-color: #3a2e00;
-  border-color: #6a5200;
+  color: #856404;
+  background-color: #fff3cd;
+  border-color: #ffeeba;
 }
 
 .alert-info,
 .alert-notice {
-  color: #6dcff6;
-  background-color: #184254;
-  border-color: #336173;
+  color: #0c5460;
+  background-color: #d1ecf1;
+  border-color: #bee5eb;
 }
 
 .alert-success {
-  color: #aaffbb;
-  background-color: #0e3020;
-  border-color: #1a5c30;
+  color: #155724;
+  background-color: #d4edda;
+  border-color: #c3e6cb;
 }
 
 /* ALERT END */
@@ -363,15 +363,15 @@ form.node-action {
   border-radius: 1.2ex;
   margin-right: 4px;
   padding: 1px;
-  color: var(--color-muted);
-  background: var(--background-faint);
-  border: 1px solid var(--border);
+  color: #cccccc;
+  background: white;
+  border: 1px solid #cccccc;
   text-decoration: none;
 }
 
 .question-mark-circle:hover:before {
-  color: var(--primary-inverse);
-  background: var(--primary);
+  color: white;
+  background: #cccccc;
   text-decoration: none;
 }
 
@@ -391,7 +391,7 @@ form.node-action {
 
 .load-more,
 .load-more:visited {
-  color: var(--primary);
+  color: #336699;
 }
 
 .button-right {
@@ -495,8 +495,7 @@ form.node-action {
 .my-namespaces-div {
   display: none;
   position: absolute;
-  background-color: var(--background);
-  border: 1px solid var(--border);
+  background-color: #ffffff;
   z-index: 1;
   overflow: hidden;
   padding-top: 10px;
@@ -816,7 +815,7 @@ div.user-watching {
   margin-top: -1px;
   left: 0;
   display: block;
-  background: var(--primary-inverse);
+  background: #020304;
   transition: 0.5s;
 }
 .burger-label span:first-child {
@@ -841,7 +840,7 @@ div.user-watching {
   transform: rotate(-405deg);
 }
 .burger-checkbox ~ .phone-menu {
-  background: var(--background-faint);
+  background: white;
   position: fixed;
   bottom: 0;
   right: 0;
@@ -925,11 +924,11 @@ section.new-card,
 section.payment-card,
 section.join-or-log-in,
 section.well {
-  background-color: var(--background-faint);
+  background-color: white;
   padding: 10px 12px;
   border-radius: 4px;
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  border: 1px solid transparent;
+  box-shadow: 0 1px 3px 0 #e6ebf1;
   -webkit-transition: box-shadow 150ms ease;
   transition: box-shadow 150ms ease;
   text-align: center;
