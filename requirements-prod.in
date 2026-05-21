@@ -1,0 +1,7 @@
+# Source for the hash-locked prod requirements (requirements-prod.lock).
+# Combines runtime deps (setup.py install_requires reads requirements.py3.txt)
+# with prod server deps. VCS theme deps (git+ssh) are stripped post-compile —
+# pip cannot hash a git repo; themes install via 'pip install .' (SHA-pinned by
+# their own repos). Regenerate with: make pins-lock
+-r requirements.py3.txt
+-r requirements-prod.txt

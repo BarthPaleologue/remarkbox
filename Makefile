@@ -72,14 +72,27 @@ install-source-dev-and-test: venv install-themes
 	$(PIP) install --upgrade -r requirements-dev.txt
 	$(PIP) install --upgrade -r requirements-test.txt
 
+# Supply-chain: external PyPI deps install from requirements-prod.lock (exact
+# versions + SHA256, --require-hashes). First-party git themes are not hashable;
+# 'pip install .' resolves them (SHA-pinned by their own repos) without
+# re-resolving the already-satisfied, hash-pinned PyPI deps. Regenerate the lock
+# with: make pins-lock
 install-source-prod: venv install-themes
 	@echo "Ensuring setuptools is installed (required by Pyramid on Python 3.12+)..."
 	$(PIP) install 'setuptools<81'
 	@echo "Deleting tests from source code for production..."
 	rm -rf remarkbox/tests
-	@echo "Installing remarkbox from source (in non-editable mode)..."
+	@echo "Installing pinned, hash-verified PyPI dependencies (supply-chain)..."
+	$(PIP) install --require-hashes -r requirements-prod.lock
+	@echo "Installing remarkbox from source; first-party git themes resolve here..."
 	$(PIP) install .
-	$(PIP) install --upgrade -r requirements-prod.txt
+
+# Regenerate requirements-prod.lock from requirements-prod.in (latest compatible),
+# then strip the unhashable first-party git theme deps.
+pins-lock:
+	uv pip compile --generate-hashes --upgrade --python-version 3.12 \
+		-o requirements-prod.lock requirements-prod.in
+	python3 scripts/strip-vcs-from-lock.py requirements-prod.lock
 
 
 # -----------------------------------------------------------------------------
