@@ -1,3 +1,13 @@
+# Vendored pkg_resources shim: setuptools 81 dropped pkg_resources, but pyramid
+# still imports it. Inject our _vendor dir into sys.path BEFORE the pyramid
+# import below so `import pkg_resources` finds our shim. See
+# remarkbox/_vendor/pkg_resources/__init__.py.
+import os as _rb_os
+import sys as _rb_sys
+_rb_vendor = _rb_os.path.join(_rb_os.path.dirname(__file__), "_vendor")
+if _rb_vendor not in _rb_sys.path:
+    _rb_sys.path.insert(0, _rb_vendor)
+
 from pyramid.config import Configurator
 
 from sqlalchemy import engine_from_config
