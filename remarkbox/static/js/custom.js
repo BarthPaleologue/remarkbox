@@ -80,9 +80,14 @@ function previewAjax(textarea, div, show_raw, mathjax) {
 
 function sendPreview(textarea, div, mathjax) {
     var url = '/preview-post';
+    var ta = document.getElementById(textarea);
     var data = new FormData();
-    data.append('data', document.getElementById(textarea).value);
+    data.append('data', ta.value);
     data.append('csrf_token', csrf_token);
+    // textarea declares its source_format via data-source-format; the
+    // endpoint dispatches to pandoc for rst/html/mediawiki/latex when set.
+    var fmt = ta.dataset.sourceFormat;
+    if (fmt) data.append('source_format', fmt);
 
     fetch(url, {
         method: 'POST',

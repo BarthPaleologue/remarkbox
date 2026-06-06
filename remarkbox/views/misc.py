@@ -54,12 +54,33 @@ def redirect_to_root(request):
 # This ajax endpoint should work whether a user is authenticated or not.
 @view_config(route_name="preview-post", renderer="string", xhr=True, require_csrf=False)
 def preview_post(request):
-    """AJAJ: Accept MarkDown data param, return HTML"""
+    """AJAJ: Accept data + optional source_format, return HTML.
+
+    Mirrors Node.set_data dispatch so the live preview matches what the
+    save path will produce. Without this, RST / HTML / mediawiki / latex
+    nodes silently fell through markdown rendering & previews lied —
+    e.g. an RST file showed `..` comments + literal `name_` references
+    instead of resolved hyperlinks.
+    """
+    data = request.params.get("data", "")
+    source_format = (request.params.get("source_format") or "markdown").strip().lower()
     try:
-        return markdown_to_html(request.params["data"], request.namespace,
-                                dbsession=request.dbsession)
-    except:
-        return "we could not create markdown to html preview."
+        if source_format in ("", "markdown"):
+            return markdown_to_html(data, request.namespace, dbsession=request.dbsession)
+        if source_format == "html":
+            # match set_data: clean HTML through markdown pipeline
+            from remarkbox.lib.pandoc import convert
+            cleaned = convert(data, from_format="html", to_format="markdown")
+            return markdown_to_html(cleaned, request.namespace, dbsession=request.dbsession)
+        # pandoc handles rst, mediawiki, latex, org, etc.
+        from remarkbox.lib.pandoc import convert
+        from remarkbox.lib.render import make_cleaner_from_namespace
+        from remarkbox.lib.sanitize_html import clean_raw_html
+        html = convert(data, from_format=source_format, to_format="html5",
+                       standalone=False)
+        return clean_raw_html(html, make_cleaner_from_namespace(request.namespace))
+    except Exception:
+        return "we could not create a preview for source_format=%s." % source_format
 
 
 @view_config(route_name="favicon")

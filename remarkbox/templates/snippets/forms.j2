@@ -76,6 +76,7 @@
         name        = "thread_data"
         id          = "edit-textarea-{{ node.id }}"
         class       = "common-textarea textarea_edit"
+        data-source-format = "{{ node.source_format or 'markdown' }}"
         onkeyup     = "previewAjax( 'edit-textarea-{{ node.id }}', 'node-data-{{ node.id }}', show_raw=false, mathjax={{ request.mathjax }} )"
         placeholder = "{% if request.namespace.placeholder_text %}{{ request.namespace.placeholder_text }}{% else %}What do you want to say? markdown{% endif %}"
         required>{{ node.data }}</textarea>
