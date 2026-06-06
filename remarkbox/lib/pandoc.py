@@ -8,6 +8,7 @@ import logging
 import subprocess
 import tempfile
 import os
+from functools import lru_cache
 
 log = logging.getLogger(__name__)
 
@@ -155,12 +156,23 @@ def resolve_format(ext):
     return EXTENSION_ALIASES.get(ext, ext)
 
 
+# 30s — generous on cold-start contended runners (xdist N-worker fan-out).
+# The result is cached, so this cost gets paid at most once per process.
+_FORMAT_QUERY_TIMEOUT = 30
+
+
+@lru_cache(maxsize=1)
 def get_available_output_formats():
-    """Return the set of output formats pandoc supports on this system."""
+    """Return the set of output formats pandoc supports on this system.
+
+    Result cached per process — pandoc's format list is static for a given
+    binary, so subsequent callers (and parallel pytest workers each in their
+    own Python process) skip the subprocess entirely after first call.
+    """
     try:
         result = subprocess.run(
             ["pandoc", "--list-output-formats"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=_FORMAT_QUERY_TIMEOUT,
         )
         return frozenset(result.stdout.strip().split("\n"))
     except Exception:
@@ -168,12 +180,16 @@ def get_available_output_formats():
         return frozenset()
 
 
+@lru_cache(maxsize=1)
 def get_available_input_formats():
-    """Return the set of input formats pandoc supports on this system."""
+    """Return the set of input formats pandoc supports on this system.
+
+    Result cached per process — see get_available_output_formats() above.
+    """
     try:
         result = subprocess.run(
             ["pandoc", "--list-input-formats"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=_FORMAT_QUERY_TIMEOUT,
         )
         return frozenset(result.stdout.strip().split("\n"))
     except Exception:

@@ -1,4 +1,14 @@
-"""Unit tests for remarkbox.lib.pandoc — pandoc subprocess wrapper."""
+"""Unit tests for remarkbox.lib.pandoc — pandoc subprocess wrapper.
+
+xdist_group("pandoc-subprocess") on every class that fires pandoc as a
+subprocess. With -n auto on a 32-core CI runner, ~14 of these tests would
+otherwise race for `pandoc` cold-starts simultaneously, exceeding 5s/30s
+subprocess timeouts under GHC-runtime + filter-loading contention.
+Grouping pins every pandoc-subprocess test onto one worker, so each pandoc
+invocation completes before the next starts. Other workers keep parallel-
+processing the rest of the suite. Requires Makefile to pass
+--dist=loadgroup so pytest-xdist honors the marker.
+"""
 
 import shutil
 import unittest
@@ -19,6 +29,7 @@ from remarkbox.lib.pandoc import (
 )
 
 
+@pytest.mark.xdist_group("pandoc-subprocess")
 class TestConvert(unittest.TestCase):
     """Unit tests for the pandoc convert() function."""
 
@@ -95,6 +106,7 @@ class TestConvert(unittest.TestCase):
             convert("test", "markdown", "not_a_real_format_xyz")
 
 
+@pytest.mark.xdist_group("pandoc-subprocess")
 class TestAvailableFormats(unittest.TestCase):
     """Test format discovery."""
 

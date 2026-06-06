@@ -149,10 +149,14 @@ activate:
 	@echo "To activate the virtual environment, run:"
 	@echo "  source $(VENV_DIR)/bin/activate"
 
-# Run the test suite (installs test dependencies if needed)
+# Run the test suite (installs test dependencies if needed).
+# --dist=loadgroup pins tests sharing an xdist_group marker to a single
+# worker — used by test_pandoc.py to serialize ~14 pandoc subprocesses
+# that would otherwise race cold-start CPU contention on CI and exceed
+# the 5s/30s subprocess timeouts.
 test: install-source-dev-and-test
 	@echo "Running tests in parallel..."
-	$(VENV_DIR)/bin/py.test -n auto
+	$(VENV_DIR)/bin/py.test -n auto --dist=loadgroup
 
 # Start a simple HTTP server (for serving static files like index.html)
 http: venv
