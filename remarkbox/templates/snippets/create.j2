@@ -11,9 +11,23 @@
         name        = "thread_data"
         id          = "thread_data_textarea"
         class       = "common-textarea"
+        data-source-format = "markdown"
         onkeyup     = "previewAjax( 'thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }} )"
         placeholder = "What do you want to say? markdown"
         required></textarea>
+
+  <label for="source_format_select" style="display:inline-block;margin-right:0.5em">format:</label>
+  <select id="source_format_select" name="source_format"
+          onchange="document.getElementById('thread_data_textarea').dataset.sourceFormat = this.value; previewAjax('thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }})">
+    <option value="markdown" selected>markdown</option>
+    <option value="rst">reStructuredText</option>
+    <option value="html">html</option>
+    <option value="mediawiki">mediawiki</option>
+    <option value="latex">latex</option>
+    <option value="org">org</option>
+    <option value="asciidoc">asciidoc</option>
+    <option value="textile">textile</option>
+  </select>
 
   <div id='preview' name='preview' class="preview"></div>
 

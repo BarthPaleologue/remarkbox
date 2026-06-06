@@ -22,6 +22,7 @@ def new_thread(request):
     thread_title = request.params.get("thread_title", "")
     thread_data = request.params.get("thread_data", "")
     anonymous_name = request.params.get("anonymous_name", "").strip()
+    source_format = request.params.get("source_format", "").strip() or None
 
     if request.spam:
         return request.spam
@@ -61,7 +62,7 @@ def new_thread(request):
         node.namespace = request.namespace
         node.ip_address = unicode(request.client_addr)
         node.title = thread_title
-        node.set_data(thread_data, dbsession=request.dbsession)
+        node.set_data(thread_data, dbsession=request.dbsession, source_format=source_format)
 
         # Handle anonymous vs authenticated user
         if user_surrogate:
