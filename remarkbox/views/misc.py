@@ -64,6 +64,9 @@ def preview_post(request):
     """
     data = request.params.get("data", "")
     source_format = (request.params.get("source_format") or "markdown").strip().lower()
+    # JS auto-resolves to a concrete format, but defend against stragglers.
+    if source_format == "auto":
+        source_format = "markdown"
     try:
         if source_format in ("", "markdown"):
             return markdown_to_html(data, request.namespace, dbsession=request.dbsession)

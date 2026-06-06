@@ -1,4 +1,4 @@
- <form method="post" action="" onsubmit="submit.disabled = true; return true;">
+ <form method="post" action="" onsubmit="resolveAutoSourceFormat(this); submit.disabled = true; return true;">
     <input
         name        = "thread_title"
         id          = "thread_title_input"
@@ -11,15 +11,19 @@
         name        = "thread_data"
         id          = "thread_data_textarea"
         class       = "common-textarea"
-        data-source-format = "markdown"
+        data-source-format = "auto"
         onkeyup     = "previewAjax( 'thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }} )"
         placeholder = "What do you want to say? markdown"
         required></textarea>
 
   <label for="source_format_select" style="display:inline-block;margin-right:0.5em">format:</label>
+  {# Source-format selector. 'auto' defers to detectSourceFormat() in custom.js,
+     which runs an expandable detector registry. To add a new format here, push
+     an entry to SOURCE_FORMAT_DETECTORS in custom.js + add a <option> below. #}
   <select id="source_format_select" name="source_format"
           onchange="document.getElementById('thread_data_textarea').dataset.sourceFormat = this.value; previewAjax('thread_data_textarea', 'preview', show_raw=true, mathjax={{ request.mathjax }})">
-    <option value="markdown" selected>markdown</option>
+    <option value="auto" selected>auto-detect</option>
+    <option value="markdown">markdown</option>
     <option value="rst">reStructuredText</option>
     <option value="html">html</option>
     <option value="mediawiki">mediawiki</option>
@@ -28,6 +32,7 @@
     <option value="asciidoc">asciidoc</option>
     <option value="textile">textile</option>
   </select>
+  <span id="detected_format_label" style="margin-left:0.5em;font-size:0.85em;color:#888"></span>
 
   <div id='preview' name='preview' class="preview"></div>
 

@@ -78,15 +78,108 @@ function previewAjax(textarea, div, show_raw, mathjax) {
     );
 }
 
+// ===== source_format detection — expandable registry ========================
+// First match wins. To add a new format:
+//   1. Push a new entry into SOURCE_FORMAT_DETECTORS below.
+//   2. Add a matching <option value="..."> to source_format_select in any
+//      template that exposes the selector (create.j2 today).
+//   3. Confirm remarkbox/lib/pandoc.py + the preview_post view accept the
+//      format name (pandoc subprocess uses whatever string you pass).
+// Detection runs on every preview keystroke + on form submit when the
+// selector is set to "auto". For "auto" cases we resolve to a concrete
+// format before saving so the persisted node.source_format is honest.
+// Order detectors most-specific → least-specific; markdown is the catch-all
+// fallback when nothing matches.
+var SOURCE_FORMAT_DETECTORS = [
+    {
+        format: 'html',
+        // Unambiguous root markers — full HTML documents.
+        test: function(text) {
+            return /<!doctype\s+html|<html\b/i.test(text);
+        }
+    },
+    {
+        format: 'latex',
+        test: function(text) {
+            return /\\documentclass\b|\\begin\{document\}|\\section\{|\\subsection\{/.test(text);
+        }
+    },
+    {
+        format: 'mediawiki',
+        // Need both heading + bold pattern to distinguish from rst/md.
+        test: function(text) {
+            return /^==+\s+.+\s+==+\s*$/m.test(text) && /'''[^']/.test(text);
+        }
+    },
+    {
+        format: 'rst',
+        test: function(text) {
+            if (/^\.\.\s+[a-z][\w-]*::/m.test(text)) return true;   // directives
+            if (/^\.\.\s+_\S+:/m.test(text)) return true;            // link targets
+            // Section underline: line made of one repeated char of length
+            // >= the previous non-empty line's length.
+            var lines = text.split('\n');
+            for (var i = 1; i < lines.length; i++) {
+                var prev = lines[i-1].trim();
+                var curr = lines[i].trim();
+                if (prev.length >= 3 &&
+                    /^([=\-~^"'`*+#])\1+$/.test(curr) &&
+                    curr.length >= prev.length) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+];
+
+function detectSourceFormat(text) {
+    if (!text || text.length < 3) return null;
+    for (var i = 0; i < SOURCE_FORMAT_DETECTORS.length; i++) {
+        try {
+            if (SOURCE_FORMAT_DETECTORS[i].test(text)) {
+                return SOURCE_FORMAT_DETECTORS[i].format;
+            }
+        } catch (e) { /* malformed regex / bad text — skip this detector */ }
+    }
+    return null;
+}
+
+// Hook called from create.j2 form onsubmit. When source_format_select is on
+// 'auto' we replace its value with the detected format so the POST carries
+// a concrete name. Falls to 'markdown' when detection finds nothing.
+function resolveAutoSourceFormat(form) {
+    var sel = form.querySelector('#source_format_select');
+    var ta = form.querySelector('#thread_data_textarea');
+    if (sel && ta && sel.value === 'auto') {
+        sel.value = detectSourceFormat(ta.value) || 'markdown';
+    }
+    return true;
+}
+
+// Show "detected: rst" next to the selector so authors see what auto picked.
+function updateDetectionLabel(ta, detected) {
+    var span = document.querySelector('#detected_format_label');
+    if (!span) return;
+    span.textContent = detected ? ('detected: ' + detected) : '';
+}
+
 function sendPreview(textarea, div, mathjax) {
     var url = '/preview-post';
     var ta = document.getElementById(textarea);
     var data = new FormData();
     data.append('data', ta.value);
     data.append('csrf_token', csrf_token);
-    // textarea declares its source_format via data-source-format; the
-    // endpoint dispatches to pandoc for rst/html/mediawiki/latex when set.
+    // textarea declares its source_format via data-source-format. When the
+    // value is 'auto' (default on create form), run client-side detection
+    // and substitute the concrete format before posting. The endpoint
+    // dispatches to pandoc for rst/html/mediawiki/latex/etc.
     var fmt = ta.dataset.sourceFormat;
+    if (fmt === 'auto') {
+        var detected = detectSourceFormat(ta.value);
+        updateDetectionLabel(ta, detected);
+        fmt = detected || 'markdown';
+    }
     if (fmt) data.append('source_format', fmt);
 
     fetch(url, {

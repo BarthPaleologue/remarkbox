@@ -23,6 +23,11 @@ def new_thread(request):
     thread_data = request.params.get("thread_data", "")
     anonymous_name = request.params.get("anonymous_name", "").strip()
     source_format = request.params.get("source_format", "").strip() or None
+    # JS resolves 'auto' to a concrete format before submit, but defend against
+    # no-JS clients / racy submits — never persist the literal string 'auto'
+    # as a node.source_format. None falls back to markdown via set_data.
+    if source_format == "auto":
+        source_format = None
 
     if request.spam:
         return request.spam
