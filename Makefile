@@ -180,7 +180,8 @@ twine-venv: $(TWINE_VENV)/bin/twine
 twine-upload: twine-venv
 	@echo "Building and uploading to PyPI..."
 	python3 setup.py sdist bdist_wheel
-	$(TWINE) upload dist/*
+	$(TWINE) check dist/*
+	$(TWINE) upload --non-interactive dist/*
 
 # -----------------------------------------------------------------------------
 # Cleanup Target
