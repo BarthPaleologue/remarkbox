@@ -173,7 +173,12 @@ TWINE = $(TWINE_VENV)/bin/twine
 $(TWINE_VENV)/bin/twine:
 	@echo "Creating twine virtualenv in $(TWINE_VENV)..."
 	python3 -m venv $(TWINE_VENV)
-	$(TWINE_VENV)/bin/pip install --upgrade pip twine
+	# Pin twine <6 — newer twine auto-detects GitLab CI and refuses to
+	# fall back to ~/.pypirc on the runner, requiring PYPI_ID_TOKEN
+	# (Trusted Publishing OIDC). Until we migrate to Trusted Publishing,
+	# stick with classic ~/.pypirc auth on the build runner.
+	$(TWINE_VENV)/bin/pip install --upgrade pip
+	$(TWINE_VENV)/bin/pip install "twine<6"
 
 twine-venv: $(TWINE_VENV)/bin/twine
 
