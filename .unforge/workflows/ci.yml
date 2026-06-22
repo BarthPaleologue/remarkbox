@@ -1,8 +1,7 @@
 # AUTOMATICALLY CONVERTED — manual review required.
 # Resolve every `# TODO:` before relying on this workflow.
 #
-# TODO: job 'deploy' uses `trigger:` — manual translation needed
-# TODO: original used `include:` / `extends:` — inline template content
+# TODO: job 'deploy' uses `trigger:` (child pipeline) — no Actions equivalent; rewrite as a reusable workflow
 
 name: ci
 'on': create
