@@ -1,8 +1,3 @@
-# AUTOMATICALLY CONVERTED — manual review required.
-# Resolve every `# TODO:` before relying on this workflow.
-#
-# TODO: job 'deploy' uses `trigger:` (child pipeline) — no Actions equivalent; rewrite as a reusable workflow
-
 name: ci
 'on': create
 jobs:
@@ -56,15 +51,11 @@ jobs:
     needs:
     - test
   deploy:
-    runs-on:
-    - self-hosted
-    steps:
-    - name: checkout
-      uses: actions/checkout@v4
-    needs:
-    - build
+    uses: ./.unforge/workflows/deploy.yml
     if: ${{ ((((github.ref_name == 'develop') || (github.ref_name == 'master')) ||
       (github.ref_name == 'main'))) }}
+    needs:
+    - build
   pypi-twine:
     runs-on:
     - self-hosted
