@@ -1,0 +1,71 @@
+name: ci
+'on': create
+jobs:
+  test:
+    runs-on:
+    - self-hosted
+    - build
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: script
+      run: |-
+        make venv
+        env/bin/pip install 'setuptools<81'
+        make test
+  build:
+    runs-on:
+    - self-hosted
+    - build
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: script
+      run: |-
+        make venv
+        env/bin/pip install 'setuptools<81'
+        make install-source-prod
+        cp -pr remarkbox/static env/static
+        cp -pr env/lib/python*/site-packages/remarkbox_westworld/static/* env/static
+        cp -pr env/lib/python*/site-packages/remarkbox_theme_meta/static/* env/static
+        cp -pr env/lib/python*/site-packages/remarkbox_chaostheory/static/* env/static
+        cp -pr env/static static
+        tar -zcf static.tar.gz static
+        rm -rf /opt/remarkbox/env
+        virtualenv-clone -vvv $PWD/env /opt/remarkbox/env
+        echo ${{ github.sha }} >> commit-hash.txt
+        cp commit-hash.txt /opt/remarkbox/env/commit-hash.txt
+        tar -zcf env.tar.gz -C /opt/remarkbox .
+        sha512sum env.tar.gz >> env.tar.gz.hash
+    - name: upload artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: artifacts
+        path: |-
+          env.tar.gz
+          env.tar.gz.hash
+          static.tar.gz
+          commit-hash.txt
+        retention-days: 30
+    needs:
+    - test
+  deploy:
+    runs-on:
+    - self-hosted
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    needs:
+    - build
+  pypi-twine:
+    runs-on:
+    - self-hosted
+    - build
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: script
+      run: make twine-upload
+    needs:
+    - deploy
