@@ -1,3 +1,9 @@
+# AUTOMATICALLY CONVERTED — manual review required.
+# Resolve every `# TODO:` before relying on this workflow.
+#
+# TODO: job 'deploy' uses `trigger:` — manual translation needed
+# TODO: original used `include:` / `extends:` — inline template content
+
 name: ci
 'on': create
 jobs:
@@ -58,6 +64,8 @@ jobs:
       uses: actions/checkout@v4
     needs:
     - build
+    if: ${{ ((((github.ref_name == 'develop') || (github.ref_name == 'master')) ||
+      (github.ref_name == 'main'))) }}
   pypi-twine:
     runs-on:
     - self-hosted
