@@ -13,6 +13,7 @@ from remarkbox.models.spam_llm import (
     _parse_verdict,
     _is_enabled,
     _llm_request,
+    DEFAULT_MODEL,
 )
 
 
@@ -188,7 +189,7 @@ class TestCheckReplyRelevanceMocked(unittest.TestCase):
 HERMES_SETTINGS = {
     "spam.llm.enabled": "true",
     "spam.llm.endpoint": "https://hermes.ai.unturf.com/v1/chat/completions",
-    "spam.llm.model": "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
+    "spam.llm.model": DEFAULT_MODEL,
     "spam.llm.timeout": "10",
 }
 
@@ -275,7 +276,22 @@ class TestHermesIntegration(unittest.TestCase):
         """Verify we can make a raw request to Hermes and get a response."""
         response = _llm_request(
             endpoint="https://hermes.ai.unturf.com/v1/chat/completions",
-            model="adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic",
+            model=DEFAULT_MODEL,
+            messages=[
+                {"role": "system", "content": "Reply with exactly the word PONG."},
+                {"role": "user", "content": "PING"},
+            ],
+            timeout=10,
+        )
+        self.assertIsNotNone(response)
+        self.assertIn("PONG", response.upper())
+
+    def test_stale_model_heals_via_discovery(self):
+        """A stale configured model 404s; _llm_request must discover the
+        served model from /v1/models and retry instead of failing."""
+        response = _llm_request(
+            endpoint="https://hermes.ai.unturf.com/v1/chat/completions",
+            model="stale-publisher/model-that-no-longer-exists",
             messages=[
                 {"role": "system", "content": "Reply with exactly the word PONG."},
                 {"role": "user", "content": "PING"},
@@ -569,3 +585,11 @@ class TestHermesEdgeCases(unittest.TestCase):
             settings=HERMES_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_spam_llm")

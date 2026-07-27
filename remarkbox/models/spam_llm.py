@@ -7,7 +7,7 @@ to check whether a post is relevant to its context (namespace or thread).
 Configuration (from .ini):
     spam.llm.enabled = true
     spam.llm.endpoint = https://hermes.ai.unturf.com/v1/chat/completions
-    spam.llm.model = adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic
+    spam.llm.model = solidrust/Hermes-3-Llama-3.1-8B-AWQ
     spam.llm.timeout = 5
 """
 
@@ -20,17 +20,22 @@ log = logging.getLogger(__name__)
 
 # Defaults
 DEFAULT_ENDPOINT = "https://hermes.ai.unturf.com/v1/chat/completions"
-DEFAULT_MODEL = "adamo1139/Hermes-3-Llama-3.1-8B-FP8-Dynamic"
+DEFAULT_MODEL = "solidrust/Hermes-3-Llama-3.1-8B-AWQ"
 DEFAULT_TIMEOUT = 5  # seconds
 
+# Cache for a server-discovered model id (see _discover_model).
+_discovered_model = None
 
-def _llm_request(endpoint, model, messages, timeout):
-    """Make a chat completion request to an OpenAI-compatible endpoint."""
+
+def _post_chat(endpoint, model, messages, timeout):
+    """POST a chat completion to an OpenAI-compatible endpoint. May raise."""
     body = json.dumps({
         "model": model,
         "messages": messages,
         "max_tokens": 150,
-        "temperature": 0.1,
+        # Greedy decoding: a relevance classifier must be deterministic for
+        # identical input, or moderation outcomes (and tests) become dice.
+        "temperature": 0.0,
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -40,11 +45,51 @@ def _llm_request(endpoint, model, messages, timeout):
         method="POST",
     )
 
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    data = json.loads(resp.read().decode("utf-8"))
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def _discover_model(endpoint, timeout):
+    """Ask an OpenAI-compatible server which model it actually serves.
+
+    Inference servers swap model builds (quantization, publisher) without
+    warning; a stale configured model id makes every request 404. Discovery
+    lets us heal at runtime instead of failing until a config change ships.
+    """
+    global _discovered_model
+    if _discovered_model:
+        return _discovered_model
+    models_uri = endpoint.replace("/chat/completions", "/models")
     try:
-        resp = urllib.request.urlopen(req, timeout=timeout)
+        resp = urllib.request.urlopen(models_uri, timeout=timeout)
         data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"].strip()
-    except (urllib.error.URLError, urllib.error.HTTPError, KeyError, Exception) as e:
+        _discovered_model = data["data"][0]["id"]
+        return _discovered_model
+    except Exception as e:
+        log.warning("LLM model discovery failed: %s", e)
+        return None
+
+
+def _llm_request(endpoint, model, messages, timeout):
+    """Make a chat completion request to an OpenAI-compatible endpoint."""
+    try:
+        return _post_chat(endpoint, model, messages, timeout)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            fallback = _discover_model(endpoint, timeout)
+            if fallback and fallback != model:
+                log.warning(
+                    "LLM model %s not served; retrying with %s", model, fallback
+                )
+                try:
+                    return _post_chat(endpoint, fallback, messages, timeout)
+                except Exception as retry_error:
+                    log.warning("LLM relevance check failed: %s", retry_error)
+                    return None
+        log.warning("LLM relevance check failed: %s", e)
+        return None
+    except Exception as e:
         log.warning("LLM relevance check failed: %s", e)
         return None
 
@@ -75,10 +120,18 @@ def check_thread_relevance(namespace_name, namespace_description, title, content
         {
             "role": "system",
             "content": (
-                "You are a content moderation assistant. Your job is to determine if "
-                "a new discussion thread is relevant to the site it is being posted on. "
-                "Respond with exactly 'RELEVANT' or 'IRRELEVANT' on the first line, "
-                "followed by a brief one-sentence explanation."
+                "You are a strict content moderation assistant for a specific "
+                "website. Decide if a new discussion thread is on-topic for "
+                "that site. A thread is RELEVANT only when its subject matter "
+                "directly relates to the site's stated purpose or description. "
+                "Apply this test: would a moderator of this site expect this "
+                "thread here, or does it belong on a different site? Community "
+                "value, friendliness, or general appeal do NOT make a thread "
+                "relevant. "
+                "Example: a thread asking for restaurant recommendations, "
+                "posted on a site about a software product, is IRRELEVANT. "
+                "Respond with exactly 'RELEVANT' or 'IRRELEVANT' on the first "
+                "line, followed by a brief one-sentence explanation."
             ),
         },
         {
