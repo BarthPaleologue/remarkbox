@@ -111,3 +111,11 @@ class TestGenerateThemeCSS(unittest.TestCase):
             css = generate_theme_css(name)
             self.assertIsInstance(css, str)
             self.assertGreater(len(css), 100)
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_theme_generator")

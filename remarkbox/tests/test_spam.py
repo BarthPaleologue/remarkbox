@@ -130,3 +130,11 @@ class TestScoreContent(unittest.TestCase):
         user.nodes.count.return_value = 0
         score, signals = score_content("Hi", user=user)
         self.assertTrue(any("very_short_content" in s for s in signals))
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_spam")

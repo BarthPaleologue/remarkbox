@@ -884,3 +884,11 @@ class TestThemeAPI(UndiggFunctionalTests):
         res2 = self.testapp.get(
             "/api/v1/themes/theme-test-2.example.com/css")
         self.assertNotEqual(res1.body, res2.body)
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_undigg")

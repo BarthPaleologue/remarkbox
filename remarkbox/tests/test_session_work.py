@@ -476,3 +476,11 @@ class TestSetDataRSTRegenHTML(unittest.TestCase):
         # data_html must not look like a raw Unix timestamp
         self.assertFalse(node.data_html.strip().isdigit())
         self.assertIn("<", node.data_html)
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_session_work")

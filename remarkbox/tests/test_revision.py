@@ -91,3 +91,11 @@ class TestNamespaceCanWikiEdit(unittest.TestCase):
         node.is_root = True
         with mock.patch.object(self.ns, 'can_alter_node', return_value=False):
             self.assertFalse(self.ns.can_wiki_edit(node, user))
+
+# Keep this module's tests together on one xdist worker. Test modules share a
+# per-worker database; when --dist=loadgroup deals unmarked tests out
+# individually, classes from different modules interleave on a worker and one
+# class's tearDownClass drop_all yanks tables from another class mid-run.
+import pytest as _pytest
+
+pytestmark = _pytest.mark.xdist_group("test_revision")
