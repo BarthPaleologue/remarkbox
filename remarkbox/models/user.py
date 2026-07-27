@@ -357,11 +357,20 @@ class User(RBase, Base):
             stored_hash.encode("utf-8"),
         ).decode("utf-8")
 
-        log.info("new_hash={} stored_hash={}".format(new_hash, stored_hash))
+        matched = new_hash == stored_hash
 
-        if new_hash == stored_hash:
-            return True
-        return False
+        # Log the outcome, never the material. Our OTP is six digits — a
+        # keyspace of 10^6 — so a logged bcrypt hash carries both the salt and
+        # the target, and anyone with log access recovers a live OTP offline in
+        # minutes. Log the boolean instead.
+        #
+        # This is not the debug affordance in lib/mail.py: when SMTP fails and
+        # our debug toolbar is enabled, send_email() still logs the full message
+        # (OTP included) on purpose, so local development works without a relay.
+        # That path stays. This one was unconditional and fired on every login.
+        log.debug("otp check for user_id=%s matched=%s", self.id, matched)
+
+        return matched
 
     def throttle_password(self, needed_delta=90000):
         """Return True when throttled, else False"""

@@ -211,6 +211,41 @@ def maybe_root_domain(string):
     return ".".join(string.split(".")[-2:])
 
 
+# Session secrets that must never reach a production deploy. `test-secret`
+# shipped in our public development.ini for years, and `make config` downloads
+# that file over the network as a new install's configuration — so this value
+# is public knowledge, not a guess.
+WEAK_SESSION_SECRETS = {
+    "test-secret",
+    "insecure-development-secret",
+    "",
+}
+
+
+def assert_session_secret_is_safe(settings):
+    """Refuse to boot in production with a publicly known session secret.
+
+    Our session cookies are signed, not encrypted (`SignedCookieSessionFactory`),
+    so anyone holding this value can mint a cookie carrying any
+    `authenticated_user_id` — including a superuser's.
+
+    Development keeps its fallback: we only fail closed when our debug toolbar
+    is absent, which is what distinguishes a real deploy from a dev box.
+    """
+    secret = (settings.get("session.secret") or "").strip()
+    debug_toolbar = "pyramid_debugtoolbar" in settings.get("pyramid.includes", "")
+
+    if secret in WEAK_SESSION_SECRETS and not debug_toolbar:
+        raise RuntimeError(
+            "Refusing to start: session.secret is a publicly known development "
+            "value ({!r}). Session cookies are signed with it, so this would let "
+            "anyone forge any user's session. Set REMARKBOX_SESSION_SECRET to a "
+            "random value, e.g.:\n"
+            "    export REMARKBOX_SESSION_SECRET=$(python3 -c "
+            "'import secrets; print(secrets.token_urlsafe(64))')".format(secret)
+        )
+
+
 def main(global_config, **settings):
     """This function returns a Pyramid WSGI application."""
 
@@ -221,6 +256,8 @@ def main(global_config, **settings):
 
     app_settings = get_children_settings(settings, "app")
     session_settings = get_children_settings(settings, "session")
+
+    assert_session_secret_is_safe(settings)
 
     def wild_signed_cookie_session_factory(request):
         """

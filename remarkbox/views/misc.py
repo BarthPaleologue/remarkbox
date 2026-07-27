@@ -10,7 +10,7 @@ from pyramid.renderers import render_to_response
 
 from remarkbox.lib.render import markdown_to_html
 
-from . import get_node_route_uri
+from . import get_node_route_uri, MAX_CONTENT_LENGTH
 
 from uuid import uuid1
 
@@ -63,6 +63,17 @@ def preview_post(request):
     instead of resolved hyperlinks.
     """
     data = request.params.get("data", "")
+
+    # Cap input before it reaches a pandoc subprocess. Every other content path
+    # enforces this (new_thread, reply_node, modify_node, api/views, wiki);
+    # preview was the one that did not, while being anonymous and — until our
+    # rate-limit tween grew `ratelimit.extra_paths` — unthrottled.
+    if len(data) > MAX_CONTENT_LENGTH:
+        request.response.status_code = 400
+        return "preview input exceeds our maximum length of {} characters.".format(
+            MAX_CONTENT_LENGTH
+        )
+
     source_format = (request.params.get("source_format") or "markdown").strip().lower()
     # JS auto-resolves to a concrete format, but defend against stragglers.
     if source_format == "auto":

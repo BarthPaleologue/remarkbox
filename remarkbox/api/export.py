@@ -50,6 +50,33 @@ def _public_host(request):
     return request.host
 
 
+def _visibility_filters(namespace):
+    """Return the SQL visibility filters an anonymous reader is entitled to.
+
+    Mirrors `api_get_thread` (api/views.py) and `namespace.can_see_node`. Export
+    previously filtered only `disabled`, so a namespace running pre-moderation
+    served its moderation queue — including posts our spam pipeline soft-flagged
+    and held at `spam.soft_threshold` — to anyone who asked for markdown.
+
+    Like the JSON thread endpoint, this does not widen for moderators or node
+    owners; they see held content in our web UI, not in exports.
+    """
+    filters = {"disabled": False}
+    if namespace.hide_unless_approved:
+        filters["approved"] = True
+    if namespace.hide_unverified:
+        filters["verified"] = True
+    return filters
+
+
+def _json_error(request, status, message):
+    """Build a JSON error response on `request.response`."""
+    request.response.status_code = status
+    request.response.content_type = "application/json"
+    request.response.json_body = {"error": message}
+    return request.response
+
+
 def _parse_format_from_subpath(subpath):
     """Extract format from the subpath (e.g. 'abc-123.md' -> ('abc-123', 'markdown')).
 
@@ -139,11 +166,20 @@ def api_export_thread(request):
         request.response.json_body = denied
         return request.response
 
+    # A disabled root is a thread a moderator removed. Node ids are not secret
+    # — they appear in RSS, sitemaps, permalinks, and prior exports — so
+    # without this check a takedown could be undone by anyone holding the id.
+    if root.disabled:
+        return _json_error(request, 404, "Thread not found")
+
+    if not namespace.can_see_node(root, request.user):
+        return _json_error(request, 404, "Thread not found")
+
     # Fetch all visible nodes in the thread
     nodes = get_nodes_who_share_root(
         request.dbsession, root,
         exclude_root=True,
-        visibility_filters={"disabled": False},
+        visibility_filters=_visibility_filters(namespace),
     ).all()
 
     # Build provenance bundle so the exported document points back to its
@@ -219,13 +255,16 @@ def api_export_namespace(request):
         request.response.json_body = denied
         return request.response
 
+    # visible_roots already filters verified + not-disabled at the root level;
+    # replies need the same moderation filters applied per thread.
     roots = namespace.visible_roots.all()
+    reply_filters = _visibility_filters(namespace)
 
     def node_fetcher(root):
         return get_nodes_who_share_root(
             request.dbsession, root,
             exclude_root=True,
-            visibility_filters={"disabled": False},
+            visibility_filters=reply_filters,
         ).all()
 
     provenance = prov.build(
@@ -296,12 +335,15 @@ def api_export_node(request):
         request.response.json_body = denied
         return request.response
 
+    if node.disabled or not namespace.can_see_node(node, request.user):
+        return _json_error(request, 404, "Node not found")
+
     # For a non-root node, we need to get its subtree.
     # Fetch all nodes in the root's tree, then filter to descendants.
     from remarkbox.models.node import get_graph_from_nodes, flatten_graph
     all_nodes = get_nodes_who_share_root(
         request.dbsession, node.root,
-        visibility_filters={"disabled": False},
+        visibility_filters=_visibility_filters(namespace),
     ).all()
 
     # Include root so the graph is complete

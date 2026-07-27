@@ -471,10 +471,11 @@ That is textbook O(2^N): 10× per 5 chars.
 Our runtime's `re` module prevents catastrophic backtracking. **This is a runtime
 mitigation, not a code-level fix.** A Python version downgrade re-exposes it.
 
-**Input size gap**: Our API path (`remarkbox/api/views.py:38`) caps data at
-`MAX_CONTENT_LENGTH = 500_000` chars before `set_data()` → `clean_raw_html()`.
-Our browser form path (`reply_node.py`, `edit_node.py`) has **no equivalent cap**.
-A future fix should add our same guard to both paths.
+**Input size caps**: All content paths cap data at `MAX_CONTENT_LENGTH =
+500_000` chars before `set_data()` → `clean_raw_html()`: our API path
+(`remarkbox/api/views.py`), our browser form paths (`new_thread.py`,
+`reply_node.py`, `modify_node.py`), and since our 2026-07-27 security audit
+(S6) also `/preview-post` in `views/misc.py`.
 
 **Requirements pin**: `requirements.py3.txt` says `bleach>=2.1.4` — too loose.
 bleach < 3.3.0 had unpatched ReDoS (CVE-2021-23980). Current install: 6.3.0.
