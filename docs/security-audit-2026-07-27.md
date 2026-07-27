@@ -38,8 +38,18 @@ env/bin/python -m pytest remarkbox/tests/test_security.py -q
 > S7's fix is **fail-closed**: our app refuses to start when `session.secret` is
 > a known development value and our debug toolbar is off.
 >
-> **`REMARKBOX_SESSION_SECRET` is set in production** (confirmed by fox,
-> 2026-07-27), so this deploys safely and no rotation is needed.
+> **Production is safe, and verified by artifact rather than assumption.** Our
+> deployed hosts do not use `development.ini` at all — each carries its own
+> uwsgi ini from salt (`foxhop-states/uwsgi/configs/*.ini`) with a literal
+> 33-character secret. Checked programmatically against `WEAK_SESSION_SECRETS`
+> without printing any value: `my.remarkbox.com`, `demo.remarkbox.com`, and
+> `foxhop.net.remarkbox` are all `weak=False`. Our boot guard passes; no
+> `REMARKBOX_SESSION_SECRET` is required for these hosts, and no rotation is
+> needed.
+>
+> `REMARKBOX_SESSION_SECRET` therefore matters for **self-hosters**, who get
+> `development.ini` over the network via `make config` — exactly the population
+> S7 was about.
 >
 > For anyone standing up a new deployment:
 >
