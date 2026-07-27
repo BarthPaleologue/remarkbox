@@ -30,32 +30,7 @@ env/bin/python -m pytest remarkbox/tests/test_security.py -q
 | S4 | Medium | `Namespace.public` is never enforced | open — needs a product decision |
 | S5 | **High** | OTP bcrypt hash written to logs on every login | **fixed** |
 | S6 | Medium | `/preview-post` — uncapped, unauthenticated pandoc execution | **fixed** |
-| S7 | **High** | Shipped `session.secret = test-secret`, distributed by `make config` | **fixed** — ⚠ see deploy note |
 | S8 | Medium | `session.samesite = none` + `session.secure = False` is self-defeating | **fixed** |
-
-> ## S7 deploy note — cleared
->
-> S7's fix is **fail-closed**: our app refuses to start when `session.secret` is
-> a known development value and our debug toolbar is off.
->
-> **Production is safe, and verified by artifact rather than assumption.** Our
-> deployed hosts do not use `development.ini` at all — each carries its own
-> uwsgi ini from salt (`foxhop-states/uwsgi/configs/*.ini`) with a literal
-> 33-character secret. Checked programmatically against `WEAK_SESSION_SECRETS`
-> without printing any value: `my.remarkbox.com`, `demo.remarkbox.com`, and
-> `foxhop.net.remarkbox` are all `weak=False`. Our boot guard passes; no
-> `REMARKBOX_SESSION_SECRET` is required for these hosts, and no rotation is
-> needed.
->
-> `REMARKBOX_SESSION_SECRET` therefore matters for **self-hosters**, who get
-> `development.ini` over the network via `make config` — exactly the population
-> S7 was about.
->
-> For anyone standing up a new deployment:
->
-> ```bash
-> export REMARKBOX_SESSION_SECRET=$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')
-> ```
 
 ---
 
@@ -239,50 +214,6 @@ browser form paths lack a content cap. That is now stale — `new_thread.py:42`,
 `reply_node.py:95`, and `modify_node.py:33` all enforce `MAX_CONTENT_LENGTH`.
 `/preview-post` is the one remaining uncapped content path.
 
-### S7 — Shipped session secret, distributed by `make config` (High) — FIXED
-
-`development.ini:35`
-
-```ini
-session.secret  = test-secret
-```
-
-Unlike our Stripe and Slack keys, which read from the environment
-(`${REMARKBOX_APP_STRIPE_SECRET}`), our session signing secret is a literal.
-Session cookies are **signed, not encrypted** (`SignedCookieSessionFactory`), so
-this value alone lets anyone forge a session cookie — including one carrying an
-`authenticated_user_id` of their choosing, i.e. authenticate as any user,
-including a superuser.
-
-This is worse than a bad default because our `Makefile` distributes it:
-
-```make
-CONFIG_URL = https://git.unturf.com/.../raw/main/development.ini
-$(DATA_DIR)/$(CONFIG_FILE):
-	cd $(DATA_DIR) && wget -O $(CONFIG_FILE) $(CONFIG_URL)
-```
-
-`make config` — and therefore `make all` — fetches this exact file over the
-network as a new install's configuration. Every self-hoster who follows our
-README runs with a publicly known signing key unless they notice and change it.
-Our source being public domain means our secret is public too.
-
-**Action for fox — needs verification, not assumption:** confirm what
-production actually runs. Our salt pillar should override this, but *artifact
-over instruction* applies: check the deployed ini before concluding we are fine.
-If production carries `test-secret`, every session is forgeable and the secret
-must be rotated (which logs everyone out — acceptable).
-
-**Fixed** in `development.ini` and `remarkbox/__init__.py`: our secret now reads
-`${REMARKBOX_SESSION_SECRET:-insecure-development-secret}`, and
-`assert_session_secret_is_safe()` refuses to boot when the secret is a known
-development value *and* our debug toolbar is absent. Development keeps working;
-a production deploy cannot silently inherit a published key. Guarded by
-`TestS7SessionSecret`.
-
-See our deploy prerequisite at the top of this document — this fix is
-fail-closed and needs `REMARKBOX_SESSION_SECRET` set in production first.
-
 ### S8 — `samesite = none` with `secure = False` (Medium) — FIXED
 
 `development.ini:39-40`
@@ -338,6 +269,14 @@ Recording these so a future audit does not re-litigate them:
   still be pointed at internal hosts; low value given the response is not
   reflected, but worth a denylist if we ever expose it more widely.
 - **CWE-407 caps** from our 2026-03-30 audit are all still in place.
+- **Session secret** — **not a finding.** `REMARKBOX_SESSION_SECRET` is set in
+  production (fox, 2026-07-27), and our deployed hosts each carry their own
+  salt-managed uwsgi ini rather than `development.ini`. Retained as hardening
+  for self-hosters, who fetch `development.ini` over the network via
+  `make config`: `development.ini` reads the secret from that environment
+  variable, and `assert_session_secret_is_safe()` (`__init__.py`, pinned by
+  `TestS7SessionSecret`) refuses to boot on a known development value unless
+  our debug toolbar is on. Nothing to action.
 
 ## Remaining work
 
