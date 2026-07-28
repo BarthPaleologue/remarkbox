@@ -248,11 +248,13 @@ buckets. Configurable rather than hardcoded, per our standing rule that a value
 which can differ per site should not be baked in. Guarded by
 `TestPreviewPandocAmplification`.
 
-**Still open, tracked here rather than as a separate finding:** expensive export
-formats (`pdf`, `epub`, `docx`) share the ordinary read bucket at 120/min.
-`GET /api/v1/export/namespace/{name}.pdf` remains the most expensive request we
-serve. Giving those formats their own lower bucket is worth doing before
-undigg.com opens signups.
+**Fixed 2026-07-28:** expensive export formats now have their own bucket —
+`api.rate_limit.export_{requests,window,formats}`, defaulting to 5 per minute
+for `pdf`, `epub`, `docx`, and `odt`. They previously shared our ordinary
+120/min read allowance, so one anonymous caller could ask for 120
+whole-namespace PDF renders a minute. Markdown and HTML exports stay on the
+ordinary bucket: they short-circuit pandoc or cost about as much as any other
+read. Guarded by `TestExpensiveExportThrottle`.
 
 **Correction to our standing docs:** `CLAUDE.md`'s CWE-407 section states the
 browser form paths lack a content cap. That is now stale — `new_thread.py:42`,
@@ -324,12 +326,6 @@ Recording these so a future audit does not re-litigate them:
   our debug toolbar is on. Nothing to action.
 
 ## Remaining work
-
-**Export cost buckets** (noted under S6): `pdf`, `epub`, and `docx` exports
-share our ordinary read bucket at 120/min, and
-`GET /api/v1/export/namespace/{name}.pdf` is still the most expensive request
-we serve. Give those formats their own lower bucket before undigg.com opens
-public signups.
 
 **Content privacy** ([T20](tickets/20.md)): `Namespace.public` hides a thread
 *index*, not thread *content*. undigg.com cannot honestly offer a "private

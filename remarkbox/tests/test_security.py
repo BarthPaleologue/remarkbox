@@ -377,6 +377,83 @@ class TestApiWriteCsrf(SecurityFunctionalTests):
         self.assertEqual(res.status_code, 200)
 
 
+class TestExpensiveExportThrottle(SecurityFunctionalTests):
+    """A whole-namespace export in a heavy format is the most expensive
+    request we serve — pandoc, plus wkhtmltopdf for `.pdf`, over every thread
+    in a namespace — and it needs no authentication. It gets its own small
+    bucket rather than sharing our ordinary read allowance."""
+
+    def _tween(self, settings=None):
+        from remarkbox.api.rate_limit import rate_limit_tween_factory
+
+        class _Registry(object):
+            pass
+
+        registry = _Registry()
+        registry.settings = {
+            "api.enabled": "true",
+            "api.rate_limit.read_requests": "1000",
+            "api.rate_limit.write_requests": "1000",
+            "api.rate_limit.window": "60",
+            "api.rate_limit.export_requests": "2",
+            "api.rate_limit.export_window": "60",
+        }
+        if settings:
+            registry.settings.update(settings)
+        return rate_limit_tween_factory(lambda request: "ok", registry)
+
+    def _request(self, path):
+        class _Session(dict):
+            pass
+
+        class _Request(object):
+            method = "GET"
+            client_addr = "203.0.113.7"
+
+            def __init__(self, path):
+                self.path = path
+                self.session = _Session()
+
+        return _Request(path)
+
+    def test_heavy_format_export_is_throttled(self):
+        tween = self._tween()
+        uri = "/api/v1/export/namespace/example.com.pdf"
+        self.assertEqual(tween(self._request(uri)), "ok")
+        self.assertEqual(tween(self._request(uri)), "ok")
+
+        third = tween(self._request(uri))
+        self.assertNotEqual(third, "ok")
+        self.assertEqual(third.status_code, 429)
+        self.assertIn("Export rate limit", third.json_body["error"])
+
+    def test_markdown_export_is_not_throttled_by_the_export_bucket(self):
+        """Markdown short-circuits pandoc, so it costs about a normal read."""
+        tween = self._tween()
+        uri = "/api/v1/export/namespace/example.com.markdown"
+        for _ in range(5):
+            self.assertEqual(tween(self._request(uri)), "ok")
+
+    def test_ordinary_reads_are_unaffected(self):
+        tween = self._tween()
+        for _ in range(5):
+            self.assertEqual(
+                tween(self._request("/api/v1/threads")), "ok"
+            )
+
+    def test_expensive_formats_are_configurable(self):
+        """Today's default should not become tomorrow's 502."""
+        tween = self._tween({"api.rate_limit.export_formats": "epub"})
+        pdf = "/api/v1/export/namespace/example.com.pdf"
+        for _ in range(4):
+            self.assertEqual(tween(self._request(pdf)), "ok")
+
+        epub = "/api/v1/export/namespace/example.com.epub"
+        self.assertEqual(tween(self._request(epub)), "ok")
+        self.assertEqual(tween(self._request(epub)), "ok")
+        self.assertEqual(tween(self._request(epub)).status_code, 429)
+
+
 # ---------------------------------------------------------------------------
 # Bearer tokens: an authentication path that is not ambient
 # ---------------------------------------------------------------------------
