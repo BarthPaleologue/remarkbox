@@ -2,7 +2,18 @@
 six
 
 # Python 3.12+ no longer bundles setuptools in venvs.
-setuptools
+#
+# Capped below 81: that release removed `pkg_resources`, which `pyramid.asset`
+# still imports, so anything reaching pyramid through `pyramid.paster` dies —
+# `pshell`, and our own scripts that call `get_appsettings`. Our Makefile
+# installs `setuptools<81` before this file is resolved, but an unpinned entry
+# here let our lock resolve to 82.0.1 and upgrade straight over that pin, which
+# is how production ended up without `pkg_resources`. Pin it where the lock is
+# generated from, not only where the venv is built.
+#
+# Lift this when pyramid stops importing pkg_resources; pinning setuptools
+# forever is a slow leak, tracked in T23.
+setuptools<81
 
 # Pyramid.
 plaster_pastedeploy
