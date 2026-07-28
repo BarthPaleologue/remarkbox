@@ -710,26 +710,23 @@ class TestPrivateThreadList(SecurityFunctionalTests):
         self.assertFalse(ns.can_list_roots(None))
         self.assertTrue(ns.can_list_roots(_FakeSuperuser()))
 
-    def test_enforcement_is_off_by_default(self):
-        """Our deploy switch must fail open, or a deploy that outruns its
-        migration takes every namespace's index private at once.
+    def test_privacy_needs_no_configuration(self):
+        """Privacy is how our app behaves, not something a deploy opts into.
 
-        Rows still reading `public = False` plus enforcement equals a
-        platform-wide outage — that is not hypothetical, it happened on
-        2026-07-27 when this default was flipped on. Salt running
-        `alembic upgrade head` is not evidence that any given database is
-        backfilled; observe the rows instead.
+        It used to sit behind `namespace.enforce_private_lists`, a guard for
+        databases whose rows predated our backfill — after that backfill was
+        skipped by a stalled migration chain and enforcing blacked out every
+        thread index on 2026-07-27. The chain is repaired and the backfill has
+        run everywhere, so the guard is gone: `None` reads as public, new
+        namespaces default to public, and an untouched namespace pays nothing.
         """
-        from remarkbox.lib.privacy import enforcement_enabled
+        ns = get_or_create_namespace(self.dbsession, "no-config-needed.example.com")
+        self.dbsession.flush()
+        self.assertTrue(ns.can_list_roots(None))
 
-        self.assertFalse(enforcement_enabled({}))
-        self.assertFalse(enforcement_enabled(None))
-        self.assertFalse(
-            enforcement_enabled({"namespace.enforce_private_lists": "false"})
-        )
-        self.assertTrue(
-            enforcement_enabled({"namespace.enforce_private_lists": "true"})
-        )
+        ns.public = False
+        self.dbsession.flush()
+        self.assertFalse(ns.can_list_roots(None))
 
     def test_toggle_is_reversible(self):
         """Fox's requirement: a namespace can go private and come back."""

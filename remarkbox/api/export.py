@@ -257,9 +257,7 @@ def api_export_namespace(request):
 
     # A whole-namespace export is our thread index in book form, so it answers
     # to the same privacy flag as our list endpoints.
-    from remarkbox.lib.privacy import list_is_visible
-
-    if not list_is_visible(request, namespace):
+    if not namespace.can_list_roots(request.user):
         return _json_error(
             request, 403, "This namespace's thread list is private"
         )

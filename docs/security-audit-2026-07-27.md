@@ -165,16 +165,14 @@ every row to `True` first (data-only, no DDL, so it is safe on SQLite), our
 model default flips to `True`, and NULL reads as public. `False` is now only
 ever a choice an owner made.
 
-**Deploy switch — off by default, and it stays off until data is observed.**
-Enforcement sits behind `namespace.enforce_private_lists`, defaulting to
-false. Enabling it on production on 2026-07-27 took every thread index to 403
-for eleven minutes: rows still read `public = False` because migration
-`554e2329ebf0` had not applied, even though salt runs `alembic upgrade head`
-on every release. Salt also runs `Base.metadata.create_all()` first, which
-creates missing tables from our models without alembic, so schema can be
-present while data migrations are not. Re-enable only after reading the rows
-themselves. See T22 and
-`docs/postmortem-2026-07-27-thread-index-403.md`.
+**No configuration.** Privacy is how our app behaves, not something each
+deployment opts into. It briefly sat behind
+`namespace.enforce_private_lists` after enforcing on un-backfilled rows
+blacked out every thread index on 2026-07-27 — but that was a data problem,
+not a design one. Our migration chain is repaired (T22), the backfill has run
+on all three sites, and production reads `[(1, 23874)]` for
+`rb_namespace.public`, so an untouched namespace pays nothing and there is no
+switch left to forget. `None` still reads as public.
 
 Enforced by `Namespace.can_list_roots` everywhere we enumerate: home listing,
 node list, RSS, sitemap, thread-list API, search API, and whole-namespace
