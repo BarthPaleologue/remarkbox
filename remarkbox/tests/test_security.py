@@ -668,6 +668,76 @@ class TestPrivateThreadList(SecurityFunctionalTests):
         self.assertTrue(ns.can_list_roots(None))
 
 
+class TestPrivateThreadListSettingsForm(SecurityFunctionalTests):
+    """Our privacy toggle has to be reachable and reversible from namespace
+    settings, not merely present in the model."""
+
+    def setUp(self):
+        ns = get_or_create_namespace(self.dbsession, "settings-toggle.example.com")
+        owner = get_or_create_user_by_email(
+            self.dbsession, "settings-owner@example.com"
+        )
+        owner.verified = True
+        self.raw_otp = owner.new_password()
+        self.dbsession.add(owner)
+        self.dbsession.flush()
+        ns.set_role_for_user(owner, "owner")
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace_name = str(ns.name)
+        self.owner_email = str(owner.email)
+        self.settings_uri = "/ns/{}/settings".format(self.namespace_name)
+        self.tm.commit()
+
+    def _log_in(self):
+        self.testapp.post(
+            "/verification-challenge",
+            {"email": self.owner_email, "raw-otp": self.raw_otp},
+            status="*",
+        )
+
+    def _current_public(self):
+        # Our app committed in its own session; expire ours so we re-read from
+        # the database instead of our identity map's stale copy.
+        self.dbsession.expire_all()
+        ns = get_or_create_namespace(self.dbsession, self.namespace_name)
+        return ns.public
+
+    def test_toggle_is_rendered_on_the_settings_page(self):
+        self._log_in()
+        res = self.testapp.get(self.settings_uri, status="*")
+        self.assertEqual(res.status_int, 200)
+        body = res.body.decode("utf-8")
+        self.assertIn("public-checkbox", body)
+        self.assertIn("Public Thread List", body)
+
+    def _submit_settings(self, public):
+        """Drive our real settings form, CSRF token and all."""
+        res = self.testapp.get(self.settings_uri, status=200)
+        # Our base template renders its own forms first, so pick ours by the
+        # field it carries rather than by position.
+        form = next(
+            f for f in res.forms.values() if "public-checkbox" in f.fields
+        )
+        form["public-checkbox"].checked = public
+        return form.submit(status="*")
+
+    def test_unchecking_the_box_makes_the_list_private(self):
+        self._log_in()
+        self._submit_settings(public=False)
+        self.assertFalse(bool(self._current_public()))
+
+    def test_checking_the_box_makes_the_list_public_again(self):
+        """Fox's requirement: private, then back to public, from our UI."""
+        self._log_in()
+
+        self._submit_settings(public=False)
+        self.assertFalse(bool(self._current_public()))
+
+        self._submit_settings(public=True)
+        self.assertTrue(bool(self._current_public()))
+
+
 class _FakeSuperuser(object):
     """Minimal stand-in for our superuser branch of `is_moderator`."""
 
