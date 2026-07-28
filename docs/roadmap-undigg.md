@@ -58,20 +58,51 @@ Hand-written core, coherent architecture. These are launch-ready assets:
 
 ## 3. Architecture decision — undigg.com shape
 
-**Communities are subdomains.** `*.undigg.com` wildcard DNS → proxy → origin.
-Our existing host-header namespace resolution means `gamedev.undigg.com`
-auto-creates its namespace on first request, and `theme_generator.py` already
-hands it a unique deterministic light/dark theme the same instant. Zero new
-routing code for our core loop.
+**Communities are paths, not subdomains** (fox, 2026-07-28). Reddit is
+`reddit.com/r/foo`, not `foo.reddit.com`, and the path form is both cheaper
+and closer to what already works here.
+
+`undigg.com/ns/{name}` needs **no new routing at all**. `add_namespace`
+(`remarkbox/__init__.py:413`) resolves from `matchdict` first and only falls
+back to the host header, and we already carry 37 routes on `/ns/{namespace}/`.
+Path addressing is not a port; it is the path our embed product has used all
+along.
+
+Keep our own vocabulary: `/ns/` means namespace. We do **not** add an `/r/`
+alias — `/r/{node_id}` is already `redirect-to-root` in `routes.py:62`, and
+copying reddit's letter into a namespace we already named would collide with
+a live route to say nothing new.
+
+Why paths beat subdomains here:
+
+- **No wildcard certificate.** One ordinary Caddy block for `undigg.com`
+  instead of wildcard DNS plus wildcard TLS. That deletes an entire failure
+  class from our critical path — the one that took `demo.remarkbox.com` down
+  (T21) and caused our five-day T14 outage.
+- **One origin.** Subdomains are separate origins needing a `wild_domain`
+  session cookie spread across all of them; paths keep one cookie on one host,
+  which matters after tightening our cookie and CSRF posture.
+- **SEO consolidates** on one domain rather than splitting link equity across
+  thousands of subdomains.
+- **Nothing auto-creates.** Host-based resolution would mint a namespace for
+  any subdomain anyone resolved; path routes are explicit.
+
+Design notes that follow:
 
 - Apex `undigg.com` = aggregated front page (new view, G2).
-- Wildcard TLS on proxy (one cert, not per-name ACME — avoids our T14 outage class).
 - Reserved names list (www, api, my, mail, admin, topsecret, ...) enforced in
-  community creation (G4).
+  community creation (G4). Still needed — a path segment can collide with a
+  route prefix just as a subdomain can collide with a host.
 - remarkbox.com embed product unchanged; one codebase, two skins.
-- Optional later: `undigg.com/s/{name}` path aliases for shared-cookie UX; our
-  `wild_domain` session cookie already spans `*.undigg.com`, so subdomains
-  share login state today.
+
+### Open questions before building on this
+
+- `add_link_prefix` returns `""` in basic mode, so templates may assume
+  host-based addressing when generating namespace-relative URIs. Needs a read
+  before the front-door work.
+- `request.domain` fallback would still resolve bare `undigg.com` to a
+  namespace of that name. Decide whether the apex is a real namespace or a
+  view that never touches `add_namespace`.
 
 ## 4. Phases
 
@@ -85,9 +116,10 @@ enters a system that can already convert and can already say no to abuse.
    signup on a system that leaks moderation-held content (S1/S2) and accepts
    cross-site writes (S3) converts a private defect into a public incident.
    S5 and S7 are one-line changes; S1/S2 share one fix.
-1. DNS: `undigg.com` + `*.undigg.com` → proxy; wildcard cert; proxy Caddy
-   block → origin :6001 (same request flow as my.remarkbox.com).
-2. Reserved-subdomain list + one-click community creation view (G4):
+1. DNS: `undigg.com` → proxy; ordinary cert; one proxy Caddy block → origin
+   :6001 (same request flow as my.remarkbox.com). No wildcard DNS or wildcard
+   TLS — communities are paths.
+2. Reserved-name list + one-click community creation view (G4):
    authenticated user names a community, becomes owner, lands on themed page.
    Blocked on deciding S4 — do not offer "private community" until
    `Namespace.public` is either enforced or removed.
@@ -222,5 +254,5 @@ after P0. P5-G6 (entitlement wiring) can land any time — earliest is best.
 1. Ticket T17 tracks this roadmap (created alongside this doc).
 2. P0.3 (body-size cap, G9) — small, closes a known audit gap, ship first.
 3. P5-G6 (webhook → entitlement wiring) — one day, unlocks all revenue.
-4. DNS/proxy staging for undigg.com + wildcard (needs fox: registrar +
+4. DNS/proxy staging for undigg.com (needs fox: registrar +
    PowerDNS zone + proxy Caddyfile).
