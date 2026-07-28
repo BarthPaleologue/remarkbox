@@ -76,6 +76,11 @@ If checked, allow beautiful math equations with <a href="https://www.mathjax.org
 If checked, hide the Remarkbox Logo in footer.{% if request.namespace.hide_powered_by %}.. <b>bummer.</b>{% endif %}
 <br>
 <br>
+<label>Public Thread List:</label>
+<input type="checkbox" name="public-checkbox" id="public-checkbox" {% if request.namespace.public is not sameas false %}checked{% endif %}></input>
+If checked, anyone can browse this namespace's list of threads. Uncheck to keep your index private, so only owners and moderators can browse it. Individual threads stay reachable by direct link and embedded comments keep working either way.
+<br>
+<br>
 <label>Allow API Access:</label>
 <input type="checkbox" name="api-access-checkbox" id="api-access-checkbox" {% if request.namespace.api_access %}checked{% endif %}></input>
 If checked, allow JSON API access to this namespace for agents and integrations. Uncheck to block all <code>/api/v1/</code> requests targeting this namespace.

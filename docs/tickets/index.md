@@ -24,3 +24,4 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T17](17.md) | Operation Undigg II — reddit/digg pivot on undigg.com | open | high | fox directive 2026-07-27 |
 | [T18](18.md) | Security audit 2026-07-27 — seven findings (four High) | open | high | fox directive 2026-07-27 |
 | [T19](19.md) | Test suite instability — cross-module state coupling | resolved | high | fox directive 2026-07-27 |
+| [T20](20.md) | Full content privacy for namespaces (beyond unlisted) | open | medium | audit follow-up 2026-07-27 |

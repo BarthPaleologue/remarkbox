@@ -255,6 +255,13 @@ def api_export_namespace(request):
         request.response.json_body = denied
         return request.response
 
+    # A whole-namespace export is our thread index in book form, so it answers
+    # to the same privacy flag as our list endpoints.
+    if not namespace.can_list_roots(request.user):
+        return _json_error(
+            request, 403, "This namespace's thread list is private"
+        )
+
     # visible_roots already filters verified + not-disabled at the root level;
     # replies need the same moderation filters applied per thread.
     roots = namespace.visible_roots.all()

@@ -88,6 +88,7 @@ def namespace_settings(request):
         hide_powered_by_checkbox = p.get("hide-powered-by-checkbox", "off")
         api_access_checkbox = p.get("api-access-checkbox", "off")
         spam_filter_enabled_checkbox = p.get("spam-filter-enabled-checkbox", "off")
+        public_checkbox = p.get("public-checkbox", "off")
 
         hide_unless_approved = checkbox_to_bool(hide_unless_approved_checkbox)
         allow_anonymous = checkbox_to_bool(allow_anonymous_checkbox)
@@ -99,6 +100,7 @@ def namespace_settings(request):
         hide_powered_by = checkbox_to_bool(hide_powered_by_checkbox)
         api_access = checkbox_to_bool(api_access_checkbox)
         spam_filter_enabled = checkbox_to_bool(spam_filter_enabled_checkbox)
+        public = checkbox_to_bool(public_checkbox)
 
         if stylesheet_embed != request.namespace.stylesheet_embed and (
             stylesheet_embed or request.namespace.stylesheet_embed
@@ -167,6 +169,18 @@ def namespace_settings(request):
             request.session.flash(
                 (
                     "Success, you changed the Google Site Verification code for stand alone mode.",
+                    "success",
+                )
+            )
+
+        if public != bool(request.namespace.public):
+            request.namespace.public = public
+            request.session.flash(
+                (
+                    "Your thread list is now {}. Threads stay reachable by "
+                    "direct link and embeds keep working either way.".format(
+                        "public" if public else "private"
+                    ),
                     "success",
                 )
             )

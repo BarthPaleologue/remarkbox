@@ -106,7 +106,10 @@ class Namespace(RBase, Base):
     # should we hide the poweredby Remarkbox logo?
     hide_powered_by = Column(Boolean, default=False)
     # should the list of root nodes in this namespace be public or hidden?
-    public = Column(Boolean, default=False)
+    # Defaults to True: every namespace has always listed publicly, and this
+    # flag went unenforced for years, so False must stay an explicit opt-in.
+    # Migration 554e2329ebf0 backfilled every existing row to True.
+    public = Column(Boolean, default=True)
     # should we enable MathJax?
     mathjax = Column(Boolean, default=False)
     # should we enable Link Protection to prevent comments from having links?
@@ -395,6 +398,23 @@ class Namespace(RBase, Base):
 
     def can_alter_node(self, node, user):
         return self.is_moderator(user) or node.is_owner(user)
+
+    def can_list_roots(self, user):
+        """Return True if `user` may enumerate this namespace's threads.
+
+        Scope note: `public` governs our *index* — our home page listing, our
+        thread-list API, RSS, sitemap, and our JSON dump. It deliberately does
+        not hide individual threads reached by direct link, because our embed
+        product resolves a thread by its page URI and must keep working on a
+        private namespace. Hiding thread content itself is a larger feature;
+        see T20.
+
+        NULL reads as public: rows predating our column, plus any our backfill
+        (migration 554e2329ebf0) has not reached, must not silently vanish.
+        """
+        if self.public is None or self.public:
+            return True
+        return self.is_moderator(user)
 
     def can_wiki_edit(self, node, user):
         """Return True if user can wiki-edit this node.

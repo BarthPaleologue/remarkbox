@@ -20,16 +20,39 @@ except:
     from six import u as unicode
 
 
+PRIVATE_LIST_MESSAGE = (
+    "This namespace's thread list is private. "
+    "Ask an owner or moderator for access."
+)
+
+
+def reject_if_list_is_private(request):
+    """Return HTTPForbidden when our caller may not enumerate threads.
+
+    Only our index is gated. A thread reached by direct link, and every embed,
+    keeps working — see `Namespace.can_list_roots`.
+    """
+    if not request.namespace.can_list_roots(request.user):
+        return HTTPForbidden(PRIVATE_LIST_MESSAGE)
+    return None
+
+
 @view_config(route_name="sitemap", renderer="sitemap.xml.j2")
 @view_config(route_name="sitemap2", renderer="sitemap.xml.j2")
 @view_config(route_name="basic-namespace-threads-rss", renderer="rss.xml.j2")
 def rss_xml(request):
+    denied = reject_if_list_is_private(request)
+    if denied:
+        return denied
     request.response.content_type = "text/xml"
     return {"nodes": request.namespace.visible_roots.all()}
 
 
 @view_config(route_name="basic-namespace-nodes-rss", renderer="rss.xml.j2")
 def rss_nodes_xml(request):
+    denied = reject_if_list_is_private(request)
+    if denied:
+        return denied
     request.response.content_type = "text/xml"
     if request.namespace.hide_unless_approved:
         nodes = request.namespace.approved_nodes
@@ -57,6 +80,9 @@ def rss_pending_xml(request):
 @view_config(route_name="embed-namespace", renderer="home.j2")
 @view_config(route_name="home", renderer="home.j2")
 def namespace(request):
+    denied = reject_if_list_is_private(request)
+    if denied:
+        return denied
     return {
         "nodes": request.namespace.visible_roots,
         "the_title": request.namespace.name,
@@ -68,6 +94,9 @@ def namespace(request):
 def namespace_nodes(request):
     # TODO: the way I'm currently protecting views (or in this case certain urls)
     #       is causing a lot of copy and paste and even confusing conditional logic.
+    denied = reject_if_list_is_private(request)
+    if denied:
+        return denied
 
     # Spam, disabled, and pending views require moderator access.
     mod_views = ("disabled", "pending", "spam")

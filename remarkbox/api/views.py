@@ -48,6 +48,19 @@ def check_namespace_api_access(request, namespace):
     return None
 
 
+def check_namespace_listable(request, namespace):
+    """Return an error dict when this caller may not enumerate our threads.
+
+    A namespace whose owner set `public = False` keeps its thread index
+    private. Individual threads stay reachable by id so our embed product
+    keeps working; see `Namespace.can_list_roots`.
+    """
+    if not namespace.can_list_roots(request.user):
+        request.response.status_code = 403
+        return {"error": "This namespace's thread list is private"}
+    return None
+
+
 def get_json_body(request):
     """Get JSON body from request, or empty dict if not present."""
     try:
@@ -251,6 +264,10 @@ def api_list_threads(request):
     if denied:
         return denied
 
+    denied = check_namespace_listable(request, namespace)
+    if denied:
+        return denied
+
     roots = (
         namespace.visible_roots
         .limit(request.page_size)
@@ -285,6 +302,16 @@ def api_search_threads(request):
         return {"threads": []}
 
     namespace = get_or_create_namespace(request.dbsession, namespace_name)
+
+    # Search enumerates roots just as our list endpoint does, so it needs our
+    # same two gates. It was missing the api_access one entirely.
+    denied = check_namespace_api_access(request, namespace)
+    if denied:
+        return denied
+
+    denied = check_namespace_listable(request, namespace)
+    if denied:
+        return denied
 
     from remarkbox.models.node import Node
     from sqlalchemy import or_, and_

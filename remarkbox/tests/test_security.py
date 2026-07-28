@@ -1,12 +1,11 @@
 """Security regression tests.
 
-Each test here pins down a finding from our 2026-07-27 security audit
-(docs/security-audit-2026-07-27.md). Tests named `test_S*` map to finding IDs.
+Each test here pins down a defect found in our 2026-07-27 security audit
+(docs/security-audit-2026-07-27.md), which is where the finding IDs live.
 
-Tests are written to assert the SECURE behaviour. Where a finding is still
-open, the test is marked `xfail(strict=True)` so it fails loudly the moment
-the defect is fixed — at which point drop the marker and it becomes a
-permanent regression guard.
+Tests assert the SECURE behaviour. Where a defect is still unfixed, its test
+is marked `xfail(strict=True)` so it fails loudly the moment someone fixes
+it — drop the marker then and it becomes a permanent regression guard.
 """
 
 import transaction
@@ -121,19 +120,19 @@ class SecurityFunctionalTests(unittest.TestCase, object):
 
 
 # ---------------------------------------------------------------------------
-# S1 — Export API bypasses moderation visibility filters
+# Export must apply the same moderation visibility filters as every other read
 # ---------------------------------------------------------------------------
 
 
-class TestS1ExportVisibility(SecurityFunctionalTests):
-    """S1: /api/v1/export/* only filters `disabled`, ignoring the namespace's
+class TestExportRespectsModerationVisibility(SecurityFunctionalTests):
+    """/api/v1/export/* used to filter only `disabled`, ignoring the namespace's
     `hide_unless_approved` / `hide_unverified` settings that every other read
     path honours. Content held in a moderation queue is served to anonymous
     callers as markdown."""
 
 
     def setUp(self):
-        ns = get_or_create_namespace(self.dbsession, "s1-export.example.com")
+        ns = get_or_create_namespace(self.dbsession, "export-moderation.example.com")
         ns.hide_unless_approved = True
         ns.hide_unverified = True
         self.dbsession.add(ns)
@@ -142,7 +141,7 @@ class TestS1ExportVisibility(SecurityFunctionalTests):
         self.namespace_name = str(ns.name)
         self.namespace_id = ns.id
 
-        self.root = self.make_thread(ns, "S1 public thread", "public body")
+        self.root = self.make_thread(ns, "exported public thread", "public body")
         # A reply held for moderation — invisible in the web UI and in
         # /api/v1/threads/{id}, which both apply approved/verified filters.
         self.held = self.make_reply(
@@ -151,19 +150,19 @@ class TestS1ExportVisibility(SecurityFunctionalTests):
         self.root_id = str(self.root.id)
         self.tm.commit()
 
-    def test_S1_thread_json_hides_unapproved_reply(self):
+    def test_thread_json_hides_unapproved_reply(self):
         """Control: the JSON thread endpoint correctly hides held content."""
         res = self.testapp.get("/api/v1/threads/{}".format(self.root_id), status=200)
         self.assertNotIn("QUARANTINED-SECRET-BODY", res.body.decode("utf-8"))
 
-    def test_S1_export_thread_hides_unapproved_reply(self):
+    def test_export_thread_hides_unapproved_reply(self):
         """Export of the same thread must not leak moderation-held content."""
         res = self.testapp.get(
             "/api/v1/export/threads/{}.markdown".format(self.root_id), status=200
         )
         self.assertNotIn("QUARANTINED-SECRET-BODY", res.body.decode("utf-8"))
 
-    def test_S1_export_namespace_hides_unapproved_reply(self):
+    def test_export_namespace_hides_unapproved_reply(self):
         """Namespace book export must not leak moderation-held content."""
         res = self.testapp.get(
             "/api/v1/export/namespace/{}.markdown".format(self.namespace_name),
@@ -172,25 +171,25 @@ class TestS1ExportVisibility(SecurityFunctionalTests):
         self.assertNotIn("QUARANTINED-SECRET-BODY", res.body.decode("utf-8"))
 
 
-class TestS2ExportDisabledRoot(SecurityFunctionalTests):
-    """S2: `api_export_thread` fetches the root by id and renders it without
+class TestExportRefusesDisabledThreads(SecurityFunctionalTests):
+    """`api_export_thread` used to fetch the root by id and render it without
     ever checking `root.disabled`. A thread a moderator has removed is still
     fully exportable by anyone holding (or guessing from logs/feeds) its id."""
 
 
     def setUp(self):
-        ns = get_or_create_namespace(self.dbsession, "s2-export.example.com")
+        ns = get_or_create_namespace(self.dbsession, "export-disabled.example.com")
         self.dbsession.add(ns)
         self.dbsession.flush()
         self.namespace_id = ns.id
         # A thread a moderator has taken down.
         self.root = self.make_thread(
-            ns, "S2 removed thread", "REMOVED-THREAD-BODY", disabled=True
+            ns, "moderator-removed thread", "REMOVED-THREAD-BODY", disabled=True
         )
         self.root_id = str(self.root.id)
         self.tm.commit()
 
-    def test_S2_export_of_disabled_thread_is_refused(self):
+    def test_export_of_disabled_thread_is_refused(self):
         """Exporting a disabled (moderator-removed) thread must not serve it."""
         res = self.testapp.get(
             "/api/v1/export/threads/{}.markdown".format(self.root_id),
@@ -201,12 +200,12 @@ class TestS2ExportDisabledRoot(SecurityFunctionalTests):
 
 
 # ---------------------------------------------------------------------------
-# S3 — CSRF on API write endpoints
+# Cross-site forgery of API writes
 # ---------------------------------------------------------------------------
 
 
-class TestS3ApiCsrf(SecurityFunctionalTests):
-    """S3: every /api/v1/ write view sets `require_csrf=False` while auth rides
+class TestApiWriteCsrf(SecurityFunctionalTests):
+    """Every /api/v1/ write view sets `require_csrf=False` while auth rides
     on a `samesite=none` session cookie, and each view falls back to
     `request.params` — so a plain form-encoded cross-site POST (a CORS "simple
     request", no preflight) is accepted as the logged-in victim."""
@@ -238,7 +237,7 @@ class TestS3ApiCsrf(SecurityFunctionalTests):
             status="*",
         )
 
-    def test_S3_authenticated_session_is_established(self):
+    def test_authenticated_session_is_established(self):
         """Control: our victim session really is authenticated."""
         self._log_in()
         res = self.testapp.get("/api/v1/user/profile", status="*")
@@ -246,9 +245,9 @@ class TestS3ApiCsrf(SecurityFunctionalTests):
 
     @pytest.mark.xfail(
         strict=True,
-        reason="S3 open: API writes accept cross-site form posts (require_csrf=False)",
+        reason="unfixed: API writes accept cross-site form posts (require_csrf=False)",
     )
-    def test_S3_form_encoded_thread_creation_is_rejected(self):
+    def test_form_encoded_thread_creation_is_rejected(self):
         """A form-encoded POST carrying no CSRF token must be refused.
 
         This is the exact shape of an attacker's auto-submitting form:
@@ -272,7 +271,7 @@ class TestS3ApiCsrf(SecurityFunctionalTests):
             "got {}".format(res.status_code),
         )
 
-    def test_S3_profile_update_is_json_only(self):
+    def test_profile_update_is_json_only(self):
         """Scope boundary: `api_update_profile` reads only the JSON body.
 
         Unlike the thread/reply/edit views it has no `request.params` fallback,
@@ -295,52 +294,156 @@ class TestS3ApiCsrf(SecurityFunctionalTests):
 
 
 # ---------------------------------------------------------------------------
-# S4 — namespace.public is never enforced
+# A namespace owner can keep their thread list private
 # ---------------------------------------------------------------------------
 
 
-class TestS4NamespacePublicFlag(SecurityFunctionalTests):
-    """S4: `Namespace.public` exists as a column (and routes.py carries a TODO
-    to enforce it) but no code path reads it. A namespace marked non-public
-    still lists its threads to anonymous callers on both web and API."""
+class TestPrivateThreadList(SecurityFunctionalTests):
+    """`Namespace.public` is enforced on every surface that
+    enumerates threads, and is toggleable both ways from namespace settings.
 
+    Scope is our *index*: list, search, RSS, sitemap, and whole-namespace
+    export. Individual threads stay reachable by id so our embed product keeps
+    working on a private namespace — see `Namespace.can_list_roots`.
+    """
 
     def setUp(self):
-        ns = get_or_create_namespace(self.dbsession, "s4-private.example.com")
+        ns = get_or_create_namespace(self.dbsession, "private-list.example.com")
         ns.public = False
         self.dbsession.add(ns)
         self.dbsession.flush()
         self.namespace = ns
         self.namespace_name = str(ns.name)
         self.namespace_id = ns.id
-        self.make_thread(ns, "S4 private thread", "PRIVATE-NAMESPACE-BODY")
+        self.root = self.make_thread(ns, "private-list thread", "PRIVATE-NAMESPACE-BODY")
+        self.root_id = str(self.root.id)
         self.tm.commit()
 
-    def test_S4_public_column_defaults_false(self):
-        """Document current schema intent: namespaces are non-public by default."""
-        ns = get_or_create_namespace(self.dbsession, "s4-fresh.example.com")
-        self.assertFalse(bool(ns.public))
+    def test_new_namespaces_are_public_by_default(self):
+        """New namespaces are public by default.
 
-    @pytest.mark.xfail(
-        strict=True, reason="S4 open: namespace.public is never enforced"
-    )
-    def test_S4_private_namespace_thread_list_is_not_anonymous(self):
+        This inverts our original `default=False`, which was never enforced:
+        every namespace on our platform has always listed publicly, so
+        `False` has to be an explicit choice rather than a silent default.
+        Migration 554e2329ebf0 backfilled existing rows to match.
+        """
+        ns = get_or_create_namespace(self.dbsession, "fresh-namespace.example.com")
+        self.dbsession.flush()
+        self.assertTrue(bool(ns.public))
+
+    def test_private_namespace_thread_list_is_not_anonymous(self):
         """A non-public namespace must not list its threads to anonymous users."""
         res = self.testapp.get(
             "/api/v1/threads",
             {"namespace": self.namespace_name},
             status="*",
         )
-        self.assertNotIn("S4 private thread", res.body.decode("utf-8"))
+        self.assertEqual(res.status_int, 403)
+        self.assertNotIn("private-list thread", res.body.decode("utf-8"))
+
+    def test_private_namespace_search_is_not_anonymous(self):
+        """Search enumerates roots too, so it answers to the same flag."""
+        res = self.testapp.get(
+            "/api/v1/threads/search",
+            {"namespace": self.namespace_name, "q": "private"},
+            status="*",
+        )
+        self.assertEqual(res.status_int, 403)
+        self.assertNotIn("private-list thread", res.body.decode("utf-8"))
+
+    def test_private_namespace_export_is_not_anonymous(self):
+        """A whole-namespace export is our index in book form."""
+        res = self.testapp.get(
+            "/api/v1/export/namespace/{}.markdown".format(self.namespace_name),
+            status="*",
+        )
+        self.assertEqual(res.status_int, 403)
+        self.assertNotIn("PRIVATE-NAMESPACE-BODY", res.body.decode("utf-8"))
+
+    def test_individual_thread_still_readable_when_list_is_private(self):
+        """Our embed product resolves threads by id and must keep working.
+
+        If this ever starts failing, someone widened `public` from an index
+        flag into full content privacy — a different, larger feature (T20).
+        """
+        res = self.testapp.get(
+            "/api/v1/threads/{}".format(self.root_id), status="*"
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("PRIVATE-NAMESPACE-BODY", res.body.decode("utf-8"))
+
+    def test_public_namespace_still_lists(self):
+        """Our default path must be untouched: public namespaces still list."""
+        name = "public-list.example.com"
+        ns = get_or_create_namespace(self.dbsession, name)
+        ns.public = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.make_thread(ns, "public-list thread", "OPEN-NAMESPACE-BODY")
+        self.tm.commit()
+
+        res = self.testapp.get(
+            "/api/v1/threads", {"namespace": name}, status="*"
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("public-list thread", res.body.decode("utf-8"))
+
+    def test_null_public_reads_as_public(self):
+        """Rows predating our column, or missed by our backfill, stay visible.
+
+        Fail-open is deliberate here and only here: a NULL means "we never
+        asked", and silently hiding a live namespace's index would be a
+        self-inflicted outage.
+        """
+        name = "legacy-null-public.example.com"
+        ns = get_or_create_namespace(self.dbsession, name)
+        ns.public = None
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.make_thread(ns, "legacy-namespace thread", "LEGACY-NAMESPACE-BODY")
+        self.tm.commit()
+
+        res = self.testapp.get(
+            "/api/v1/threads", {"namespace": name}, status="*"
+        )
+        self.assertEqual(res.status_int, 200)
+        self.assertIn("legacy-namespace thread", res.body.decode("utf-8"))
+
+    def test_moderator_can_still_list_private_namespace(self):
+        """Privacy hides our index from strangers, not from our own moderators."""
+        ns = get_or_create_namespace(self.dbsession, self.namespace_name)
+        self.assertFalse(ns.can_list_roots(None))
+        self.assertTrue(ns.can_list_roots(_FakeSuperuser()))
+
+    def test_toggle_is_reversible(self):
+        """Fox's requirement: a namespace can go private and come back."""
+        ns = get_or_create_namespace(self.dbsession, "toggle-list.example.com")
+        self.dbsession.flush()
+        self.assertTrue(ns.can_list_roots(None))
+
+        ns.public = False
+        self.dbsession.flush()
+        self.assertFalse(ns.can_list_roots(None))
+
+        ns.public = True
+        self.dbsession.flush()
+        self.assertTrue(ns.can_list_roots(None))
+
+
+class _FakeSuperuser(object):
+    """Minimal stand-in for our superuser branch of `is_moderator`."""
+
+    authenticated = True
+    is_superuser = True
 
 
 # ---------------------------------------------------------------------------
-# S5 — credential material in logs
+# Credential material must never reach our logs
 # ---------------------------------------------------------------------------
 
 
-class TestS5CredentialLogging(SecurityFunctionalTests):
-    """S5 (fixed): `check_password` used to log both the computed and stored
+class TestPasswordCheckLogging(SecurityFunctionalTests):
+    """`check_password` used to log both the computed and stored
     bcrypt hashes unconditionally, at every login attempt. Our OTP is six
     digits, so a logged hash is a recoverable credential for anyone holding our
     logs.
@@ -361,7 +464,7 @@ class TestS5CredentialLogging(SecurityFunctionalTests):
         self.dbsession.add(self.user)
         self.dbsession.flush()
 
-    def test_S5_check_password_does_not_log_hashes(self):
+    def test_check_password_does_not_log_hashes(self):
         """A login attempt must not write bcrypt material to our logs."""
         import logging
 
@@ -374,7 +477,7 @@ class TestS5CredentialLogging(SecurityFunctionalTests):
         self.assertNotIn("stored_hash=", blob)
         self.assertNotIn("new_hash=", blob)
 
-    def test_S5_check_password_still_reports_outcome(self):
+    def test_check_password_still_reports_outcome(self):
         """We kept an outcome signal — just not the material."""
         import logging
 
@@ -384,13 +487,13 @@ class TestS5CredentialLogging(SecurityFunctionalTests):
         self.assertTrue(result)
         self.assertIn("matched=True", "\n".join(caught.output))
 
-    def test_S5_wrong_otp_still_fails(self):
+    def test_wrong_otp_still_fails(self):
         """Behaviour guard: the refactor must not weaken verification."""
         self.assertFalse(self.user.check_password("000000"))
 
 
-class TestS5MailDebugAffordance(SecurityFunctionalTests):
-    """Our deliberate exception to S5, per fox 2026-07-27: when SMTP fails and
+class TestMailDebugAffordance(SecurityFunctionalTests):
+    """Our deliberate exception to that rule, per fox 2026-07-27: when SMTP fails and
     our debug toolbar is enabled, `send_email` logs the full message — OTP
     included — and returns None instead of raising, so local development works
     without a mail relay. This test exists so a future credential-logging
@@ -416,7 +519,7 @@ class TestS5MailDebugAffordance(SecurityFunctionalTests):
                 )
         return result, "\n".join(caught.output)
 
-    def test_S5_smtp_failure_logs_otp_when_debug_mode_enabled(self):
+    def test_smtp_failure_logs_otp_when_debug_mode_enabled(self):
         """SMTP down + debug toolbar on: our OTP must still reach our log."""
         result, blob = self._send_with_smtp_down(debug_mode=True)
 
@@ -424,7 +527,7 @@ class TestS5MailDebugAffordance(SecurityFunctionalTests):
         self.assertIn("123456", blob)
         self.assertIn("Failed to send email", blob)
 
-    def test_S5_smtp_failure_raises_when_debug_mode_disabled(self):
+    def test_smtp_failure_raises_when_debug_mode_disabled(self):
         """Without debug mode we raise instead of logging message contents."""
         from unittest.mock import patch
 
@@ -444,17 +547,17 @@ class TestS5MailDebugAffordance(SecurityFunctionalTests):
 
 
 # ---------------------------------------------------------------------------
-# S7 / S8 — session secret and cookie flags
+# Session signing secret and cookie flags
 # ---------------------------------------------------------------------------
 
 
-class TestS7SessionSecret(SecurityFunctionalTests):
-    """S7 (fixed): `session.secret = test-secret` shipped as a literal in our
+class TestSessionSecretBootGuard(SecurityFunctionalTests):
+    """`session.secret = test-secret` shipped as a literal in our
     public `development.ini`, and `make config` downloads that file as a new
     install's configuration. Session cookies are signed with it, so the value
     forges any session. We now fail closed at startup outside development."""
 
-    def test_S7_production_boot_refuses_known_weak_secret(self):
+    def test_production_boot_refuses_known_weak_secret(self):
         """No debug toolbar (i.e. a real deploy) + known secret must not boot."""
         from remarkbox import assert_session_secret_is_safe
 
@@ -464,7 +567,7 @@ class TestS7SessionSecret(SecurityFunctionalTests):
                     {"session.secret": weak, "pyramid.includes": ""}
                 )
 
-    def test_S7_development_boot_allows_fallback_secret(self):
+    def test_development_boot_allows_fallback_secret(self):
         """Dev keeps working: the toolbar marks a dev box, so we allow it."""
         from remarkbox import assert_session_secret_is_safe
 
@@ -475,7 +578,7 @@ class TestS7SessionSecret(SecurityFunctionalTests):
             }
         )
 
-    def test_S7_real_secret_boots_anywhere(self):
+    def test_real_secret_boots_anywhere(self):
         """A properly set secret boots with or without our toolbar."""
         from remarkbox import assert_session_secret_is_safe
 
@@ -488,14 +591,14 @@ class TestS7SessionSecret(SecurityFunctionalTests):
         )
 
 
-class TestS8CookieFlags(SecurityFunctionalTests):
-    """S8 (fixed): `samesite = none` with `secure = False` is rejected outright
+class TestSessionCookieFlags(SecurityFunctionalTests):
+    """`samesite = none` with `secure = False` is rejected outright
     by current browsers — the cookie is simply dropped. `none` is genuinely
     required for our embed product's third-party iframes, so `secure` must be
     true alongside it. http://localhost is a secure context, so development
     is unaffected."""
 
-    def test_S8_shipped_config_pairs_samesite_none_with_secure(self):
+    def test_shipped_config_pairs_samesite_none_with_secure(self):
         from pyramid.paster import get_appsettings
 
         settings = get_appsettings("development.ini")
@@ -511,18 +614,18 @@ class TestS8CookieFlags(SecurityFunctionalTests):
 
 
 # ---------------------------------------------------------------------------
-# S6 — unauthenticated pandoc conversion is a CPU amplification surface
+# Unauthenticated pandoc conversion is a CPU amplification surface
 # ---------------------------------------------------------------------------
 
 
-class TestS6PandocAmplification(SecurityFunctionalTests):
-    """S6: `/preview-post` shells out to pandoc for any anonymous caller, and
+class TestPreviewPandocAmplification(SecurityFunctionalTests):
+    """`/preview-post` shells out to pandoc for any anonymous caller, and
     the rate-limit tween only covers `/api/v1/` paths — so this endpoint has
     no limit at all. Recorded here as an executable statement of the exposure;
     the guard we want is a rate limit plus an input cap."""
 
 
-    def test_S6_preview_post_is_reachable_anonymously(self):
+    def test_preview_post_is_reachable_anonymously(self):
         """Control: no auth is required to make us run a pandoc subprocess."""
         res = self.testapp.post(
             "/preview-post",
@@ -532,7 +635,7 @@ class TestS6PandocAmplification(SecurityFunctionalTests):
         )
         self.assertEqual(res.status_code, 200)
 
-    def test_S6_oversized_preview_is_refused(self):
+    def test_oversized_preview_is_refused(self):
         """Preview input must be capped like every other content path.
 
         Every other write path enforces `MAX_CONTENT_LENGTH`. Preview used to
@@ -549,7 +652,7 @@ class TestS6PandocAmplification(SecurityFunctionalTests):
         )
         self.assertIn(res.status_code, (400, 413, 429))
 
-    def test_S6_preview_post_is_rate_limited(self):
+    def test_preview_post_is_rate_limited(self):
         """`/preview-post` must fall under our rate-limit tween.
 
         The tween used to return early for every path outside `/api/v1/`, so
