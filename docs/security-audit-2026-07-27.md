@@ -165,13 +165,16 @@ every row to `True` first (data-only, no DDL, so it is safe on SQLite), our
 model default flips to `True`, and NULL reads as public. `False` is now only
 ever a choice an owner made.
 
-**Deploy switch — read before enabling.** Nothing in our pipeline runs
-migrations: not CI, not salt, not app startup. Enforcement therefore sits
-behind `namespace.enforce_private_lists`, defaulting to **false**, because
-code that reached production ahead of its migration would read every row as
-`public = False` and take all 11,917 indexes private at once. Sequence per
-deployment: `make migrate`, confirm the backfill, then set the flag to true.
-It doubles as a kill switch. See `remarkbox/lib/privacy.py`.
+**Deploy switch — read before enabling.** Salt runs `alembic upgrade head` on
+every release (`foxhop-states/uwsgi/sites.sls`), so a normal production deploy
+applies `554e2329ebf0` for us. Enforcement still sits behind
+`namespace.enforce_private_lists`, defaulting to **false**, for the cases that
+are not a normal deploy: a database restored from a pre-backfill backup, a
+hand-rolled self-hosted install, or a salt run whose alembic step failed while
+the release still went live. Enforcing against un-backfilled rows would read
+every row as `public = False` and take all 11,917 indexes private at once. Set
+the flag once that deployment's database is known to be backfilled; it doubles
+as a kill switch. See `remarkbox/lib/privacy.py`.
 
 Enforced by `Namespace.can_list_roots` everywhere we enumerate: home listing,
 node list, RSS, sitemap, thread-list API, search API, and whole-namespace

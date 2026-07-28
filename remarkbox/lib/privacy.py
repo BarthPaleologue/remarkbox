@@ -2,19 +2,24 @@
 
 `Namespace.public` was unenforced for years and defaulted to `False`, so every
 row in a live database says `False` while behaving publicly. Migration
-`554e2329ebf0` backfills those rows to `True` — but nothing in our pipeline
-runs migrations automatically, so code can reach production before its
-migration does. Enforcing on un-backfilled data would take every namespace's
-index private at once.
+`554e2329ebf0` backfills those rows to `True`.
 
-So enforcement is opt-in per deployment:
+Salt applies migrations on every release (`alembic upgrade head`, in
+`foxhop-states/uwsgi/sites.sls`), so a normal deploy is already ordered
+correctly. This switch exists for the cases that are not normal: a database
+restored from a pre-backfill backup, a self-hoster who deploys by hand, or a
+salt run whose alembic step failed while the release still went live.
+Enforcing against un-backfilled rows would take every namespace index private
+at once, so we make that impossible by default.
+
+Enforcement is therefore opt-in per deployment:
 
     namespace.enforce_private_lists = true
 
 Off means every list stays visible exactly as before, whatever the column
-says. Turn it on once `make migrate` has run against that deployment's
-database. It doubles as a kill switch: if list privacy ever misbehaves,
-flipping this back costs a config reload rather than a code deploy.
+says. Turn it on once that deployment's database is known to be backfilled.
+It doubles as a kill switch: if list privacy ever misbehaves, flipping this
+back costs a config reload rather than a code deploy.
 """
 
 
