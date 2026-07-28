@@ -1,4 +1,7 @@
+# alias: `from .event import *` below binds our models' `event` submodule
+# over any bare `event` global in this package namespace.
 from sqlalchemy import engine_from_config
+from sqlalchemy import event as sa_event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import configure_mappers
 import zope.sqlalchemy
@@ -30,7 +33,42 @@ configure_mappers()
 
 
 def get_engine(settings, prefix="sqlalchemy."):
-    return engine_from_config(settings, prefix)
+    engine = engine_from_config(settings, prefix)
+    if engine.url.get_backend_name() == "sqlite":
+
+        @sa_event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            # wait rather than raise "database is locked" under contention.
+            cursor.execute("PRAGMA busy_timeout = 30000")
+
+            # WAL lets readers run while a writer holds the database —
+            # without it every comment INSERT blocks every reader for the
+            # length of the write. journal_mode is a persistent property
+            # of the database file, not the connection, so this is a
+            # no-op after the first connect; we set it on every connect
+            # anyway so a restored or newly provisioned database can
+            # never quietly run in rollback mode. In-memory databases
+            # (test fixtures) answer "memory" and ignore the request,
+            # which is harmless.
+            cursor.execute("PRAGMA journal_mode = WAL")
+
+            # NORMAL fsyncs at checkpoints instead of at every commit.
+            # With WAL this risks losing only the last transactions on an
+            # OS/hardware crash — never a corrupt database — and is the
+            # standard pairing for WAL.
+            cursor.execute("PRAGMA synchronous = NORMAL")
+
+            # deliberately NOT setting PRAGMA foreign_keys = ON here.
+            # These databases have run with SQLite's default (off) since
+            # day one; enabling enforcement now would start rejecting
+            # deletes against whatever orphan rows history has left us —
+            # a behaviour change to shake out on its own, not a rider on
+            # a journal-mode change.
+
+            cursor.close()
+
+    return engine
 
 
 def get_session_factory(engine):

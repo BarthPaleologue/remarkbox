@@ -113,8 +113,27 @@ migration: venv config
 	@if [ -z "$(m)" ]; then echo "ERROR: provide a message: make migration m=\"add foo column\""; exit 1; fi
 	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) revision --autogenerate -m "$(m)"
 
-# Apply all pending Alembic migrations.
-migrate: venv config
+# Verified, WAL-safe, timestamped backup of the SQLite database behind
+# the ini's sqlalchemy.url. Our databases run journal_mode=WAL, so a bare
+# `cp` misses recent commits living in the -wal sidecar — this uses
+# SQLite's online backup API and integrity-checks the result. No-op with
+# a note when the database doesn't exist yet.
+backup-db: venv config
+	@if [ -f $(DATA_DIR)/remarkbox.sqlite ]; then \
+		$(VENV_DIR)/bin/remarkbox_backup_db -c $(DATA_DIR)/$(CONFIG_FILE) \
+			--output-dir $(DATA_DIR) --no-upload --no-compress; \
+	else \
+		echo "No database yet — nothing to back up."; \
+	fi
+
+# Prove our newest backup restores: integrity check, expected tables,
+# alembic revision, non-empty core tables.
+restore-drill: venv config
+	$(VENV_DIR)/bin/remarkbox_restore_drill -c $(DATA_DIR)/$(CONFIG_FILE) \
+		--backup-dir $(DATA_DIR)
+
+# Apply all pending Alembic migrations (backs up the database first).
+migrate: venv config backup-db
 	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) upgrade head
 
 # Show current migration status.

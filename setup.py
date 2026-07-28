@@ -73,6 +73,8 @@ setup(
             "remarkbox_safe_approve_all_nodes = remarkbox.scripts.safe_approve_all_nodes:main",
             "remarkbox_send_node_digest_notifications = remarkbox.scripts.send_node_digest_notifications:main",
             "remarkbox_delete_disabled_nodes = remarkbox.scripts.delete_disabled_nodes:main",
+            "remarkbox_backup_db = remarkbox.scripts.backup_db:main",
+            "remarkbox_restore_drill = remarkbox.scripts.restore_drill:main",
         ],
     },
     classifiers=[
