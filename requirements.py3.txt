@@ -6,7 +6,11 @@ setuptools
 
 # Pyramid.
 plaster_pastedeploy
-pyramid
+# 2.1 is current. Note it does NOT drop pkg_resources — asset.py and path.py
+# still import it — so remarkbox/_vendor/pkg_resources stays load-bearing for
+# our themes, whose templates and static assets are package-relative asset
+# specs that pyramid resolves through pkg_resources.resource_filename.
+pyramid>=2.1
 pyramid_jinja2
 pyramid_debugtoolbar
 pyramid_retry
