@@ -32,7 +32,9 @@ def reject_if_list_is_private(request):
     Only our index is gated. A thread reached by direct link, and every embed,
     keeps working — see `Namespace.can_list_roots`.
     """
-    if not request.namespace.can_list_roots(request.user):
+    from remarkbox.lib.privacy import list_is_visible
+
+    if not list_is_visible(request, request.namespace):
         return HTTPForbidden(PRIVATE_LIST_MESSAGE)
     return None
 

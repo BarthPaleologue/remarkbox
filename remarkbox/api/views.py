@@ -55,7 +55,9 @@ def check_namespace_listable(request, namespace):
     private. Individual threads stay reachable by id so our embed product
     keeps working; see `Namespace.can_list_roots`.
     """
-    if not namespace.can_list_roots(request.user):
+    from remarkbox.lib.privacy import list_is_visible
+
+    if not list_is_visible(request, namespace):
         request.response.status_code = 403
         return {"error": "This namespace's thread list is private"}
     return None

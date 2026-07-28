@@ -165,6 +165,14 @@ every row to `True` first (data-only, no DDL, so it is safe on SQLite), our
 model default flips to `True`, and NULL reads as public. `False` is now only
 ever a choice an owner made.
 
+**Deploy switch — read before enabling.** Nothing in our pipeline runs
+migrations: not CI, not salt, not app startup. Enforcement therefore sits
+behind `namespace.enforce_private_lists`, defaulting to **false**, because
+code that reached production ahead of its migration would read every row as
+`public = False` and take all 11,917 indexes private at once. Sequence per
+deployment: `make migrate`, confirm the backfill, then set the flag to true.
+It doubles as a kill switch. See `remarkbox/lib/privacy.py`.
+
 Enforced by `Namespace.can_list_roots` everywhere we enumerate: home listing,
 node list, RSS, sitemap, thread-list API, search API, and whole-namespace
 export. Search was additionally missing its `api_access` gate entirely; it now

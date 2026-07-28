@@ -633,6 +633,26 @@ class TestPrivateThreadList(SecurityFunctionalTests):
         self.assertFalse(ns.can_list_roots(None))
         self.assertTrue(ns.can_list_roots(_FakeSuperuser()))
 
+    def test_enforcement_is_off_by_default(self):
+        """Our deploy switch must fail open, or a deploy that outruns its
+        migration takes every namespace's index private at once.
+
+        Production rows all still read `public = False` until migration
+        554e2329ebf0 lands, and nothing in our pipeline runs migrations
+        automatically — so the default here is the difference between a
+        feature and a platform-wide outage.
+        """
+        from remarkbox.lib.privacy import enforcement_enabled
+
+        self.assertFalse(enforcement_enabled({}))
+        self.assertFalse(enforcement_enabled(None))
+        self.assertFalse(
+            enforcement_enabled({"namespace.enforce_private_lists": "false"})
+        )
+        self.assertTrue(
+            enforcement_enabled({"namespace.enforce_private_lists": "true"})
+        )
+
     def test_toggle_is_reversible(self):
         """Fox's requirement: a namespace can go private and come back."""
         ns = get_or_create_namespace(self.dbsession, "toggle-list.example.com")
