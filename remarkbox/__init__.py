@@ -38,6 +38,8 @@ import re
 # needed to load themes.
 from importlib.metadata import entry_points
 
+from remarkbox.lib.assets import package_dir_exists, package_path
+
 import logging
 import os
 import subprocess
@@ -162,16 +164,33 @@ def load_jinja2_themes(config):
 
     for theme_name, theme_module in themes.items():
         theme_module_name = theme_module.__name__
-        # teach Jinja2 about the template dir in the theme package.
-        config.add_jinja2_search_path(
-            "{}:templates/".format(theme_module_name), name=JINJA2_EXTENSION
-        )
-        # teach Pyramid about the static assets in the theme package.
-        config.add_static_view(
-            "static/theme/{}".format(theme_name),
-            "{}:static/theme/{}".format(theme_module_name, theme_name),
-            cache_max_age=3600,
-        )
+        # Resolve theme directories ourselves rather than handing pyramid an
+        # asset spec, which it would resolve through pkg_resources. Themes
+        # multiply — one per community, eventually — so this path must not
+        # depend on a deprecated API we do not control. See lib/assets.py.
+        if package_dir_exists(theme_module_name, "templates"):
+            config.add_jinja2_search_path(
+                package_path(theme_module_name, "templates"),
+                name=JINJA2_EXTENSION,
+            )
+        else:
+            log.warning(
+                "theme %s ships no templates/ directory; skipping its "
+                "template path", theme_name
+            )
+
+        static_parts = ("static", "theme", theme_name)
+        if package_dir_exists(theme_module_name, *static_parts):
+            config.add_static_view(
+                "static/theme/{}".format(theme_name),
+                package_path(theme_module_name, *static_parts),
+                cache_max_age=3600,
+            )
+        else:
+            log.warning(
+                "theme %s ships no static/theme/%s directory; skipping its "
+                "static view", theme_name, theme_name
+            )
         # Collect theme's default mode if defined
         if hasattr(theme_module, 'default_theme_mode'):
             theme_defaults[theme_name] = theme_module.default_theme_mode
@@ -294,12 +313,14 @@ def main(global_config, **settings):
 
     # setup jinja2 template support.
     config.include("pyramid_jinja2")
-    config.add_jinja2_search_path("remarkbox:templates/", name=JINJA2_EXTENSION)
+    config.add_jinja2_search_path(
+        package_path("remarkbox", "templates"), name=JINJA2_EXTENSION
+    )
     config.add_jinja2_renderer(JINJA2_EXTENSION)
     config = load_jinja2_themes(config)
 
     # compile the email validator regex outside of the functions.
-    _email_regex = re.compile("^[^@]+@[^@]+\.[^.@]+$")
+    _email_regex = re.compile(r"^[^@]+@[^@]+\.[^.@]+$")
 
     def add_debug_mode(request):
         """Return True if debug toolbar is enabled."""

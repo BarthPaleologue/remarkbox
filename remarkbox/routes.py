@@ -1,7 +1,18 @@
+from remarkbox.lib.assets import package_path
+
+
 def includeme(config):
     # shared routes
-    config.add_static_view("static", "static", cache_max_age=3600)
-    config.add_static_view("attachment", "remarkbox:static/attachment", cache_max_age=86400)
+    # Absolute paths resolved by us, not asset specs resolved by pyramid
+    # through pkg_resources. See remarkbox/lib/assets.py.
+    config.add_static_view(
+        "static", package_path("remarkbox", "static"), cache_max_age=3600
+    )
+    config.add_static_view(
+        "attachment",
+        package_path("remarkbox", "static", "attachment"),
+        cache_max_age=86400,
+    )
 
     config.add_route("favicon", "/favicon.ico")
     config.add_route("robots", "/robots.txt")
