@@ -633,25 +633,22 @@ class TestPrivateThreadList(SecurityFunctionalTests):
         self.assertFalse(ns.can_list_roots(None))
         self.assertTrue(ns.can_list_roots(_FakeSuperuser()))
 
-    def test_enforcement_is_off_by_default(self):
-        """Our deploy switch must fail open, or a deploy that outruns its
-        migration takes every namespace's index private at once.
+    def test_enforcement_is_on_by_default(self):
+        """Namespaces are public by default, so privacy needs no config.
 
-        Salt applies migrations on every release, so a normal deploy is
-        ordered correctly. This default covers what is not normal: a restored
-        pre-backfill backup, a hand-rolled install, or a failed alembic step
-        on a release that went live anyway. Rows still reading
-        `public = False` plus enforcement equals a platform-wide outage.
+        The column defaults to True and NULL reads as public, so enforcing
+        costs an untouched namespace nothing. The setting survives only as a
+        kill switch for a database predating our backfill.
         """
         from remarkbox.lib.privacy import enforcement_enabled
 
-        self.assertFalse(enforcement_enabled({}))
-        self.assertFalse(enforcement_enabled(None))
-        self.assertFalse(
-            enforcement_enabled({"namespace.enforce_private_lists": "false"})
-        )
+        self.assertTrue(enforcement_enabled({}))
+        self.assertTrue(enforcement_enabled(None))
         self.assertTrue(
             enforcement_enabled({"namespace.enforce_private_lists": "true"})
+        )
+        self.assertFalse(
+            enforcement_enabled({"namespace.enforce_private_lists": "false"})
         )
 
     def test_toggle_is_reversible(self):

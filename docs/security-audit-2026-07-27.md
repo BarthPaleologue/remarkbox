@@ -165,16 +165,14 @@ every row to `True` first (data-only, no DDL, so it is safe on SQLite), our
 model default flips to `True`, and NULL reads as public. `False` is now only
 ever a choice an owner made.
 
-**Deploy switch — read before enabling.** Salt runs `alembic upgrade head` on
-every release (`foxhop-states/uwsgi/sites.sls`), so a normal production deploy
-applies `554e2329ebf0` for us. Enforcement still sits behind
-`namespace.enforce_private_lists`, defaulting to **false**, for the cases that
-are not a normal deploy: a database restored from a pre-backfill backup, a
-hand-rolled self-hosted install, or a salt run whose alembic step failed while
-the release still went live. Enforcing against un-backfilled rows would read
-every row as `public = False` and take all 11,917 indexes private at once. Set
-the flag once that deployment's database is known to be backfilled; it doubles
-as a kill switch. See `remarkbox/lib/privacy.py`.
+**On by default.** Namespaces are public by default — the column defaults to
+`True`, NULL reads as public, and salt applies our backfill on every release
+(`alembic upgrade head`, `foxhop-states/uwsgi/sites.sls`) — so enforcing costs
+an untouched namespace nothing and privacy is purely an owner's choice.
+`namespace.enforce_private_lists = false` survives as a kill switch, for a
+database predating our backfill (a restored pre-backfill backup, an install
+that skipped `make migrate`) where rows still read `False` and enforcing would
+hide all 11,917 indexes at once. See `remarkbox/lib/privacy.py`.
 
 Enforced by `Namespace.can_list_roots` everywhere we enumerate: home listing,
 node list, RSS, sitemap, thread-list API, search API, and whole-namespace

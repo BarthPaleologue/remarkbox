@@ -4,22 +4,19 @@
 row in a live database says `False` while behaving publicly. Migration
 `554e2329ebf0` backfills those rows to `True`.
 
-Salt applies migrations on every release (`alembic upgrade head`, in
-`foxhop-states/uwsgi/sites.sls`), so a normal deploy is already ordered
-correctly. This switch exists for the cases that are not normal: a database
-restored from a pre-backfill backup, a self-hoster who deploys by hand, or a
-salt run whose alembic step failed while the release still went live.
-Enforcing against un-backfilled rows would take every namespace index private
-at once, so we make that impossible by default.
+Namespaces are public by default — the column defaults to `True`, NULL reads
+as public, and salt applies our backfill on every release (`alembic upgrade
+head`, in `foxhop-states/uwsgi/sites.sls`). Privacy is something an owner
+chooses, so enforcement is on by default and needs no configuration.
 
-Enforcement is therefore opt-in per deployment:
+The setting remains only as a kill switch:
 
-    namespace.enforce_private_lists = true
+    namespace.enforce_private_lists = false
 
-Off means every list stays visible exactly as before, whatever the column
-says. Turn it on once that deployment's database is known to be backfilled.
-It doubles as a kill switch: if list privacy ever misbehaves, flipping this
-back costs a config reload rather than a code deploy.
+Set that if list privacy ever misbehaves, or on a database that predates our
+backfill (a restored pre-backfill backup, a hand-rolled install that skipped
+`make migrate`) where rows still read `False` and enforcing would hide every
+index at once. Backing out costs a config reload rather than a code deploy.
 """
 
 
@@ -27,10 +24,10 @@ SETTING = "namespace.enforce_private_lists"
 
 
 def enforcement_enabled(settings):
-    """True when this deployment enforces `Namespace.public`."""
+    """True when this deployment enforces `Namespace.public`. On by default."""
     if not settings:
-        return False
-    return settings.get(SETTING, "false").strip().lower() in ("true", "1", "yes")
+        return True
+    return settings.get(SETTING, "true").strip().lower() in ("true", "1", "yes")
 
 
 def list_is_visible(request, namespace):
