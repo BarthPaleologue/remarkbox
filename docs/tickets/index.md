@@ -25,5 +25,5 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T18](18.md) | Security audit 2026-07-27 — seven findings (four High) | resolved | high | fox directive 2026-07-27 |
 | [T19](19.md) | Test suite instability — cross-module state coupling | resolved | high | fox directive 2026-07-27 |
 | [T20](20.md) | Full content privacy for namespaces (beyond unlisted) | open | medium | audit follow-up 2026-07-27 |
-| [T21](21.md) | demo.remarkbox.com fails TLS handshake | open | medium | noticed 2026-07-27 |
+| [T21](21.md) | demo.remarkbox.com fails TLS handshake | resolved | medium | noticed 2026-07-27 |
 | [T22](22.md) | Production alembic chain has not applied our backfill | open | high | postmortem 2026-07-27 |
