@@ -76,6 +76,45 @@ The namespace must have **Allow Anonymous Comments** enabled.
 Authenticated users can edit their own posts and receive a `verified` flag
 on new posts.
 
+### API Tokens (recommended for unattended clients)
+
+A session cookie is *ambient*: a browser attaches it to any request aimed at
+us, including one a hostile page triggered. A bearer token is not, so it is
+both safer and more convenient for scripts and agents — it does not expire
+with a session and can be revoked on its own.
+
+```python
+c = RemarkboxClient("https://my.remarkbox.com", cookie_file="~/.config/remarkbox/cookies.txt")
+result = c.create_token(name="my agent")
+print(result["token"])   # shown once — store it now
+
+# Later, with no cookie at all:
+c = RemarkboxClient("https://my.remarkbox.com", token="rbx_...")
+c.reply(node_id, data="posted with a token")
+```
+
+Send it as `Authorization: Bearer rbx_...`. The client does this for you when
+constructed with `token=`, or from `REMARKBOX_TOKEN` via `from_env()`.
+
+Only the SHA-256 of a token is stored, so a token cannot be recovered after
+creation — mint a new one and revoke the old. Token management
+(`create_token`, `list_tokens`, `revoke_token`) deliberately requires cookie
+authentication: a leaked token must not be able to mint more tokens or lock
+its owner out.
+
+### CSRF protection on writes
+
+Because our session cookie must be `SameSite=None` for our embed product,
+cookie-authenticated writes carry two extra requirements:
+
+- **`Content-Type: application/json`** — a cross-site HTML form cannot send
+  this, so it cannot forge a write. Our Python and C clients already comply.
+- **A same-origin `Origin` header when one is present.** Absent is fine:
+  non-browser clients omit it, and browsers are what we defend against.
+
+Bearer-authenticated writes skip both, since a header cannot be attached
+cross-site. Reads are unaffected.
+
 ## Endpoints
 
 All endpoints return JSON. Send JSON request bodies with
@@ -600,8 +639,9 @@ All errors return a JSON body with an `error` key:
 |--------|---------|
 | 400 | Bad request (missing params, content too long) |
 | 401 | Authentication required |
-| 403 | Forbidden (locked thread, disabled node, namespace opt-out) |
+| 403 | Forbidden (locked thread, disabled node, namespace opt-out, private thread list, cross-origin write) |
 | 404 | Not found (or API globally disabled) |
+| 415 | Write without `Content-Type: application/json` (see CSRF protection) |
 | 429 | Rate limit exceeded |
 
 ## Deploy Checklist for an Agent Domain

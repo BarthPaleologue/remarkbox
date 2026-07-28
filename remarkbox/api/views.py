@@ -1260,3 +1260,107 @@ def api_admin_recent_nodes(request):
             for n in nodes
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# API tokens
+# ---------------------------------------------------------------------------
+
+
+def _serialize_token(token):
+    """Token metadata only. The raw value exists once, at creation."""
+    return {
+        "id": str(token.id),
+        "name": token.name,
+        "created": token.created_timestamp,
+        "last_used": token.last_used_timestamp,
+    }
+
+
+def _require_session_user(request):
+    """Return an error dict unless our caller authenticated with our cookie.
+
+    Token management deliberately refuses bearer authentication: a stolen
+    token must not be able to mint more tokens, or revoke the ones its owner
+    would use to lock it out.
+    """
+    from remarkbox.api.auth import is_bearer_authenticated
+
+    if is_bearer_authenticated(request):
+        request.response.status_code = 403
+        return {
+            "error": "Token management requires session authentication, "
+                     "not a bearer token."
+        }
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+    return None
+
+
+@view_config(
+    route_name="api-user-tokens",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_list_tokens(request):
+    """List our caller's live API tokens, without their secret values."""
+    denied = _require_session_user(request)
+    if denied:
+        return denied
+
+    from remarkbox.models.api_token import get_api_tokens_by_user
+
+    tokens = get_api_tokens_by_user(request.dbsession, request.user)
+    return {"tokens": [_serialize_token(t) for t in tokens]}
+
+
+@view_config(
+    route_name="api-user-tokens",
+    request_method="POST",
+    renderer="json",
+    require_csrf=False,
+)
+def api_create_token(request):
+    """Mint a bearer token. Its raw value is returned here and never again."""
+    denied = _require_session_user(request)
+    if denied:
+        return denied
+
+    from remarkbox.models.api_token import create_api_token
+
+    name = (get_param(request, "name", "") or "").strip()[:64] or None
+    token, raw_token = create_api_token(request.dbsession, request.user, name=name)
+
+    request.response.status_code = 201
+    payload = _serialize_token(token)
+    payload["token"] = raw_token
+    payload["warning"] = (
+        "Store this token now. We keep only its hash, so it cannot be shown again."
+    )
+    return payload
+
+
+@view_config(
+    route_name="api-user-token",
+    request_method="DELETE",
+    renderer="json",
+    require_csrf=False,
+)
+def api_revoke_token(request):
+    """Revoke one of our caller's tokens."""
+    denied = _require_session_user(request)
+    if denied:
+        return denied
+
+    from remarkbox.models.api_token import get_api_token_by_id
+
+    token = get_api_token_by_id(request.dbsession, request.matchdict["token_id"])
+    if token is None or token.user_id != request.user.id:
+        # Same answer either way, so this cannot enumerate other users' tokens.
+        request.response.status_code = 404
+        return {"error": "Token not found"}
+
+    token.revoked = True
+    return {"revoked": True, "id": str(token.id)}

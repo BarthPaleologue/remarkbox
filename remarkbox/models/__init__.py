@@ -22,6 +22,7 @@ from .payment import *
 from .webmention import *
 from .sudo_otp import *
 from .revision import *
+from .api_token import *
 
 # run configure_mappers after defining all of the models to ensure
 # all relationships can be setup

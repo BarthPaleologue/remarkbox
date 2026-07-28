@@ -3,9 +3,10 @@
 Each test here pins down a defect found in our 2026-07-27 security audit
 (docs/security-audit-2026-07-27.md), which is where the finding IDs live.
 
-Tests assert the SECURE behaviour. Where a defect is still unfixed, its test
-is marked `xfail(strict=True)` so it fails loudly the moment someone fixes
-it — drop the marker then and it becomes a permanent regression guard.
+Tests assert the SECURE behaviour. Every defect our audit found is now fixed,
+so no `xfail` markers remain and each test here is a permanent regression
+guard. If a future audit opens a new one, mark its test `xfail(strict=True)`
+until it is fixed — strict, so it fails loudly the moment someone fixes it.
 """
 
 import transaction
@@ -205,16 +206,21 @@ class TestExportRefusesDisabledThreads(SecurityFunctionalTests):
 
 
 class TestApiWriteCsrf(SecurityFunctionalTests):
-    """Every /api/v1/ write view sets `require_csrf=False` while auth rides
-    on a `samesite=none` session cookie, and each view falls back to
-    `request.params` — so a plain form-encoded cross-site POST (a CORS "simple
-    request", no preflight) is accepted as the logged-in victim."""
+    """Our /api/v1/ write views set `require_csrf=False` while auth rides on a
+    `samesite=none` session cookie, and each falls back to `request.params` —
+    so a plain form-encoded cross-site POST (a CORS "simple request", no
+    preflight) used to be accepted as the logged-in victim.
 
+    Cookie-authenticated writes now require a JSON content type, which a
+    cross-site form cannot send, and a same-origin `Origin` when one is
+    present. Bearer-authenticated writes skip both, having never been
+    forgeable.
+    """
 
     def setUp(self):
-        ns = get_or_create_namespace(self.dbsession, "s3-csrf.example.com")
+        ns = get_or_create_namespace(self.dbsession, "csrf-target.example.com")
         self.dbsession.add(ns)
-        user = get_or_create_user_by_email(self.dbsession, "s3-victim@example.com")
+        user = get_or_create_user_by_email(self.dbsession, "csrf-victim@example.com")
         user.verified = True
         # Mint the OTP here, in setUp's transaction. Minting it inside a test
         # body means committing after webtest has already driven a request
@@ -243,10 +249,6 @@ class TestApiWriteCsrf(SecurityFunctionalTests):
         res = self.testapp.get("/api/v1/user/profile", status="*")
         self.assertEqual(res.status_code, 200)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="unfixed: API writes accept cross-site form posts (require_csrf=False)",
-    )
     def test_form_encoded_thread_creation_is_rejected(self):
         """A form-encoded POST carrying no CSRF token must be refused.
 
@@ -266,22 +268,22 @@ class TestApiWriteCsrf(SecurityFunctionalTests):
         )
         self.assertIn(
             res.status_code,
-            (400, 403),
-            "form-encoded write without CSRF token should be rejected, "
+            (400, 403, 415),
+            "form-encoded cross-site write should be rejected, "
             "got {}".format(res.status_code),
         )
+        self.assertNotIn("CSRF-FORGED-TITLE", res.body.decode("utf-8"))
 
     def test_profile_update_is_json_only(self):
         """Scope boundary: `api_update_profile` reads only the JSON body.
 
         Unlike the thread/reply/edit views it has no `request.params` fallback,
-        so a form-encoded cross-site POST arrives with an empty body and is
-        refused. Forging it would need `Content-Type: application/json`, which
-        is not a CORS simple request and so hits a preflight we never answer.
-        The protection here is incidental — it comes from the parsing style,
-        not from a CSRF token — so this test pins the behaviour in place: if
-        someone later adds a `request.params` fallback for symmetry with the
-        other views, this fails and says why.
+        so a form-encoded cross-site POST arrives with an empty body even
+        before our content-type guard sees it. That guard now refuses the
+        request outright, so this is belt and braces — but the test still
+        earns its place: if someone later adds a `request.params` fallback
+        here for symmetry with the other views, and our guard is ever relaxed,
+        this fails and says why.
         """
         self._log_in()
         res = self.testapp.request(
@@ -290,7 +292,223 @@ class TestApiWriteCsrf(SecurityFunctionalTests):
             POST={"name": "csrf-forged-name"},
             status="*",
         )
-        self.assertIn(res.status_code, (400, 403))
+        self.assertIn(res.status_code, (400, 403, 415))
+
+
+    def test_json_write_from_our_own_origin_still_works(self):
+        """Our guards must not break a legitimate same-origin JSON write."""
+        self._log_in()
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "legitimate json thread",
+                "data": "posted by a real client",
+            },
+            headers={"Origin": "http://localhost"},
+            status="*",
+        )
+        self.assertIn(res.status_code, (200, 201))
+
+    def test_json_write_from_a_foreign_origin_is_rejected(self):
+        """Defence in depth for anything that manages to send JSON cross-site."""
+        self._log_in()
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "cross origin thread",
+                "data": "posted from a hostile page",
+            },
+            headers={"Origin": "https://evil.example.com"},
+            status="*",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_write_without_origin_header_still_works(self):
+        """Non-browser clients send no Origin, and are not what we defend against."""
+        self._log_in()
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "headless client thread",
+                "data": "posted by a script",
+            },
+            status="*",
+        )
+        self.assertIn(res.status_code, (200, 201))
+
+    def test_bodyless_delete_is_not_blocked(self):
+        """Our own client sends a bodyless DELETE for node removal.
+
+        A form cannot issue DELETE at all, and a scripted one preflights, so
+        demanding a content type here would break a real client to guard a
+        door browsers already hold shut.
+        """
+        from remarkbox.api.csrf import api_csrf_tween_factory
+
+        seen = {}
+
+        def handler(request):
+            seen["reached"] = True
+            return "ok"
+
+        tween = api_csrf_tween_factory(handler, None)
+
+        class _Request(object):
+            path = "/api/v1/nodes/some-id"
+            method = "DELETE"
+            content_type = None
+            body = b""
+            headers = {}
+
+        self.assertEqual(tween(_Request()), "ok")
+        self.assertTrue(seen.get("reached"))
+
+    def test_reads_are_never_blocked_by_our_write_guards(self):
+        """Our guards apply to writes only; a plain GET must stay unaffected."""
+        res = self.testapp.get(
+            "/api/v1/threads",
+            {"namespace": self.namespace_name},
+            headers={"Origin": "https://evil.example.com"},
+            status="*",
+        )
+        self.assertEqual(res.status_code, 200)
+
+
+# ---------------------------------------------------------------------------
+# Bearer tokens: an authentication path that is not ambient
+# ---------------------------------------------------------------------------
+
+
+class TestBearerTokenAuth(SecurityFunctionalTests):
+    """A bearer token authenticates without a cookie, so a hostile page cannot
+    ride it. Tokens are stored hashed, are revocable, and cannot be used to
+    mint or revoke other tokens."""
+
+    def setUp(self):
+        ns = get_or_create_namespace(self.dbsession, "bearer.example.com")
+        self.dbsession.add(ns)
+        user = get_or_create_user_by_email(self.dbsession, "bearer-owner@example.com")
+        user.verified = True
+        self.raw_otp = user.new_password()
+        self.dbsession.add(user)
+        self.dbsession.flush()
+
+        from remarkbox.models.api_token import create_api_token
+
+        _token, raw_token = create_api_token(self.dbsession, user, name="test token")
+        self.raw_token = raw_token
+        self.namespace_name = str(ns.name)
+        self.user_email = str(user.email)
+        self.user_name = str(user.name) if user.name else None
+        self.tm.commit()
+
+    def _auth(self):
+        return {"Authorization": "Bearer {}".format(self.raw_token)}
+
+    def test_token_authenticates_a_read(self):
+        res = self.testapp.get(
+            "/api/v1/user/profile", headers=self._auth(), status="*"
+        )
+        self.assertEqual(res.status_code, 200)
+
+    def test_token_authenticates_a_write_without_a_cookie(self):
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "token written thread",
+                "data": "written with a bearer token",
+            },
+            headers=self._auth(),
+            status="*",
+        )
+        self.assertIn(res.status_code, (200, 201))
+
+    def test_token_write_is_allowed_from_any_origin(self):
+        """A header cannot be forged cross-site, so Origin is irrelevant here.
+
+        This is what lets a third-party client work from a browser at all.
+        """
+        headers = self._auth()
+        headers["Origin"] = "https://some-other-app.example.com"
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "cross origin token thread",
+                "data": "written by a third-party client",
+            },
+            headers=headers,
+            status="*",
+        )
+        self.assertIn(res.status_code, (200, 201))
+
+    def test_a_bogus_token_does_not_authenticate(self):
+        res = self.testapp.get(
+            "/api/v1/user/profile",
+            headers={"Authorization": "Bearer rbx_not-a-real-token"},
+            status="*",
+        )
+        self.assertEqual(res.status_code, 401)
+
+    def test_raw_token_is_not_stored(self):
+        """Our database must hold no working credential."""
+        from remarkbox.models.api_token import ApiToken
+
+        rows = self.dbsession.query(ApiToken).all()
+        for row in rows:
+            self.assertNotEqual(row.token_hash, self.raw_token)
+        self.assertTrue(
+            any(r.token_hash == _sha256_hex(self.raw_token) for r in rows)
+        )
+
+    def test_a_revoked_token_stops_working(self):
+        from remarkbox.models.api_token import ApiToken, hash_api_token
+
+        token = (
+            self.dbsession.query(ApiToken)
+            .filter(ApiToken.token_hash == hash_api_token(self.raw_token))
+            .one()
+        )
+        token.revoked = True
+        self.dbsession.add(token)
+        self.tm.commit()
+
+        res = self.testapp.get(
+            "/api/v1/user/profile", headers=self._auth(), status="*"
+        )
+        self.assertEqual(res.status_code, 401)
+
+    def test_a_token_cannot_mint_another_token(self):
+        """A stolen token must not be able to multiply itself."""
+        res = self.testapp.post_json(
+            "/api/v1/user/tokens",
+            {"name": "escalated"},
+            headers=self._auth(),
+            status="*",
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_a_token_cannot_list_tokens(self):
+        res = self.testapp.get(
+            "/api/v1/user/tokens", headers=self._auth(), status="*"
+        )
+        self.assertEqual(res.status_code, 403)
+
+    def test_anonymous_cannot_mint_a_token(self):
+        res = self.testapp.post_json(
+            "/api/v1/user/tokens", {"name": "anon"}, status="*"
+        )
+        self.assertEqual(res.status_code, 401)
+
+
+def _sha256_hex(raw):
+    import hashlib
+
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 # ---------------------------------------------------------------------------

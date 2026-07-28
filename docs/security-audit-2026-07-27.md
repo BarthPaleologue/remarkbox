@@ -12,7 +12,7 @@ Run our suite:
 
 ```bash
 env/bin/python -m pytest remarkbox/tests/test_security.py -q
-# 19 passed, 2 xfailed  ← 2 xfails == S3 and S4, still open
+# 41 passed   ← no xfails: every finding is fixed
 ```
 
 > `make test` is our canonical whole-suite invocation. Serial runs used to
@@ -26,8 +26,8 @@ env/bin/python -m pytest remarkbox/tests/test_security.py -q
 |----|----------|-------|--------|
 | S1 | **High** | Export API bypasses moderation visibility filters | **fixed** |
 | S2 | **High** | Export API serves disabled (moderator-removed) threads | **fixed** |
-| S3 | **High** | CSRF on API write endpoints | open — needs a design decision |
-| S4 | Medium | `Namespace.public` is never enforced | open — needs a product decision |
+| S3 | **High** | CSRF on API write endpoints | **fixed** |
+| S4 | Medium | `Namespace.public` is never enforced | **fixed** |
 | S5 | **High** | OTP bcrypt hash written to logs on every login | **fixed** |
 | S6 | Medium | `/preview-post` — uncapped, unauthenticated pandoc execution | **fixed** |
 | S8 | Medium | `session.samesite = none` + `session.secure = False` is self-defeating | **fixed** |
@@ -60,7 +60,7 @@ reject — assumes held content is not readable.
 mirrors `api_get_thread`, and applied it to all three export views including
 `node_fetcher` in `api_export_namespace`. Like the JSON endpoint it does not
 widen for moderators — held content is visible in our web UI, not in exports.
-Guarded by `TestS1ExportVisibility` (3 tests, no longer xfail).
+Guarded by `TestExportRespectsModerationVisibility` (3 tests).
 
 ### S2 — Export API serves disabled threads (High) — FIXED
 
@@ -76,9 +76,9 @@ exports).
 **Fixed** in `api/export.py`: `api_export_thread` now 404s when `root.disabled`
 or `namespace.can_see_node` refuses; `api_export_node` does the same for the
 subtree's anchor node. `api_export_namespace` was already safe at the root level
-via `visible_roots`. Guarded by `TestS2ExportDisabledRoot`.
+via `visible_roots`. Guarded by `TestExportRefusesDisabledThreads`.
 
-### S3 — CSRF on API write endpoints (High)
+### S3 — CSRF on API write endpoints (High) — FIXED
 
 `remarkbox/api/views.py` — every write view; `remarkbox/__init__.py:239`;
 `development.ini:39`
@@ -113,16 +113,32 @@ moderation flags when the victim is a moderator).
 **Not affected:** `PATCH /api/v1/user/profile` — it reads the JSON body only,
 with no `request.params` fallback, so forging it would require
 `Content-Type: application/json` and thus a preflight. That protection is
-incidental to its parsing style, not deliberate; `test_S3_profile_update_is_json_only`
+incidental to its parsing style, not deliberate; `test_profile_update_is_json_only`
 pins it so adding a params fallback "for symmetry" fails loudly.
 
-**Fix:** the API needs an auth path that is not ambient. Preferred: require a
-bearer token (`Authorization` header) for `/api/v1/` writes and stop honouring
-the session cookie there — a header cannot be attached by a cross-site form.
-Interim: reject write requests whose `Content-Type` is not `application/json`,
-and validate `Origin` against our namespace host.
+**Fixed — both paths, per fox 2026-07-27.**
 
-### S4 — `Namespace.public` is never enforced (Medium)
+*Bearer tokens* (`models/api_token.py`, `api/auth.py`): a revocable,
+per-credential `Authorization: Bearer` token, stored as SHA-256 (256 bits of
+entropy means nothing to brute force, and bcrypt would tax every request for
+no gain). Resolved ahead of our session cookie in `add_user`. Token management
+refuses bearer authentication, so a leaked token cannot mint more or lock its
+owner out.
+
+*Cookie-authenticated writes* (`api/csrf.py` tween) additionally require:
+
+- `Content-Type: application/json` — a cross-site form can only send the three
+  CORS simple types, so it cannot forge a write. Our Python and C clients
+  already sent this, so no client broke.
+- a same-origin `Origin` when present. Absent is allowed: non-browser clients
+  omit it, and browsers are the threat. Hostnames are compared without ports,
+  because a browser omits the default port while `request.host` behind our
+  proxy may carry one.
+
+Bearer-authenticated writes skip both, having never been forgeable. Reads are
+untouched. Guarded by `TestApiWriteCsrf` and `TestBearerTokenAuth`.
+
+### S4 — `Namespace.public` is never enforced (Medium) — FIXED
 
 `remarkbox/models/namespace.py:109`; `remarkbox/routes.py:29-30`
 
@@ -140,10 +156,28 @@ on both web and API, whatever the flag says. Nobody has been harmed yet because
 the flag has never been advertised as working — but any operator who discovers
 the column in their database will reasonably assume it does something.
 
-**Fix:** either enforce it in `namespace.visible_roots` / the list views and the
-API, or drop the column so it stops implying a guarantee we don't provide.
-Do not ship undigg.com's community-creation UX until this is decided —
-"private community" is exactly the promise this flag looks like it makes.
+**Fixed — enforced and made toggleable, per fox 2026-07-27.**
+
+The dangerous part was our data, not our code: the column defaulted to `False`
+and all 11,917 namespaces carried `0` or NULL, so naive enforcement would have
+turned every namespace private on deploy. Migration `554e2329ebf0` backfills
+every row to `True` first (data-only, no DDL, so it is safe on SQLite), our
+model default flips to `True`, and NULL reads as public. `False` is now only
+ever a choice an owner made.
+
+Enforced by `Namespace.can_list_roots` everywhere we enumerate: home listing,
+node list, RSS, sitemap, thread-list API, search API, and whole-namespace
+export. Search was additionally missing its `api_access` gate entirely; it now
+has both. Owners and moderators still see their own index. Toggle lives in
+namespace settings as "Public Thread List" and reverses cleanly.
+
+**Scope — read this before promising privacy.** `public` governs our *index*,
+not our content. A thread reached by direct link, and every embedded comment
+widget, still works on a private namespace, because our embed product resolves
+threads by page URI and hiding those would break it. That is honest as
+"unlisted", not as "private". T20 tracks genuine content privacy, which
+undigg.com needs before its creation flow can offer a "private community".
+Guarded by `TestPrivateThreadList`.
 
 ### S5 — OTP bcrypt hash written to logs on every login (High) — FIXED
 
@@ -174,7 +208,7 @@ retention window; no rotation needed beyond that.
 message contents — OTP included — when SMTP fails *and* our debug toolbar is
 enabled, so local development works without a mail relay. That is a different
 call site with a real conditional, and it is now pinned by
-`TestS5MailDebugAffordance` so a future credential-logging sweep cannot delete
+`TestMailDebugAffordance` so a future credential-logging sweep cannot delete
 it silently. Verified end-to-end against our real `development.ini` logging
 config: with SMTP refused, the OTP prints to console.
 
@@ -201,7 +235,7 @@ expensive request our app can be asked to serve, at 120 reads/min per IP.
 (default `/preview-post`) so non-API paths can be throttled under the same
 buckets. Configurable rather than hardcoded, per our standing rule that a value
 which can differ per site should not be baked in. Guarded by
-`TestS6PandocAmplification`.
+`TestPreviewPandocAmplification`.
 
 **Still open, tracked here rather than as a separate finding:** expensive export
 formats (`pdf`, `epub`, `docx`) share the ordinary read bucket at 120/min.
@@ -236,7 +270,7 @@ so token or header-based protection is not optional.
 **Fixed** in `development.ini`: `session.secure = True`, `samesite` stays `none`
 for embed support. http://localhost counts as a secure context, so development
 is unaffected. `foxhop-local.ini` needs no change — it pairs `samesite = lax`
-with `secure = False`, which browsers accept. Guarded by `TestS8CookieFlags`,
+with `secure = False`, which browsers accept. Guarded by `TestSessionCookieFlags`,
 which asserts the pairing rather than the literal values, so it holds if the
 config is retuned. S3 remains the reason this matters.
 
@@ -275,36 +309,29 @@ Recording these so a future audit does not re-litigate them:
   for self-hosters, who fetch `development.ini` over the network via
   `make config`: `development.ini` reads the secret from that environment
   variable, and `assert_session_secret_is_safe()` (`__init__.py`, pinned by
-  `TestS7SessionSecret`) refuses to boot on a known development value unless
+  `TestSessionSecretBootGuard`) refuses to boot on a known development value unless
   our debug toolbar is on. Nothing to action.
 
 ## Remaining work
 
-**S3 — CSRF on API writes.** Needs a decision from fox before code: bearer
-tokens for `/api/v1/` writes (correct, breaks existing cookie-authenticated
-clients including our own Python/C SDKs and saved cookie jar), or the interim
-pair — require `Content-Type: application/json` on writes and validate `Origin`
-against our namespace host (much smaller change, keeps clients working, relies
-on preflight rather than a token). My recommendation is the interim pair now
-and bearer tokens as part of undigg.com's API work, since that is when
-third-party clients arrive.
+**Export cost buckets** (noted under S6): `pdf`, `epub`, and `docx` exports
+share our ordinary read bucket at 120/min, and
+`GET /api/v1/export/namespace/{name}.pdf` is still the most expensive request
+we serve. Give those formats their own lower bucket before undigg.com opens
+public signups.
 
-**S4 — `Namespace.public`.** A product decision, not a security one: enforce
-the flag or drop the column. Either is defensible; leaving a column that looks
-like a privacy guarantee and isn't is the only bad option. This blocks offering
-"private community" in undigg.com's creation flow.
-
-**Export cost buckets** (noted under S6): give `pdf`/`epub`/`docx` their own
-lower rate-limit bucket before opening public signups.
+**Content privacy** ([T20](tickets/20.md)): `Namespace.public` hides a thread
+*index*, not thread *content*. undigg.com cannot honestly offer a "private
+community" until that exists.
 
 ## Verification
 
 ```bash
 env/bin/python -m pytest remarkbox/tests/test_security.py -q
-# 19 passed, 2 xfailed   (2 xfails = S3, S4)
+# 41 passed — every finding fixed, no xfails remain
 
-make test    # whole suite, xdist — never run it serially
+make test    # whole suite
 ```
 
-Each remaining `xfail(strict=True)` fails loudly the moment its finding is
-fixed; drop the marker then and it becomes a permanent regression guard.
+Every test here now asserts secure behaviour with no `xfail` markers left, so
+each one is a permanent regression guard.

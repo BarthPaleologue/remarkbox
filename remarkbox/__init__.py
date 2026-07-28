@@ -325,6 +325,16 @@ def main(global_config, **settings):
     def add_user(request):
         """Return User object or None. User.authenticated may be True or False."""
         user = None
+
+        # A bearer token beats our session cookie: it is explicit, scoped to
+        # one credential our user can revoke, and cannot be attached to a
+        # request by a hostile page.
+        from remarkbox.api.auth import resolve_bearer_user
+
+        token_user = resolve_bearer_user(request)
+        if token_user is not None:
+            return token_user
+
         authenticated_user_id = request.session.get("authenticated_user_id", None)
 
         if authenticated_user_id:
@@ -678,6 +688,7 @@ def main(global_config, **settings):
 
     # Rate limiting tween for API endpoints.
     config.add_tween("remarkbox.api.rate_limit.rate_limit_tween_factory")
+    config.add_tween("remarkbox.api.csrf.api_csrf_tween_factory")
 
     # Scan for views.
     config.scan()

@@ -157,6 +157,9 @@ c.reply(node_id, data="<p>HTML reply</p>", source_format="html")
 | POST | `/api/v1/auth/verify` | Verify OTP |
 | GET | `/api/v1/user/profile` | Get profile |
 | PATCH | `/api/v1/user/profile` | Update display name |
+| GET | `/api/v1/user/tokens` | List our API tokens (cookie auth only) |
+| POST | `/api/v1/user/tokens` | Mint an API token, shown once (cookie auth only) |
+| DELETE | `/api/v1/user/tokens/{id}` | Revoke an API token (cookie auth only) |
 | GET | `/api/v1/clients/python` | Download Python client |
 | GET | `/api/v1/clients/c` | Download C client (rb.c) |
 | GET | `/api/v1/admin/namespaces` | List all namespaces (superuser only) |
@@ -172,6 +175,18 @@ c.reply(node_id, data="<p>HTML reply</p>", source_format="html")
 | GET | `/api/v1/themes/{namespace}/preview` | Theme palette preview (JSON) |
 
 ### Authentication
+
+Prefer an API token for unattended work — it is not ambient, does not expire
+with a session, and is revocable on its own:
+
+```python
+c = RemarkboxClient("https://my.remarkbox.com", token="rbx_...")   # or REMARKBOX_TOKEN
+```
+
+Mint one while cookie-authenticated (`c.create_token(name="agent")`); its raw
+value is shown once. API writes authenticated by cookie now require
+`Content-Type: application/json` and a same-origin `Origin` when present —
+our clients already comply.
 
 Our saved cookie should work indefinitely. If it expires, you'll need an OTP:
 

@@ -87,7 +87,7 @@ class RemarkboxError(Exception):
 class RemarkboxClient:
     """Remarkbox API client. Manages sessions via cookies automatically."""
 
-    def __init__(self, url, email=None, cookie_file=None):
+    def __init__(self, url, email=None, cookie_file=None, token=None):
         """
         Args:
             url: Base URL of the Remarkbox instance (e.g. https://my.remarkbox.com)
@@ -95,9 +95,14 @@ class RemarkboxClient:
             cookie_file: Optional path to persist session cookies across runs.
                          If provided, cookies are loaded on init and saved
                          after login/verify. Use this to stay logged in.
+            token: Optional API bearer token. Preferred over cookies for
+                   unattended clients: it never expires with a session, it is
+                   revocable on its own, and it authenticates writes without
+                   relying on an ambient cookie. Mint one with create_token().
         """
         self.url = url.rstrip("/")
         self.email = email
+        self.token = token
         self._cookie_file = cookie_file
         if cookie_file:
             self._cookie_jar = http.cookiejar.MozillaCookieJar(cookie_file)
@@ -116,12 +121,13 @@ class RemarkboxClient:
         Reads:
             REMARKBOX_URL (required)
             REMARKBOX_EMAIL (optional)
+            REMARKBOX_TOKEN (optional API bearer token)
         """
         url = os.environ.get("REMARKBOX_URL")
         if not url:
             raise RemarkboxError(0, {"error": "REMARKBOX_URL environment variable not set"})
         email = os.environ.get("REMARKBOX_EMAIL")
-        return cls(url, email=email)
+        return cls(url, email=email, token=os.environ.get("REMARKBOX_TOKEN"))
 
     @classmethod
     def from_config(cls, path=None):
@@ -141,7 +147,12 @@ class RemarkboxClient:
         url = config.get("url")
         if not url:
             raise RemarkboxError(0, {"error": "url is required in config file"})
-        return cls(url, email=config.get("email"), cookie_file=config.get("cookie_file"))
+        return cls(
+            url,
+            email=config.get("email"),
+            cookie_file=config.get("cookie_file"),
+            token=config.get("token"),
+        )
 
     def _save_cookies(self):
         """Persist cookies to disk if cookie_file was provided."""
@@ -157,6 +168,9 @@ class RemarkboxClient:
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             _headers["Content-Type"] = "application/json"
+
+        if self.token:
+            _headers["Authorization"] = "Bearer {}".format(self.token)
 
         if headers:
             _headers.update(headers)
@@ -441,6 +455,38 @@ class RemarkboxClient:
             dict with key: user (id, name, email)
         """
         return self._request("PATCH", "/api/v1/user/profile", {"name": name})
+
+    # ----- API tokens -----
+
+    def create_token(self, name=None):
+        """Mint an API bearer token for the logged-in user.
+
+        Requires cookie authentication: a token cannot mint another token, so
+        a leaked one cannot multiply itself. Log in first, then call this.
+
+        The raw token comes back exactly once, under key "token" — store it
+        then, because only its hash is kept server-side.
+
+        Returns:
+            dict with keys: id, name, created, last_used, token, warning
+        """
+        return self._request("POST", "/api/v1/user/tokens", {"name": name})
+
+    def list_tokens(self):
+        """List our live tokens, metadata only. Requires cookie authentication.
+
+        Returns:
+            dict with key: tokens (list of id, name, created, last_used)
+        """
+        return self._request("GET", "/api/v1/user/tokens")
+
+    def revoke_token(self, token_id):
+        """Revoke one of our tokens. Requires cookie authentication.
+
+        Returns:
+            dict with keys: revoked, id
+        """
+        return self._request("DELETE", "/api/v1/user/tokens/{}".format(token_id))
 
     # ----- Export -----
 
