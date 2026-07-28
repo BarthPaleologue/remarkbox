@@ -637,11 +637,11 @@ class TestPrivateThreadList(SecurityFunctionalTests):
         """Our deploy switch must fail open, or a deploy that outruns its
         migration takes every namespace's index private at once.
 
-        Salt applies migrations on every release, so a normal deploy is
-        ordered correctly. This default covers what is not normal: a restored
-        pre-backfill backup, a hand-rolled install, or a failed alembic step
-        on a release that went live anyway. Rows still reading
-        `public = False` plus enforcement equals a platform-wide outage.
+        Rows still reading `public = False` plus enforcement equals a
+        platform-wide outage — that is not hypothetical, it happened on
+        2026-07-27 when this default was flipped on. Salt running
+        `alembic upgrade head` is not evidence that any given database is
+        backfilled; observe the rows instead.
         """
         from remarkbox.lib.privacy import enforcement_enabled
 
