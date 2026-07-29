@@ -64,6 +64,66 @@ def hash_palette(namespace_name):
     }
 
 
+# Lightness values the CSS template uses, per mode. Swatches derive from these
+# so a preview shows the colours a visitor will actually see rather than an
+# approximation that drifts when the template changes.
+_SWATCH_LIGHTNESS = {
+    "light": {
+        "bg": ("hue", "sat_bg", 97),
+        "bg_card": ("hue", "sat_bg", 100),
+        "text": ("hue", "sat_base", 15),
+        "text_muted": ("hue", "sat_muted", 55),
+        "link": ("accent_hue", "sat_link", 40),
+        "accent": ("accent_hue", "sat_accent", 45),
+        "border": ("hue", "sat_muted", 85),
+    },
+    "dark": {
+        "bg": ("hue", "sat_dark", 10),
+        "bg_card": ("hue", "sat_dark", 14),
+        "text": ("hue", "sat_bg", 90),
+        "text_muted": ("hue", "sat_muted", 50),
+        "link": ("accent_hue", "sat_link", 65),
+        "accent": ("accent_hue", "sat_accent", 55),
+        "border": ("hue", "sat_muted", 25),
+    },
+}
+
+
+def derived_saturations(sat_base):
+    """The saturations our CSS template computes from `sat_base`."""
+    return {
+        "sat_base": sat_base,
+        "sat_bg": max(sat_base - 25, 5),
+        "sat_muted": max(sat_base - 15, 10),
+        "sat_link": min(sat_base + 15, 75),
+        "sat_accent": min(sat_base + 20, 80),
+        "sat_dark": max(sat_base - 30, 8),
+    }
+
+
+def palette_swatches(palette):
+    """Return the palette's key colours as hex, for light and dark mode.
+
+    HSL stays our internal representation — it is what lets us vary lightness
+    for two modes and turn saturation down for contrast. Hex is what a theme
+    editor, colour picker, or export wants, so we convert at the edge.
+    """
+    from remarkbox.lib.color import hsl_to_hex
+
+    hue = int(palette.get("hue", 0)) % 360
+    accent_hue = int(palette.get("accent_hue", (hue + 180) % 360)) % 360
+    sats = derived_saturations(max(0, min(int(palette.get("sat_base", 50)), 100)))
+    hues = {"hue": hue, "accent_hue": accent_hue}
+
+    out = {}
+    for mode, entries in _SWATCH_LIGHTNESS.items():
+        out[mode] = {
+            name: hsl_to_hex(hues[hue_key], sats[sat_key], lightness)
+            for name, (hue_key, sat_key, lightness) in entries.items()
+        }
+    return out
+
+
 def generate_theme_css(namespace_name, palette=None):
     """Render a complete CSS theme for a namespace.
 

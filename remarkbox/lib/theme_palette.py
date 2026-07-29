@@ -22,6 +22,12 @@ served model id drifted, so this path assumes failure is normal.
 import json
 import logging
 
+from remarkbox.lib.color import (
+    contrast_ratio,
+    hsl_to_hex,
+    hsl_to_rgb,
+    relative_luminance,
+)
 from remarkbox.lib.theme_generator import hash_palette
 from remarkbox.models.spam_llm import _get_config, _llm_request
 
@@ -35,50 +41,10 @@ MIN_CONTRAST = 4.5
 SETTING_ENABLED = "theme.llm.enabled"
 
 
-def _relative_luminance(rgb):
-    """WCAG relative luminance for an (r, g, b) triple in 0..1."""
-    channels = []
-    for c in rgb:
-        c = c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-        channels.append(c)
-    r, g, b = channels
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-
-
-def _hsl_to_rgb(h, s, lightness):
-    """Convert HSL (h in degrees, s and l in percent) to an (r, g, b) 0..1."""
-    h = (h % 360) / 360.0
-    s = max(0.0, min(s / 100.0, 1.0))
-    lightness = max(0.0, min(lightness / 100.0, 1.0))
-
-    if s == 0:
-        return (lightness, lightness, lightness)
-
-    def hue_to_channel(p, q, t):
-        t = t % 1.0
-        if t < 1 / 6:
-            return p + (q - p) * 6 * t
-        if t < 1 / 2:
-            return q
-        if t < 2 / 3:
-            return p + (q - p) * (2 / 3 - t) * 6
-        return p
-
-    q = lightness * (1 + s) if lightness < 0.5 else lightness + s - lightness * s
-    p = 2 * lightness - q
-    return (
-        hue_to_channel(p, q, h + 1 / 3),
-        hue_to_channel(p, q, h),
-        hue_to_channel(p, q, h - 1 / 3),
-    )
-
-
-def contrast_ratio(hsl_a, hsl_b):
-    """WCAG contrast ratio between two HSL colours, 1.0 to 21.0."""
-    lum_a = _relative_luminance(_hsl_to_rgb(*hsl_a))
-    lum_b = _relative_luminance(_hsl_to_rgb(*hsl_b))
-    lighter, darker = max(lum_a, lum_b), min(lum_a, lum_b)
-    return (lighter + 0.05) / (darker + 0.05)
+# Colour maths lives in lib/color.py; re-exported so callers that already
+# import contrast_ratio from here keep working.
+_relative_luminance = relative_luminance
+_hsl_to_rgb = hsl_to_rgb
 
 
 def enforce_contrast(palette):

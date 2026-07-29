@@ -60,6 +60,40 @@ class TestUser(unittest.TestCase):
         raw_password = self.user.new_password()
         self.assertFalse(self.user.check_password("fake password"))
 
+    def test_unverified_otp_backoff_ladder(self):
+        """Unverified accounts escalate to a 48h gap; verified stay at 90s."""
+        from remarkbox.models.user import UNVERIFIED_OTP_BACKOFF_MS
+
+        # Fresh account: constructor's password doesn't count.
+        self.assertEqual(self.user.otp_send_count, 0)
+        self.assertFalse(self.user.throttle_password())
+
+        for expected_count in range(1, len(UNVERIFIED_OTP_BACKOFF_MS) + 2):
+            self.user.new_password()
+            self.assertEqual(self.user.otp_send_count, expected_count)
+            self.assertTrue(self.user.throttle_password())
+            # Past the flat 90s throttle an unverified account beyond
+            # step one must STILL be throttled by the ladder.
+            self.user.password_timestamp -= 91000
+            if expected_count >= 2:
+                self.assertTrue(self.user.throttle_password())
+            # Past this step's ladder gap the next send frees up.
+            step = min(expected_count - 1, len(UNVERIFIED_OTP_BACKOFF_MS) - 1)
+            self.user.password_timestamp -= UNVERIFIED_OTP_BACKOFF_MS[step]
+            self.assertFalse(self.user.throttle_password())
+
+        # Successful code entry resets the ladder...
+        raw_password = self.user.new_password()
+        self.assertTrue(self.user.check_password(raw_password))
+        self.assertEqual(self.user.otp_send_count, 0)
+
+        # ...and verified accounts feel only the flat 90s throttle.
+        self.user.verified = True
+        self.user.otp_send_count = 99
+        self.user.new_password()
+        self.user.password_timestamp -= 91000
+        self.assertFalse(self.user.throttle_password())
+
     def test_is_user_name_valid(self):
         self.assertTrue(is_user_name_valid("validusername"))
         self.assertTrue(is_user_name_valid("validusername2"))

@@ -170,3 +170,59 @@ class GeneratorPaletteTests(unittest.TestCase):
 import pytest as _pytest
 
 pytestmark = _pytest.mark.xdist_group("test_theme_palette")
+
+
+class HexDerivationTests(unittest.TestCase):
+    """HSL stays internal; hex is derived at the edge for UI and export."""
+
+    def test_known_conversions(self):
+        from remarkbox.lib.color import hsl_to_hex
+
+        self.assertEqual(hsl_to_hex(0, 0, 100), "#ffffff")
+        self.assertEqual(hsl_to_hex(0, 0, 0), "#000000")
+        self.assertEqual(hsl_to_hex(0, 100, 50), "#ff0000")
+        self.assertEqual(hsl_to_hex(120, 100, 50), "#00ff00")
+        self.assertEqual(hsl_to_hex(240, 100, 50), "#0000ff")
+
+    def test_hue_wraps_and_percentages_clamp(self):
+        from remarkbox.lib.color import hsl_to_hex
+
+        self.assertEqual(hsl_to_hex(360, 100, 50), hsl_to_hex(0, 100, 50))
+        self.assertEqual(hsl_to_hex(0, 999, 999), "#ffffff")
+
+    def test_swatches_cover_both_modes(self):
+        from remarkbox.lib.theme_generator import palette_swatches
+
+        sw = palette_swatches(
+            {"hue": 30, "secondary_hue": 50, "accent_hue": 250, "sat_base": 45}
+        )
+        self.assertEqual(set(sw), {"light", "dark"})
+        for mode in ("light", "dark"):
+            for key in ("bg", "text", "link", "accent", "border"):
+                self.assertRegex(sw[mode][key], r"^#[0-9a-f]{6}$")
+
+    def test_swatches_match_the_css_that_is_served(self):
+        """A preview that disagrees with the stylesheet is worse than none."""
+        from remarkbox.lib.color import hsl_to_hex
+        from remarkbox.lib.theme_generator import (
+            derived_saturations,
+            generate_theme_css,
+            palette_swatches,
+        )
+
+        palette = {"hue": 30, "secondary_hue": 50, "accent_hue": 250, "sat_base": 45}
+        css = generate_theme_css("x", palette)
+        sats = derived_saturations(45)
+
+        # The light-mode background our CSS emits, converted the same way.
+        self.assertIn("--rb-bg: hsl(30, {}%, 97%)".format(sats["sat_bg"]), css)
+        self.assertEqual(
+            palette_swatches(palette)["light"]["bg"],
+            hsl_to_hex(30, sats["sat_bg"], 97),
+        )
+
+    def test_swatches_survive_an_absurd_palette(self):
+        from remarkbox.lib.theme_generator import palette_swatches
+
+        sw = palette_swatches({"hue": 99999, "sat_base": 500})
+        self.assertRegex(sw["light"]["bg"], r"^#[0-9a-f]{6}$")

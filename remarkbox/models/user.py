@@ -42,6 +42,20 @@ def generate_password(size=32):
     return "".join([choice(pool) for i in range(size)])
 
 
+# Escalating OTP email backoff for accounts that never completed a
+# verification. Index = otp_send_count - 1; the last entry repeats
+# forever. Verified accounts (& every account after one successful code
+# entry) use the flat 90s throttle instead.
+UNVERIFIED_OTP_BACKOFF_MS = [
+    90 * 1000,  # after 1st email: 90s
+    10 * 60 * 1000,  # after 2nd: 10 minutes
+    60 * 60 * 1000,  # after 3rd: 1 hour
+    6 * 60 * 60 * 1000,  # after 4th: 6 hours
+    24 * 60 * 60 * 1000,  # after 5th: 24 hours
+    48 * 60 * 60 * 1000,  # after 6th & on: 48 hours
+]
+
+
 class UserSurrogate(RBase, Base):
     """
     This class represents a user surrogate account, a stand in.
@@ -99,6 +113,7 @@ class User(RBase, Base):
     password = Column(Unicode(64))
     password_attempts = Column(Integer, default=0)
     password_timestamp = Column(BigInteger)
+    otp_send_count = Column(Integer, nullable=False, default=0)
     # TODO: someday this should be renamed to created_timestamp
     created = Column(BigInteger, nullable=False)
     gravatar = Column(Boolean, default=False)
@@ -312,8 +327,11 @@ class User(RBase, Base):
         self.email_id = unicode(generate_password(size=8))
 
         self.new_password()
-        # don't password throttle new User objects.
+        # don't password throttle new User objects. The constructor's
+        # password is never emailed, so it doesn't count against the
+        # unverified backoff ladder either.
         self.password_timestamp = 0
+        self.otp_send_count = 0
 
     def _generate_raw_password(self):
         """Return a system generated password"""
@@ -333,6 +351,7 @@ class User(RBase, Base):
         ).decode("utf-8")
         self.password_timestamp = now_timestamp()
         self.password_attempts = 0
+        self.otp_send_count = (self.otp_send_count or 0) + 1
         return raw_password
 
     def check_password(self, password):
@@ -370,10 +389,29 @@ class User(RBase, Base):
         # That path stays. This one was unconditional and fired on every login.
         log.debug("otp check for user_id=%s matched=%s", self.id, matched)
 
+        if matched:
+            # A successful entry proves a human owns this mailbox; the
+            # anti-bombing backoff ladder resets.
+            self.otp_send_count = 0
+
         return matched
 
     def throttle_password(self, needed_delta=90000):
-        """Return True when throttled, else False"""
+        """Return True when throttled, else False.
+
+        Unverified accounts escalate through UNVERIFIED_OTP_BACKOFF_MS:
+        bots hammer login forms with victims' addresses (same actor as
+        the 2026-07-28 makepostsell subscription bombing) & a flat 90s
+        throttle still allows ~960 OTP emails/day to a stranger. The
+        ladder caps a never-verified address at one email per 48h. A
+        successful check_password resets the ladder.
+        """
+        if not self.verified:
+            step = min(
+                max((self.otp_send_count or 0) - 1, 0),
+                len(UNVERIFIED_OTP_BACKOFF_MS) - 1,
+            )
+            needed_delta = max(needed_delta, UNVERIFIED_OTP_BACKOFF_MS[step])
         if self.password_timestamp_delta <= needed_delta:
             return True
         return False

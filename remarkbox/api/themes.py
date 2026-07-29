@@ -59,22 +59,24 @@ def api_theme_preview(request):
         request.response.status_code = 404
         return {"error": "Namespace not found"}
 
-    from remarkbox.lib.theme_generator import _name_to_seed
-    seed = _name_to_seed(namespace_name)
+    from remarkbox.lib.theme_generator import hash_palette, palette_swatches
 
-    hue = seed[0] % 360
-    hue_offset = 30 + (seed[1] % 30)
-    secondary_hue = (hue + hue_offset) % 360
-    accent_hue = (hue + 180 + (seed[2] % 40 - 20)) % 360
-    sat_base = 40 + (seed[3] % 25)
+    # Derived from hash_palette rather than recomputed here: this endpoint
+    # previously duplicated that arithmetic, so a change to one silently
+    # disagreed with the CSS the other served.
+    palette = hash_palette(namespace_name)
 
     return {
         "namespace": namespace_name,
         "palette": {
-            "primary_hue": hue,
-            "secondary_hue": secondary_hue,
-            "accent_hue": accent_hue,
-            "saturation_base": sat_base,
+            "primary_hue": palette["hue"],
+            "secondary_hue": palette["secondary_hue"],
+            "accent_hue": palette["accent_hue"],
+            "saturation_base": palette["sat_base"],
+            "source": palette.get("source", "hash"),
         },
+        # HSL is our internal representation; hex is what a colour picker or
+        # theme editor wants, so we convert at the edge.
+        "swatches": palette_swatches(palette),
         "css_url": "/api/v1/themes/{}/css".format(namespace_name),
     }
