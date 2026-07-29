@@ -132,28 +132,38 @@ restore-drill: venv config
 	$(VENV_DIR)/bin/remarkbox_restore_drill -c $(DATA_DIR)/$(CONFIG_FILE) \
 		--backup-dir $(DATA_DIR)
 
-# --- Production backups (see docs/backups.md) --------------------------------
-# Our production server hosts several remarkbox sites in one site dir
-# (my.remarkbox.com, demo, westworld2, foxhop.net, ...), each with its
-# own ini + sqlite. Override per-invocation when needed:
-#   make backup-prod PROD_HOST=fox@other.host
-PROD_HOST ?= fox@origin.remarkbox.com
+# --- Remote server backups (see docs/backups.md) -----------------------------
+# Host-agnostic: point these at YOUR server running remarkbox. A single
+# site dir may host several sites, each with its own ini + sqlite; the
+# backup loops every ini it finds.
+#   make backup-prod PROD_HOST=you@your.server
+# Optional overrides (defaults match a standard install):
+PROD_HOST ?=
 PROD_SITE_DIR ?= /opt/remarkbox
+PROD_USER ?= uwsgi
 
-# Run a verified, WAL-safe backup ON our production server for EVERY
-# deployed site ini. Timestamped, integrity-checked backups land in
-# $(PROD_SITE_DIR)/backups owned by uwsgi; retention pruning applies.
-# Interactive: sudo prompts for your password on the server.
+define PROD_HOST_REQUIRED
+	@if [ -z "$(PROD_HOST)" ]; then \
+		echo "Usage: make $@ PROD_HOST=you@your.server [PROD_SITE_DIR=$(PROD_SITE_DIR)] [PROD_USER=$(PROD_USER)]"; \
+		exit 1; \
+	fi
+endef
+
+# Run a verified, WAL-safe backup ON your server for EVERY deployed site
+# ini. Timestamped, integrity-checked backups land in
+# $(PROD_SITE_DIR)/backups owned by $(PROD_USER); retention pruning
+# applies. Interactive: sudo prompts for your password on the server.
 backup-prod:
+	$(PROD_HOST_REQUIRED)
 	ssh -t $(PROD_HOST) 'rc=0; for ini in $(PROD_SITE_DIR)/*.ini; do \
 		echo "== $$ini"; \
-		sudo -u uwsgi $(PROD_SITE_DIR)/env/bin/remarkbox_backup_db -c "$$ini" \
+		sudo -u $(PROD_USER) $(PROD_SITE_DIR)/env/bin/remarkbox_backup_db -c "$$ini" \
 			--output-dir $(PROD_SITE_DIR)/backups || { rc=1; echo "!! backup failed for $$ini"; }; \
 	done; exit $$rc'
 
-# Copy our newest production backups (one per site) into ./backups
-# locally. Stages files world-readable in a private /tmp dir on the
-# server first because backups are uwsgi-owned. Runs backup-prod first.
+# Copy the newest server backups (one per site) into ./backups locally.
+# Stages files world-readable in a private /tmp dir on the server first
+# because backups belong to $(PROD_USER). Runs backup-prod first.
 backup-fetch: backup-prod
 	@mkdir -p backups
 	ssh -t $(PROD_HOST) 'set -e; \

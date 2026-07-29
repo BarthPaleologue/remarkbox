@@ -16,28 +16,29 @@ make restore-drill    # prove the newest backup restores & carries real data
 make migrate          # applies alembic migrations; depends on backup-db
 ```
 
-## Production
+## Your server
 
-Production hosts several remarkbox sites in one site dir at
-`/opt/remarkbox` on `origin.remarkbox.com`: my.remarkbox.com, demo,
-westworld2.com, foxhop.net & friends, each with its own ini + sqlite
-beside it, owned by `uwsgi`.
+The remote targets are host-agnostic: point them at whatever server
+runs your remarkbox install. One site dir may host several remarkbox
+sites, each with its own ini + sqlite beside it; the backup loops every
+ini it finds. Defaults assume a standard layout (site dir
+`/opt/remarkbox`, service user `uwsgi`) & every one of them overrides
+inline:
 
 ```bash
-make backup-prod      # back up EVERY deployed site ini ON the server
-make backup-fetch     # backup-prod, then copy the newest backups into ./backups/
+make backup-prod PROD_HOST=you@your.server
+make backup-fetch PROD_HOST=you@your.server
+# non-default layout:
+make backup-prod PROD_HOST=you@your.server PROD_SITE_DIR=/srv/remarkbox PROD_USER=www-data
 ```
 
-`backup-prod` loops over `/opt/remarkbox/*.ini` & runs the deployed
-`remarkbox_backup_db` as the `uwsgi` user for each, so ownership stays
+`backup-prod` loops over `<site dir>/*.ini` & runs the deployed
+`remarkbox_backup_db` as the service user for each, so ownership stays
 correct. Timestamped, gzipped, integrity-checked backups land in
-`/opt/remarkbox/backups/` & old ones prune per the retention setting. A
+`<site dir>/backups/` & old ones prune per the retention setting. A
 site that fails to back up gets reported & the loop continues; the make
-target exits nonzero. Override the host inline when needed:
-
-```bash
-make backup-prod PROD_HOST=fox@other.host PROD_SITE_DIR=/opt/remarkbox
-```
+target exits nonzero. `backup-fetch` runs backup-prod, then copies the
+newest backups into `./backups/` locally.
 
 Both targets stay interactive: sudo on the server prompts for a
 password. `backup-fetch` stages the uwsgi-owned files world-readable in
@@ -76,7 +77,7 @@ hope, not a backup.
 
 Deploys do not back up automatically; alembic runs on every deploy, so
 run `make backup-prod` before pushing schema-changing work. For a
-scheduled net, add a daily cron on the server (as `uwsgi`) looping the
-same command `backup-prod` uses. Offsite copies: configure
+scheduled net, add a daily cron on your server (as your service user)
+looping the same command `backup-prod` uses. Offsite copies: configure
 `backup.bucket` per ini, or run `make backup-fetch` from any
 workstation & let that machine's own backup regime carry the files.
