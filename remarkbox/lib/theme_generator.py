@@ -1,7 +1,22 @@
-"""Auto-generate unique themes per namespace.
+"""Render a namespace theme from a palette.
 
-Deterministic: same namespace name always produces the same theme.
-Uses CSS custom properties with prefers-color-scheme for light/dark mode.
+This module owns the CSS: one template, light and dark, driven entirely by
+CSS custom properties. What it does **not** own is where the colours come
+from — that is a `palette`, a small dict of hues and saturations.
+
+Two sources exist:
+
+* `hash_palette(name)` — deterministic from a SHA-256 of the namespace name.
+  Unique, reproducible, and meaningless: a cooking forum and a malware forum
+  get unrelated hues by coincidence.
+* `remarkbox.lib.theme_palette.choose_palette(...)` — asks our Hermes model to
+  pick colours that suit what the community is actually about, then clamps and
+  contrast-checks the result.
+
+Keeping the model out of this file is deliberate. It never emits CSS; it
+returns numbers we validate. Model-authored CSS served to every visitor would
+be an injection surface — attribute selectors plus `background-image` can
+exfiltrate page content — and no model can promise a contrast ratio.
 """
 
 import hashlib
@@ -21,14 +36,11 @@ def _name_to_seed(name):
     return values
 
 
-def generate_theme_css(namespace_name):
-    """Generate a complete CSS theme for a namespace.
+def hash_palette(namespace_name):
+    """Derive a palette deterministically from a namespace name.
 
-    Args:
-        namespace_name: The namespace name (e.g. "meta.remarkbox.com")
-
-    Returns:
-        CSS string with custom properties for light and dark modes.
+    Our fallback, and what every namespace used before palettes were a
+    separate concept. Same name always yields the same colours.
     """
     seed = _name_to_seed(namespace_name)
 
@@ -42,6 +54,37 @@ def generate_theme_css(namespace_name):
 
     # Saturation variance
     sat_base = 40 + (seed[3] % 25)  # 40-65%
+
+    return {
+        "hue": hue,
+        "secondary_hue": secondary_hue,
+        "accent_hue": accent_hue,
+        "sat_base": sat_base,
+        "source": "hash",
+    }
+
+
+def generate_theme_css(namespace_name, palette=None):
+    """Render a complete CSS theme for a namespace.
+
+    Args:
+        namespace_name: The namespace name (e.g. "meta.remarkbox.com")
+        palette: optional dict with `hue`, `secondary_hue`, `accent_hue` and
+                 `sat_base`. Defaults to `hash_palette(namespace_name)`, so
+                 existing callers are unaffected.
+
+    Returns:
+        CSS string with custom properties for light and dark modes.
+    """
+    if palette is None:
+        palette = hash_palette(namespace_name)
+
+    # Clamp here as well as at the source: this function renders CSS, and it
+    # must not emit nonsense however it was called.
+    hue = int(palette.get("hue", 0)) % 360
+    secondary_hue = int(palette.get("secondary_hue", (hue + 40) % 360)) % 360
+    accent_hue = int(palette.get("accent_hue", (hue + 180) % 360)) % 360
+    sat_base = max(0, min(int(palette.get("sat_base", 50)), 100))
 
     css = '''/* Auto-generated theme for {name} */
 /* Deterministic: regenerating from the same name produces identical output */
