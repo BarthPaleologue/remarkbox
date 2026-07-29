@@ -11,6 +11,8 @@ Here is the verification code you requested:
 
 Type code into the challenge input field.
 
+Never share this code with anyone. Our team will never ask for it.
+
 What's next?
 
  * A random username was generated just for you!
@@ -49,6 +51,8 @@ WELCOME_1_HTML = """
     This will verify your email and log you in.
     </p>
 
+    <p><strong>Never share this code with anyone. Our team will never ask for it.</strong></p>
+
     <h3>What's next?</h3>
 
     <p>
@@ -75,6 +79,8 @@ Here is the verification code you requested:
  \n{0}\n
 
 Type code into the challenge input field.
+
+Never share this code with anyone. Our team will never ask for it.
 
 Don't forget to check out your notification settings.
 
@@ -103,6 +109,8 @@ WELCOME_2_HTML = """
     <p>
     Here is the verification code you requested.
     </p>
+
+    <p><strong>Never share this code with anyone. Our team will never ask for it.</strong></p>
 
     <h3>What's next?</h3>
 
