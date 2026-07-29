@@ -15,12 +15,17 @@ def is_wsl():
 def parse_requirements(filename):
     """
     Read and parse a requirements file, ignoring comments and blank lines.
+
+    Direct URL requirements (PEP 508 "name @ git+..." lines, e.g. our
+    theme packages) are excluded: PyPI rejects any distribution whose
+    metadata carries direct URL dependencies with a 400 Bad Request.
+    Themes install explicitly in CI & deploy, not via install_requires.
     """
     req_path = os.path.join(os.path.dirname(__file__), filename)
     with open(req_path, "r", encoding="utf-8") as f:
         lines = f.read().splitlines()
     reqs = [line.strip() for line in lines if line.strip() and not line.startswith("#")]
-    return reqs
+    return [r for r in reqs if " @ " not in r]
 
 # Determine which requirements file to use
 requirements_file = "requirements-wsl.txt" if is_wsl() else "requirements.py3.txt"
@@ -40,7 +45,7 @@ with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
 
 setup(
     name="remarkbox",
-    version="1.0.8",
+    version="1.0.9",
     description="remarkbox",
     long_description=long_description,
     author="Russell Ballestrini",
