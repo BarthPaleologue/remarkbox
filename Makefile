@@ -51,10 +51,16 @@ install-dev: venv
 	$(PIP) install remarkbox[dev]
 
 # Install optional themes (from Git) via PyPI
+# Themes install from Git here & ONLY here. Our published distribution
+# carries no direct URL dependencies: PyPI rejects a distribution whose
+# Requires-Dist names a git reference, so setup.py filters those lines
+# out of install_requires. Any theme our build copies static assets from
+# must appear in this list or the build breaks at the copy step.
 install-themes: venv
 	@echo "Installing optional themes from Git..."
 	$(PIP) install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-meta.git
 	$(PIP) install git+https://git.unturf.com/engineering/remarkbox/remarkbox-westworld.git
+	$(PIP) install git+https://git.unturf.com/engineering/remarkbox/remarkbox-theme-chaostheory.git
 
 # Combined installation target for PyPI
 install: install-core install-dev install-themes
