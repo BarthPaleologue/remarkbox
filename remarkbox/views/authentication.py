@@ -10,6 +10,8 @@ from remarkbox.models.user import get_or_create_user_by_email
 
 from remarkbox.lib.mail import send_verification_digits_to_email
 
+from remarkbox.lib.totp import derive_secret_key
+
 from . import get_referer_or_home, get_embed_route_uri, verify_pending_nodes_in_session
 
 from urllib.parse import urlencode
@@ -58,11 +60,11 @@ def join_or_log_in(request):
         # get or create a User object from the posted email.
         user = get_or_create_user_by_email(request.dbsession, email)
 
-        if user.totp_enabled:
-            # Authenticator-app users get no email at all: the challenge
-            # asks for a current time-based one-time password (TOTP)
-            # code instead. This also removes their address from the
-            # email-bombing attack surface entirely.
+        if user.mfa_enabled:
+            # Users with an enrolled device get no email at all: the
+            # challenge asks for a current time-based one-time password
+            # (TOTP) code instead. This also removes their address from
+            # the email-bombing attack surface entirely.
             request.session.pop("email_otp_requested", None)
             email_encoded = urlencode({"email": email})
             return HTTPFound(
@@ -117,11 +119,12 @@ def verification_challenge(request):
         # get or create a User object from the posted email.
         user = get_or_create_user_by_email(request.dbsession, email)
 
-    # Authenticator-app users verify with a current time-based one-time
-    # password (TOTP) code or a paper backup code — unless they asked to
-    # fall back to an emailed code this session.
+    # Users with an enrolled device verify with a current time-based
+    # one-time password (TOTP) code from any of their devices, or a paper
+    # backup code: unless they asked to fall back to an emailed code
+    # this session.
     use_totp = bool(
-        user and user.totp_enabled
+        user and user.mfa_enabled
     ) and not request.session.get("email_otp_requested")
 
     if use_totp and "send-email" in request.params:
@@ -145,7 +148,9 @@ def verification_challenge(request):
 
     if raw_otp:
         if use_totp:
-            otp_ok = user.verify_totp_or_backup(raw_otp)
+            otp_ok = user.verify_mfa(
+                raw_otp, derive_secret_key(request.registry.settings)
+            )
             request.dbsession.add(user)
         else:
             otp_ok = user.check_password(raw_otp)

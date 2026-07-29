@@ -141,8 +141,8 @@ def includeme(config):
     config.add_route("basic-user-delete-account", "/u/delete-account")
     config.add_route("basic-user-export-data", "/u/export-data")
     config.add_route("basic-user-settings", "/u/settings")
-    # Authenticator app (time-based one-time password, TOTP) enrollment
-    config.add_route("basic-totp-setup", "/u/settings/totp")
+    # Multi-factor sign-in: enrolled devices & paper backup codes.
+    config.add_route("basic-mfa-setup", "/u/settings/mfa")
     config.add_route("basic-user-watching", "/u/watching")
     config.add_route("basic-user-notifications", "/u/notifications")
     config.add_route("basic-user", "/u/{user_name}")

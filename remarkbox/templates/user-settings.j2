@@ -22,12 +22,12 @@
 
 {% if request.mode != "embed" %}
 <p>
-  {% if request.user.totp_enabled %}
-  Authenticator app enabled: logging in asks for an app code instead of sending email.
+  {% if request.user.mfa_enabled %}
+  Two-factor sign-in enabled: logging in asks for a code from one of your devices instead of sending email.
   {% else %}
-  Log in with an authenticator app instead of emailed codes.
+  Log in with a code from an authenticator app instead of emailed codes.
   {% endif %}
-  <a href="{{ request.link_prefix }}/u/settings/totp">manage authenticator app</a>
+  <a href="{{ request.link_prefix }}/u/settings/mfa">manage two-factor sign-in</a>
 </p>
 {% endif %}
 

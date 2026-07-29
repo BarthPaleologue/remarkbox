@@ -42,6 +42,7 @@ CLASS_TO_TABLE = {
     "Payment": "rb_payment",
     "Webmention": "rb_webmention",
     "Revision": "rb_revision",
+    "MfaMethod": "rb_mfa_method",
 }
 
 # node (threads), namespace (forum)

@@ -90,3 +90,9 @@ segno
 # Authenticator app login (time-based one-time password, TOTP)
 pyotp
 qrcode
+
+# Authenticated encryption (ChaCha20-Poly1305) for enrolled factor secrets
+# at rest, plus HKDF to derive that key from our session secret. A shared
+# secret cannot be hashed the way a paper code is: verifying a time-based
+# code needs the secret back, so it rides encrypted instead.
+cryptography

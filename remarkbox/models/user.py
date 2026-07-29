@@ -115,16 +115,15 @@ class User(RBase, Base):
     password_timestamp = Column(BigInteger)
     otp_send_count = Column(Integer, nullable=False, default=0)
 
-    # Authenticator app — optional login via time-based one-time
-    # passwords (TOTP, RFC 6238) instead of emailed codes. Columns
-    # store the time-based one-time password secret, its replay
-    # counter, hashed paper backup codes & attempt throttling state.
-    totp_secret = Column(Unicode(64), nullable=True)
-    totp_enabled = Column(Boolean, nullable=False, default=False)
-    totp_last_counter = Column(BigInteger, nullable=True)
-    totp_backup_codes = Column(UnicodeText, nullable=True)
-    totp_attempts = Column(Integer, nullable=False, default=0)
-    totp_attempts_timestamp = Column(BigInteger, nullable=True)
+    # Multi-factor authentication. Each enrolled factor (an
+    # authenticator app today, a security key or push approval later)
+    # lives as its own MfaMethod row, so a user may carry several
+    # devices & revoke one without disturbing the rest. Only
+    # account-level state lives here: hashed single-use paper backup
+    # codes & throttling shared across every factor.
+    mfa_backup_codes = Column(UnicodeText, nullable=True)
+    mfa_attempts = Column(Integer, nullable=False, default=0)
+    mfa_attempts_timestamp = Column(BigInteger, nullable=True)
     # TODO: someday this should be renamed to created_timestamp
     created = Column(BigInteger, nullable=False)
     gravatar = Column(Boolean, default=False)
@@ -343,8 +342,7 @@ class User(RBase, Base):
         # unverified backoff ladder either.
         self.password_timestamp = 0
         self.otp_send_count = 0
-        self.totp_enabled = False
-        self.totp_attempts = 0
+        self.mfa_attempts = 0
 
     def _generate_raw_password(self):
         """Return a system generated password"""
@@ -433,68 +431,91 @@ class User(RBase, Base):
     def password_timestamp_delta(self):
         return now_timestamp() - self.password_timestamp
 
-    # --- Authenticator app (time-based one-time password, TOTP) ---
+    # --- Multi-factor authentication (enrolled factors + paper codes) ---
 
-    TOTP_MAX_ATTEMPTS = 10
-    TOTP_ATTEMPT_WINDOW_MS = 15 * 60 * 1000
+    MFA_MAX_ATTEMPTS = 10
+    MFA_ATTEMPT_WINDOW_MS = 15 * 60 * 1000
 
-    def totp_throttled(self):
+    @property
+    def mfa_methods(self):
+        """Active enrolled factors, oldest first. Empty without a session."""
+        from sqlalchemy.orm import object_session
+
+        from .mfa_method import MfaMethod
+
+        session = object_session(self)
+        if session is None:
+            return []
+        return (
+            session.query(MfaMethod)
+            .filter(
+                MfaMethod.user_id == self.id,
+                MfaMethod.disabled == False,  # noqa: E712
+            )
+            .order_by(MfaMethod.created_timestamp)
+            .all()
+        )
+
+    @property
+    def mfa_enabled(self):
+        """True when at least one factor stands enrolled & active."""
+        return bool(self.mfa_methods)
+
+    def mfa_throttled(self):
         """True when too many bad codes landed inside the window."""
-        if (self.totp_attempts or 0) < self.TOTP_MAX_ATTEMPTS:
+        if (self.mfa_attempts or 0) < self.MFA_MAX_ATTEMPTS:
             return False
-        last = self.totp_attempts_timestamp or 0
-        if now_timestamp() - last >= self.TOTP_ATTEMPT_WINDOW_MS:
-            self.totp_attempts = 0
+        last = self.mfa_attempts_timestamp or 0
+        if now_timestamp() - last >= self.MFA_ATTEMPT_WINDOW_MS:
+            self.mfa_attempts = 0
             return False
         return True
 
-    def verify_totp_or_backup(self, code):
-        """Verify an authenticator code or consume a paper backup code.
+    def verify_mfa(self, code, key, methods=None):
+        """Verify a code against any active factor, else a paper code.
 
-        Returns True on success. Applies attempt throttling, replay
-        protection & single-use backup-code burning.
+        Pass `methods` explicitly when no database session backs this
+        object. Applies attempt throttling, per-factor replay protection
+        & single-use burning of paper backup codes.
         """
-        from remarkbox.lib.totp import (
-            verify_code,
-            check_and_consume_backup_code,
-        )
+        from remarkbox.lib.totp import check_and_consume_backup_code
 
-        if not self.totp_enabled or not self.totp_secret:
+        if methods is None:
+            methods = self.mfa_methods
+        if not methods:
             return False
-        if self.totp_throttled():
+        if self.mfa_throttled():
             return False
-        self.totp_attempts = (self.totp_attempts or 0) + 1
-        self.totp_attempts_timestamp = now_timestamp()
+        self.mfa_attempts = (self.mfa_attempts or 0) + 1
+        self.mfa_attempts_timestamp = now_timestamp()
 
-        ok, counter = verify_code(
-            self.totp_secret, code, last_counter=self.totp_last_counter
-        )
-        if ok:
-            self.totp_last_counter = counter
-            self.totp_attempts = 0
-            return True
+        for method in methods:
+            if method.verify(code, key):
+                self.mfa_attempts = 0
+                return True
 
         ok, remaining = check_and_consume_backup_code(
-            self.totp_backup_codes, code
+            self.mfa_backup_codes, code
         )
         if ok:
-            self.totp_backup_codes = remaining
-            self.totp_attempts = 0
+            self.mfa_backup_codes = remaining
+            self.mfa_attempts = 0
             return True
         return False
 
     @property
-    def totp_backup_codes_remaining(self):
-        """How many single-use paper codes this user has left."""
+    def mfa_backup_codes_remaining(self):
+        """How many single-use paper codes this account still holds."""
         from remarkbox.lib.totp import count_backup_codes
 
-        return count_backup_codes(self.totp_backup_codes)
+        return count_backup_codes(self.mfa_backup_codes)
 
     def regenerate_backup_codes(self):
-        """Mint a fresh set of paper codes & store only their hashes.
+        """Mint a fresh set of paper codes & return them in plaintext.
 
-        Returns the plaintext codes for a one-time display. Every code
-        from an earlier set stops working the moment this returns.
+        Replaces every stored hash, so any previously printed code dies
+        immediately. Plaintext returns exactly once, for a single
+        display; only the hashes persist.
         """
         from remarkbox.lib.totp import (
             generate_backup_codes,
@@ -502,22 +523,8 @@ class User(RBase, Base):
         )
 
         codes = generate_backup_codes()
-        self.totp_backup_codes = hash_backup_codes(codes)
+        self.mfa_backup_codes = hash_backup_codes(codes)
         return codes
-
-    def enable_totp(self, secret, backup_codes_json):
-        self.totp_secret = secret
-        self.totp_enabled = True
-        self.totp_last_counter = None
-        self.totp_backup_codes = backup_codes_json
-        self.totp_attempts = 0
-
-    def disable_totp(self):
-        self.totp_secret = None
-        self.totp_enabled = False
-        self.totp_last_counter = None
-        self.totp_backup_codes = None
-        self.totp_attempts = 0
 
     @property
     def human_password_timestamp(self):

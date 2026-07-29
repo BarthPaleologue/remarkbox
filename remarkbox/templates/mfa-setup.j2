@@ -1,0 +1,98 @@
+{% extends request.base_template -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+<section class="one-column">
+  <h1>Two-Factor Sign-in</h1>
+
+  {% if backup_codes %}
+  <h2>Save your backup codes</h2>
+  <p>Each code works exactly once. Print them or write them down and keep them somewhere safe. They will never display again.</p>
+  <ul style="font-family: monospace; font-size: 1.3em; columns: 2; list-style: none; padding: 0;">
+    {% for code in backup_codes %}
+    <li>{{ code }}</li>
+    {% endfor %}
+  </ul>
+  <p><a href="{{ request.link_prefix }}/u/settings/mfa" class="rb-submit">I saved my codes</a></p>
+
+  {% elif qr %}
+  <h2>Add a device</h2>
+  <p>Scan this QR code with any authenticator app: Aegis, Bitwarden, 1Password, Google Authenticator, Microsoft Authenticator and friends.</p>
+  <div style="max-width: 16em; background: #fff; padding: 1em;">{{ qr|safe }}</div>
+
+  <p>Can't scan? Enter this key manually:</p>
+  <p><code style="font-size: 1.1em; word-break: break-all;">{{ secret }}</code></p>
+
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/mfa">
+    {% include 'snippets/csrf.j2' %}
+    <label for="label">Name this device</label>
+    <input type="text" id="label" name="label" class="common-text-input"
+           maxlength="64" placeholder="phone">
+
+    <label for="raw-otp">Code from the new device</label>
+    <input type="text" id="raw-otp" name="raw-otp" class="common-text-input"
+           placeholder="123456" maxlength="6" pattern="[0-9]{6}"
+           inputmode="numeric" autocomplete="one-time-code" required autofocus>
+
+    {% if mfa_enabled %}
+    <label for="current-otp">Code from a device you already enrolled</label>
+    <input type="text" id="current-otp" name="current-otp" class="common-text-input"
+           inputmode="numeric" required>
+    {% endif %}
+
+    <p>
+      <input type="submit" name="confirm" value="add device" class="rb-submit red-button" />
+      <input type="submit" name="cancel" value="cancel" class="rb-submit" />
+    </p>
+  </form>
+
+  {% elif mfa_enabled %}
+  <p>Signing in asks for a code from one of your devices instead of sending email. Any enrolled device works, so removing one never locks you out of the rest.</p>
+
+  <h2>Your devices</h2>
+  <ul>
+    {% for method in methods %}
+    <li>
+      <strong>{{ method.label }}</strong>
+      {% if not method.last_used_timestamp %}
+      <em>never used to sign in yet</em>
+      {% endif %}
+      <form method="POST" action="{{ request.link_prefix }}/u/settings/mfa">
+        {% include 'snippets/csrf.j2' %}
+        <input type="hidden" name="method-id" value="{{ method.id }}">
+        <label for="revoke-{{ method.id }}">Code from any of your devices, or a backup code</label>
+        <input type="text" id="revoke-{{ method.id }}" name="raw-otp" class="common-text-input"
+               inputmode="numeric" autocomplete="one-time-code" required>
+        <p><input type="submit" name="revoke" value="remove this device" class="rb-submit red-button" /></p>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/mfa">
+    {% include 'snippets/csrf.j2' %}
+    <p><input type="submit" name="enroll" value="add another device" class="rb-submit" /></p>
+  </form>
+
+  <h2>Backup codes</h2>
+  <p>You have <strong>{{ backup_codes_remaining }}</strong> unused backup {{ "code" if backup_codes_remaining == 1 else "codes" }} left. Each one works exactly once.</p>
+  {% if backup_codes_remaining == 0 %}
+  <p>No backup codes remain. Generate a new set now so a lost device never locks you out.</p>
+  {% endif %}
+  <p>Generating a new set immediately retires every code you already saved, so write the new list down before you close the page. Your devices keep working either way.</p>
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/mfa">
+    {% include 'snippets/csrf.j2' %}
+    <label for="regenerate-otp">Code from any of your devices, or a backup code</label>
+    <input type="text" id="regenerate-otp" name="raw-otp" class="common-text-input"
+           inputmode="numeric" autocomplete="one-time-code" required>
+    <p><input type="submit" name="regenerate" value="generate new backup codes" class="rb-submit" /></p>
+  </form>
+
+  {% else %}
+  <p>Sign in with a code from an authenticator app instead of email. Works with any standard app: Aegis, Bitwarden, 1Password, Google Authenticator, Microsoft Authenticator and friends. Add as many devices as you like; any of them can sign you in.</p>
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/mfa">
+    {% include 'snippets/csrf.j2' %}
+    <p><input type="submit" name="enroll" value="set up an authenticator app" class="rb-submit red-button" /></p>
+  </form>
+  {% endif %}
+</section>
+{%- endblock -%}

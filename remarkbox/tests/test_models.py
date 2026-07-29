@@ -60,98 +60,6 @@ class TestUser(unittest.TestCase):
         raw_password = self.user.new_password()
         self.assertFalse(self.user.check_password("fake password"))
 
-    def test_totp_verify_replay_backup_and_throttle(self):
-        """Authenticator app: time-based one-time password (TOTP) logic."""
-        import pyotp
-        from remarkbox.lib import totp
-
-        secret = totp.new_secret()
-        codes = totp.generate_backup_codes()
-        self.user.enable_totp(secret, totp.hash_backup_codes(codes))
-
-        code = pyotp.TOTP(secret).now()
-        self.assertTrue(self.user.verify_totp_or_backup(code))
-        # The same code inside the same time-step must die.
-        self.assertFalse(self.user.verify_totp_or_backup(code))
-
-        # Paper backup codes work exactly once.
-        self.assertTrue(self.user.verify_totp_or_backup(codes[0]))
-        self.assertFalse(self.user.verify_totp_or_backup(codes[0]))
-
-        # Attempt throttle: 10 bad codes lock even a valid one out,
-        # until the window expires.
-        for _ in range(self.user.TOTP_MAX_ATTEMPTS):
-            self.user.verify_totp_or_backup("000000")
-        self.assertFalse(
-            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
-        )
-        self.user.totp_attempts_timestamp -= (
-            self.user.TOTP_ATTEMPT_WINDOW_MS + 1
-        )
-        self.assertTrue(
-            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
-        )
-
-        # Disable clears everything.
-        self.user.disable_totp()
-        self.assertFalse(self.user.totp_enabled)
-        self.assertFalse(
-            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
-        )
-
-    def test_totp_backup_code_counter_and_regeneration(self):
-        """Backup codes: remaining counter & regeneration retire old set."""
-        import pyotp
-        from remarkbox.lib import totp
-
-        # No storage at all counts as zero, never an exception.
-        self.assertEqual(totp.count_backup_codes(None), 0)
-        self.assertEqual(totp.count_backup_codes(""), 0)
-        self.assertEqual(totp.count_backup_codes("not json"), 0)
-        self.assertEqual(self.user.totp_backup_codes_remaining, 0)
-
-        secret = totp.new_secret()
-        codes = totp.generate_backup_codes()
-        self.user.enable_totp(secret, totp.hash_backup_codes(codes))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 10)
-
-        # Every consumed code drops the counter by exactly one.
-        self.assertTrue(self.user.verify_totp_or_backup(codes[0]))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 9)
-        self.assertTrue(self.user.verify_totp_or_backup(codes[1]))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
-
-        # A rejected code burns nothing.
-        self.assertFalse(self.user.verify_totp_or_backup("0000-0000"))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
-
-        fresh = self.user.regenerate_backup_codes()
-        self.assertEqual(len(fresh), 10)
-        self.assertEqual(len(set(fresh)), 10)
-        self.assertEqual(self.user.totp_backup_codes_remaining, 10)
-        self.assertNotIn(self.user.totp_backup_codes, (None, ""))
-
-        # Codes from the retired set stop working, even unused ones.
-        for old in codes[2:]:
-            self.assertFalse(self.user.verify_totp_or_backup(old))
-        self.user.totp_attempts = 0
-
-        # Codes from the new set work, exactly once each.
-        self.assertTrue(self.user.verify_totp_or_backup(fresh[0]))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 9)
-        self.assertFalse(self.user.verify_totp_or_backup(fresh[0]))
-        self.assertTrue(self.user.verify_totp_or_backup(fresh[-1]))
-        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
-
-        # Regeneration leaves the authenticator app itself untouched.
-        self.assertTrue(
-            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
-        )
-
-        # Disable clears the codes & the counter with them.
-        self.user.disable_totp()
-        self.assertEqual(self.user.totp_backup_codes_remaining, 0)
-
     def test_unverified_otp_backoff_ladder(self):
         """Unverified accounts escalate to a 48h gap; verified stay at 90s."""
         from remarkbox.models.user import UNVERIFIED_OTP_BACKOFF_MS
@@ -200,6 +108,161 @@ class TestUser(unittest.TestCase):
     def test_generate_user_name_no_dash_prefix(self):
         u = User("tim@example.com")
         self.assertFalse(u.name.startswith("-"))
+
+
+class TestUserMfa(unittest.TestCase):
+    """Multi-factor sign-in: enrolled devices & paper backup codes.
+
+    No database session backs these users, so `mfa_methods` cannot query.
+    Every call passes `methods` explicitly, which exercises the same
+    verify path login takes.
+    """
+
+    @mock.patch("remarkbox.models.user.is_user_name_available", mock_always_true)
+    def setUp(self):
+        from remarkbox.models.mfa_method import MfaMethod
+        from remarkbox.lib import totp
+
+        self.totp = totp
+        self.key = totp.derive_secret_key({"session.secret": "test-secret"})
+        self.user = User("mfa@example.com")
+        self.secret = totp.new_secret()
+        self.method = MfaMethod(
+            self.user.id, self.secret, self.key, label="phone"
+        )
+        self.methods = [self.method]
+        self.codes = self.user.regenerate_backup_codes()
+
+    def _current_code(self, secret=None):
+        import pyotp
+
+        return pyotp.TOTP(secret or self.secret).now()
+
+    def _verify(self, code):
+        return self.user.verify_mfa(code, self.key, methods=self.methods)
+
+    def test_secret_never_stored_in_cleartext(self):
+        self.assertNotIn(self.secret, self.method.secret)
+        self.assertTrue(self.method.secret.startswith("v1:"))
+        # The wrapped form must fit the column we declared for it.
+        self.assertLessEqual(len(self.method.secret), 128)
+        # It still opens with the right key, & only with that key.
+        self.assertEqual(self.method.plain_secret(self.key), self.secret)
+        other = self.totp.derive_secret_key({"session.secret": "different"})
+        self.assertIsNone(self.method.plain_secret(other))
+
+    def test_secret_written_before_encryption_still_opens(self):
+        # A verbatim secret, as our forward migration backfills, keeps
+        # verifying rather than locking its owner out.
+        self.method.secret = self.secret
+        self.assertEqual(self.method.plain_secret(self.key), self.secret)
+        self.assertTrue(self._verify(self._current_code()))
+
+    def test_valid_code_verifies_and_replay_refused(self):
+        code = self._current_code()
+        self.assertTrue(self._verify(code))
+        # The same code inside the same time-step must die.
+        self.assertFalse(self._verify(code))
+
+    def test_any_enrolled_device_signs_in(self):
+        from remarkbox.models.mfa_method import MfaMethod
+
+        second_secret = self.totp.new_secret()
+        second = MfaMethod(
+            self.user.id, second_secret, self.key, label="tablet"
+        )
+        self.methods.append(second)
+        self.assertTrue(self._verify(self._current_code(second_secret)))
+        self.user.mfa_attempts = 0
+        self.assertTrue(self._verify(self._current_code()))
+
+    def test_revoking_one_device_leaves_the_others(self):
+        from remarkbox.models.mfa_method import MfaMethod
+
+        second_secret = self.totp.new_secret()
+        second = MfaMethod(self.user.id, second_secret, self.key)
+        self.methods.append(second)
+        # An unlabelled device still gets something a human can read.
+        self.assertEqual(second.label, "authenticator app")
+
+        self.method.revoke()
+        self.assertTrue(self.method.disabled)
+        self.assertFalse(self._verify(self._current_code()))
+        self.user.mfa_attempts = 0
+        self.assertTrue(self._verify(self._current_code(second_secret)))
+
+    def test_verify_stamps_counter_and_last_used(self):
+        self.assertIsNone(self.method.last_counter)
+        self.assertIsNone(self.method.last_used_timestamp)
+        self.assertTrue(self._verify(self._current_code()))
+        self.assertGreater(self.method.last_counter, 0)
+        self.assertGreater(self.method.last_used_timestamp, 0)
+
+    def test_backup_code_single_use(self):
+        self.assertTrue(self._verify(self.codes[0]))
+        self.assertFalse(self._verify(self.codes[0]))
+        self.assertTrue(self._verify(self.codes[1]))
+
+    def test_garbage_codes_refused(self):
+        for bad in ("", "000000", "abcdef", "9999-9999", None):
+            self.assertFalse(self._verify(bad))
+
+    def test_attempt_throttle(self):
+        for _ in range(self.user.MFA_MAX_ATTEMPTS):
+            self._verify("000000")
+        # Even a valid code refuses inside the throttle window.
+        self.assertFalse(self._verify(self._current_code()))
+        # Window expiry frees it again.
+        self.user.mfa_attempts_timestamp -= (
+            self.user.MFA_ATTEMPT_WINDOW_MS + 1
+        )
+        self.assertTrue(self._verify(self._current_code()))
+
+    def test_no_enrolled_factor_refuses(self):
+        self.assertFalse(self.user.verify_mfa("123456", self.key, methods=[]))
+        # Without a session there is nothing to enumerate, so an account
+        # reads as un-enrolled rather than raising.
+        self.assertEqual(self.user.mfa_methods, [])
+        self.assertFalse(self.user.mfa_enabled)
+
+    def test_backup_counter_and_regeneration(self):
+        from remarkbox.lib.totp import BACKUP_CODE_COUNT, count_backup_codes
+
+        # Unusable storage counts as zero, never an exception.
+        self.assertEqual(count_backup_codes(None), 0)
+        self.assertEqual(count_backup_codes(""), 0)
+        self.assertEqual(count_backup_codes("not json"), 0)
+        self.assertEqual(
+            self.user.mfa_backup_codes_remaining, BACKUP_CODE_COUNT
+        )
+
+        # Every consumed code drops the counter by exactly one.
+        self.assertTrue(self._verify(self.codes[0]))
+        self.assertEqual(
+            self.user.mfa_backup_codes_remaining, BACKUP_CODE_COUNT - 1
+        )
+        # A rejected code burns nothing.
+        self.assertFalse(self._verify("0000-0000"))
+        self.assertEqual(
+            self.user.mfa_backup_codes_remaining, BACKUP_CODE_COUNT - 1
+        )
+
+        fresh = self.user.regenerate_backup_codes()
+        self.assertEqual(len(fresh), BACKUP_CODE_COUNT)
+        self.assertEqual(len(set(fresh)), BACKUP_CODE_COUNT)
+        self.assertFalse(set(fresh) & set(self.codes))
+        self.assertEqual(
+            self.user.mfa_backup_codes_remaining, BACKUP_CODE_COUNT
+        )
+        # Only hashes persist; no plaintext code sits in the column.
+        for code in fresh:
+            self.assertNotIn(code, self.user.mfa_backup_codes)
+
+        # Retired codes stop working; the device itself keeps working.
+        self.user.mfa_attempts = 0
+        self.assertFalse(self._verify(self.codes[1]))
+        self.user.mfa_attempts = 0
+        self.assertTrue(self._verify(self._current_code()))
 
 
 class TestNode(unittest.TestCase):
