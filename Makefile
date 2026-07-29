@@ -240,13 +240,21 @@ $(TWINE_VENV)/bin/twine:
 	# (Trusted Publishing OIDC). Until we migrate to Trusted Publishing,
 	# stick with classic ~/.pypirc auth on the build runner.
 	$(TWINE_VENV)/bin/pip install --upgrade pip
-	$(TWINE_VENV)/bin/pip install "twine<6"
+	# twine<6 caps pkginfo below 1.11, which only parses Metadata-Version
+	# <= 2.3 — while setuptools 77+ emits 2.4, making twine report the
+	# wheel's Name & Version as "missing". Build without isolation at
+	# setuptools<77 so the metadata stays parseable by our pinned twine.
+	$(TWINE_VENV)/bin/pip install "twine<6" build "setuptools<77" wheel
 
 twine-venv: $(TWINE_VENV)/bin/twine
 
 twine-upload: twine-venv
 	@echo "Building and uploading to PyPI..."
-	python3 setup.py sdist bdist_wheel
+	# The twine venv persists on the runner between jobs; make sure the
+	# build toolchain is present & correctly capped even in an old venv.
+	$(TWINE_VENV)/bin/pip install --quiet "twine<6" build "setuptools<77" wheel
+	rm -rf dist
+	$(TWINE_VENV)/bin/python -m build --no-isolation
 	$(TWINE) check dist/*
 	$(TWINE) upload --non-interactive dist/*
 
