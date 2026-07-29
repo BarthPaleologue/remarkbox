@@ -58,6 +58,19 @@ def join_or_log_in(request):
         # get or create a User object from the posted email.
         user = get_or_create_user_by_email(request.dbsession, email)
 
+        if user.totp_enabled:
+            # Authenticator-app users get no email at all: the challenge
+            # asks for a current time-based one-time password (TOTP)
+            # code instead. This also removes their address from the
+            # email-bombing attack surface entirely.
+            request.session.pop("email_otp_requested", None)
+            email_encoded = urlencode({"email": email})
+            return HTTPFound(
+                "{}/verification-challenge?{}".format(
+                    request.link_prefix, email_encoded
+                )
+            )
+
         if user.throttle_password():
             msg = (
                 "We already sent a link to {}. Check email to log in.".format(user.email),
@@ -104,9 +117,41 @@ def verification_challenge(request):
         # get or create a User object from the posted email.
         user = get_or_create_user_by_email(request.dbsession, email)
 
+    # Authenticator-app users verify with a current time-based one-time
+    # password (TOTP) code or a paper backup code — unless they asked to
+    # fall back to an emailed code this session.
+    use_totp = bool(
+        user and user.totp_enabled
+    ) and not request.session.get("email_otp_requested")
+
+    if use_totp and "send-email" in request.params:
+        # Escape hatch: "email me a code instead". Runs through the
+        # normal throttle & backoff ladder.
+        if not user.throttle_password():
+            fallback_otp = user.new_password()
+            request.dbsession.add(user)
+            request.dbsession.flush()
+            send_verification_digits_to_email(request, user.email, fallback_otp)
+        request.session["email_otp_requested"] = True
+        request.session.flash(
+            ("We just sent a code to {}. Check email to log in.".format(user.email), "info")
+        )
+        email_encoded = urlencode({"email": email})
+        return HTTPFound(
+            "{}/verification-challenge?{}".format(
+                request.link_prefix, email_encoded
+            )
+        )
+
     if raw_otp:
-        if user.check_password(raw_otp):
+        if use_totp:
+            otp_ok = user.verify_totp_or_backup(raw_otp)
+            request.dbsession.add(user)
+        else:
+            otp_ok = user.check_password(raw_otp)
+        if otp_ok:
             # success: the user was verified.
+            request.session.pop("email_otp_requested", None)
             user.verified = True
             msg = ("Welcome {}".format(user.name), "success")
             request.session["authenticated_user_id"] = str(user.id)
@@ -131,5 +176,6 @@ def verification_challenge(request):
         "title": "Please Enter Verification Code",
         "email": email,
         "raw_otp": raw_otp,
+        "use_totp": use_totp,
     }
 

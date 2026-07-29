@@ -20,6 +20,17 @@
 
 <h4>User Settings</h4>
 
+{% if request.mode != "embed" %}
+<p>
+  {% if request.user.totp_enabled %}
+  Authenticator app enabled: logging in asks for an app code instead of sending email.
+  {% else %}
+  Log in with an authenticator app instead of emailed codes.
+  {% endif %}
+  <a href="{{ request.link_prefix }}/u/settings/totp">manage authenticator app</a>
+</p>
+{% endif %}
+
 <form method="post" action="{{ request.link_prefix }}/u/settings" onsubmit="submit.disabled = true; return true;">
 
 <input type="text" name="display-name" id="display-name" class="common-text-input" value="{{ request.user.name }}" required></input>

@@ -114,6 +114,17 @@ class User(RBase, Base):
     password_attempts = Column(Integer, default=0)
     password_timestamp = Column(BigInteger)
     otp_send_count = Column(Integer, nullable=False, default=0)
+
+    # Authenticator app — optional login via time-based one-time
+    # passwords (TOTP, RFC 6238) instead of emailed codes. Columns
+    # store the time-based one-time password secret, its replay
+    # counter, hashed paper backup codes & attempt throttling state.
+    totp_secret = Column(Unicode(64), nullable=True)
+    totp_enabled = Column(Boolean, nullable=False, default=False)
+    totp_last_counter = Column(BigInteger, nullable=True)
+    totp_backup_codes = Column(UnicodeText, nullable=True)
+    totp_attempts = Column(Integer, nullable=False, default=0)
+    totp_attempts_timestamp = Column(BigInteger, nullable=True)
     # TODO: someday this should be renamed to created_timestamp
     created = Column(BigInteger, nullable=False)
     gravatar = Column(Boolean, default=False)
@@ -332,6 +343,8 @@ class User(RBase, Base):
         # unverified backoff ladder either.
         self.password_timestamp = 0
         self.otp_send_count = 0
+        self.totp_enabled = False
+        self.totp_attempts = 0
 
     def _generate_raw_password(self):
         """Return a system generated password"""
@@ -419,6 +432,70 @@ class User(RBase, Base):
     @property
     def password_timestamp_delta(self):
         return now_timestamp() - self.password_timestamp
+
+    # --- Authenticator app (time-based one-time password, TOTP) ---
+
+    TOTP_MAX_ATTEMPTS = 10
+    TOTP_ATTEMPT_WINDOW_MS = 15 * 60 * 1000
+
+    def totp_throttled(self):
+        """True when too many bad codes landed inside the window."""
+        if (self.totp_attempts or 0) < self.TOTP_MAX_ATTEMPTS:
+            return False
+        last = self.totp_attempts_timestamp or 0
+        if now_timestamp() - last >= self.TOTP_ATTEMPT_WINDOW_MS:
+            self.totp_attempts = 0
+            return False
+        return True
+
+    def verify_totp_or_backup(self, code):
+        """Verify an authenticator code or consume a paper backup code.
+
+        Returns True on success. Applies attempt throttling, replay
+        protection & single-use backup-code burning.
+        """
+        from remarkbox.lib.totp import (
+            verify_code,
+            check_and_consume_backup_code,
+        )
+
+        if not self.totp_enabled or not self.totp_secret:
+            return False
+        if self.totp_throttled():
+            return False
+        self.totp_attempts = (self.totp_attempts or 0) + 1
+        self.totp_attempts_timestamp = now_timestamp()
+
+        ok, counter = verify_code(
+            self.totp_secret, code, last_counter=self.totp_last_counter
+        )
+        if ok:
+            self.totp_last_counter = counter
+            self.totp_attempts = 0
+            return True
+
+        ok, remaining = check_and_consume_backup_code(
+            self.totp_backup_codes, code
+        )
+        if ok:
+            self.totp_backup_codes = remaining
+            self.totp_attempts = 0
+            return True
+        return False
+
+    def enable_totp(self, secret, backup_codes_json):
+        self.totp_secret = secret
+        self.totp_enabled = True
+        self.totp_last_counter = None
+        self.totp_backup_codes = backup_codes_json
+        self.totp_attempts = 0
+
+    def disable_totp(self):
+        self.totp_secret = None
+        self.totp_enabled = False
+        self.totp_last_counter = None
+        self.totp_backup_codes = None
+        self.totp_attempts = 0
 
     @property
     def human_password_timestamp(self):

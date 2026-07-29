@@ -4,7 +4,11 @@
 <section class="join-or-log-in">
    <b>Verification Code</b>
    <br/>
+   {% if use_totp %}
+   Enter the 6-digit code from your authenticator app, or one of your backup codes.
+   {% else %}
    Please enter code to log in.
+   {% endif %}
    <br/>
    <form method="post" action="{{ request.link_prefix }}/verification-challenge">
       <input
@@ -17,7 +21,7 @@
 
       <input
           name        = "raw-otp"
-          type        = "number"
+          type        = "{{ 'text' if use_totp else 'number' }}"
           id          = "raw-otp"
           class       = "common-text-input"
           tabindex    = "1"
@@ -29,8 +33,15 @@
     <p>
     <input type="submit" name="submit" id="submit" class="rb-submit red-button button-max-width send-log-in-email" value="verify code" required />
     <p/>
-  
+
    </form>
+
+   {% if use_totp %}
+   <form method="post" action="{{ request.link_prefix }}/verification-challenge">
+      <input name="email" type="hidden" value="{{ email }}" />
+      <input type="submit" name="send-email" value="email me a code instead" class="rb-submit button-max-width" />
+   </form>
+   {% endif %}
 
 </section>
 {%- endblock -%}

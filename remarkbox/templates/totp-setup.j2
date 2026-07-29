@@ -1,0 +1,48 @@
+{% extends request.base_template -%}
+{% block title %}{{ the_title }} | {{ request.domain }}{%- endblock -%}
+{% block content -%}
+<section class="one-column">
+  <h1>Authenticator App</h1>
+
+  {% if backup_codes %}
+  <h2>Save your backup codes</h2>
+  <p>Each code works exactly once. Print them or write them down and keep them somewhere safe. They will never display again.</p>
+  <ul style="font-family: monospace; font-size: 1.3em; columns: 2; list-style: none; padding: 0;">
+    {% for code in backup_codes %}
+    <li>{{ code }}</li>
+    {% endfor %}
+  </ul>
+  <p><a href="{{ request.link_prefix }}/u/settings" class="rb-submit">I saved my codes</a></p>
+
+  {% elif enabled %}
+  <p>Your authenticator app is enabled. Logging in asks for a code from your app instead of sending email.</p>
+
+  <h2>Disable</h2>
+  <p>Enter a current code from your app, or a backup code, to turn this off and return to email codes.</p>
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/totp">
+    <label for="raw-otp">Code</label>
+    <input type="text" id="raw-otp" name="raw-otp" class="common-text-input"
+           inputmode="numeric" autocomplete="one-time-code" required>
+    <p><input type="submit" name="disable" value="disable authenticator app" class="rb-submit red-button" /></p>
+  </form>
+
+  {% else %}
+  <p>Log in with a code from an authenticator app instead of email. Works with any standard app: Aegis, Bitwarden, 1Password, Google Authenticator, Microsoft Authenticator and friends.</p>
+
+  <h2>1. Scan this QR code with your app</h2>
+  <div style="max-width: 16em; background: #fff; padding: 1em;">{{ qr|safe }}</div>
+
+  <p>Can't scan? Enter this key manually:</p>
+  <p><code style="font-size: 1.1em; word-break: break-all;">{{ secret }}</code></p>
+
+  <h2>2. Enter the 6-digit code your app shows now</h2>
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/totp">
+    <label for="raw-otp">Code</label>
+    <input type="text" id="raw-otp" name="raw-otp" class="common-text-input"
+           placeholder="123456" maxlength="6" pattern="[0-9]{6}"
+           inputmode="numeric" autocomplete="one-time-code" required autofocus>
+    <p><input type="submit" name="activate" value="enable authenticator app" class="rb-submit red-button" /></p>
+  </form>
+  {% endif %}
+</section>
+{%- endblock -%}

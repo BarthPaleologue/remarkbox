@@ -60,6 +60,45 @@ class TestUser(unittest.TestCase):
         raw_password = self.user.new_password()
         self.assertFalse(self.user.check_password("fake password"))
 
+    def test_totp_verify_replay_backup_and_throttle(self):
+        """Authenticator app: time-based one-time password (TOTP) logic."""
+        import pyotp
+        from remarkbox.lib import totp
+
+        secret = totp.new_secret()
+        codes = totp.generate_backup_codes()
+        self.user.enable_totp(secret, totp.hash_backup_codes(codes))
+
+        code = pyotp.TOTP(secret).now()
+        self.assertTrue(self.user.verify_totp_or_backup(code))
+        # The same code inside the same time-step must die.
+        self.assertFalse(self.user.verify_totp_or_backup(code))
+
+        # Paper backup codes work exactly once.
+        self.assertTrue(self.user.verify_totp_or_backup(codes[0]))
+        self.assertFalse(self.user.verify_totp_or_backup(codes[0]))
+
+        # Attempt throttle: 10 bad codes lock even a valid one out,
+        # until the window expires.
+        for _ in range(self.user.TOTP_MAX_ATTEMPTS):
+            self.user.verify_totp_or_backup("000000")
+        self.assertFalse(
+            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
+        )
+        self.user.totp_attempts_timestamp -= (
+            self.user.TOTP_ATTEMPT_WINDOW_MS + 1
+        )
+        self.assertTrue(
+            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
+        )
+
+        # Disable clears everything.
+        self.user.disable_totp()
+        self.assertFalse(self.user.totp_enabled)
+        self.assertFalse(
+            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
+        )
+
     def test_unverified_otp_backoff_ladder(self):
         """Unverified accounts escalate to a 48h gap; verified stay at 90s."""
         from remarkbox.models.user import UNVERIFIED_OTP_BACKOFF_MS
