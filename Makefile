@@ -132,6 +132,39 @@ restore-drill: venv config
 	$(VENV_DIR)/bin/remarkbox_restore_drill -c $(DATA_DIR)/$(CONFIG_FILE) \
 		--backup-dir $(DATA_DIR)
 
+# --- Production backups (see docs/backups.md) --------------------------------
+# Our production server hosts several remarkbox sites in one site dir
+# (my.remarkbox.com, demo, westworld2, foxhop.net, ...), each with its
+# own ini + sqlite. Override per-invocation when needed:
+#   make backup-prod PROD_HOST=fox@other.host
+PROD_HOST ?= fox@origin.remarkbox.com
+PROD_SITE_DIR ?= /opt/remarkbox
+
+# Run a verified, WAL-safe backup ON our production server for EVERY
+# deployed site ini. Timestamped, integrity-checked backups land in
+# $(PROD_SITE_DIR)/backups owned by uwsgi; retention pruning applies.
+# Interactive: sudo prompts for your password on the server.
+backup-prod:
+	ssh -t $(PROD_HOST) 'rc=0; for ini in $(PROD_SITE_DIR)/*.ini; do \
+		echo "== $$ini"; \
+		sudo -u uwsgi $(PROD_SITE_DIR)/env/bin/remarkbox_backup_db -c "$$ini" \
+			--output-dir $(PROD_SITE_DIR)/backups || { rc=1; echo "!! backup failed for $$ini"; }; \
+	done; exit $$rc'
+
+# Copy our newest production backups (one per site) into ./backups
+# locally. Stages files world-readable in a private /tmp dir on the
+# server first because backups are uwsgi-owned. Runs backup-prod first.
+backup-fetch: backup-prod
+	@mkdir -p backups
+	ssh -t $(PROD_HOST) 'set -e; \
+		rm -rf /tmp/rb-backup-staging && mkdir -m 700 /tmp/rb-backup-staging; \
+		for f in $$(sudo ls -1t $(PROD_SITE_DIR)/backups | head -8); do \
+			sudo install -m 644 "$(PROD_SITE_DIR)/backups/$$f" /tmp/rb-backup-staging/; \
+		done'
+	scp "$(PROD_HOST):/tmp/rb-backup-staging/*" backups/
+	ssh $(PROD_HOST) 'rm -rf /tmp/rb-backup-staging'
+	@ls -lt backups | head -10
+
 # Apply all pending Alembic migrations (backs up the database first).
 migrate: venv config backup-db
 	$(ALEMBIC) -c $(DATA_DIR)/$(CONFIG_FILE) upgrade head
