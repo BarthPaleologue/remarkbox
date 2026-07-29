@@ -90,6 +90,23 @@ def hash_backup_codes(codes):
     return json.dumps(hashes)
 
 
+def count_backup_codes(stored_json):
+    """Return how many unused paper codes remain in storage.
+
+    Returns 0 for missing, blank or unparsable storage so a caller can
+    always render a number.
+    """
+    if not stored_json:
+        return 0
+    try:
+        hashes = json.loads(stored_json)
+    except (ValueError, TypeError):
+        return 0
+    if not isinstance(hashes, list):
+        return 0
+    return len(hashes)
+
+
 def check_and_consume_backup_code(stored_json, code):
     """Check a paper code & burn it on success.
 

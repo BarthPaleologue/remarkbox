@@ -39,6 +39,27 @@ def totp_setup(request):
             request.session.flash(("Invalid code.", "error"))
         return HTTPFound("{}/u/settings/totp".format(request.link_prefix))
 
+    # Regenerate paper codes: same proof-of-possession bar as disable,
+    # since a fresh set retires every code the user holds today.
+    if "regenerate" in request.params:
+        code = request.params.get("raw-otp", "")
+        if user.verify_totp_or_backup(code):
+            codes = user.regenerate_backup_codes()
+            request.dbsession.add(user)
+            request.dbsession.flush()
+            request.session.flash(("New backup codes generated.", "success"))
+            # Show the paper codes exactly once.
+            return {
+                "the_title": "Authenticator App",
+                "enabled": True,
+                "qr": None,
+                "secret": None,
+                "backup_codes": codes,
+                "backup_codes_remaining": user.totp_backup_codes_remaining,
+            }
+        request.session.flash(("Invalid code.", "error"))
+        return HTTPFound("{}/u/settings/totp".format(request.link_prefix))
+
     if user.totp_enabled:
         return {
             "the_title": "Authenticator App",
@@ -46,6 +67,7 @@ def totp_setup(request):
             "qr": None,
             "secret": None,
             "backup_codes": None,
+            "backup_codes_remaining": user.totp_backup_codes_remaining,
         }
 
     # Pending secret lives in the session until one code proves the app
@@ -72,6 +94,7 @@ def totp_setup(request):
                 "qr": None,
                 "secret": None,
                 "backup_codes": codes,
+                "backup_codes_remaining": user.totp_backup_codes_remaining,
             }
         request.session.flash(
             (
@@ -87,4 +110,5 @@ def totp_setup(request):
         "qr": qr_svg(uri),
         "secret": pending,
         "backup_codes": None,
+        "backup_codes_remaining": 0,
     }

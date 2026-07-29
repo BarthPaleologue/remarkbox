@@ -483,6 +483,28 @@ class User(RBase, Base):
             return True
         return False
 
+    @property
+    def totp_backup_codes_remaining(self):
+        """How many single-use paper codes this user has left."""
+        from remarkbox.lib.totp import count_backup_codes
+
+        return count_backup_codes(self.totp_backup_codes)
+
+    def regenerate_backup_codes(self):
+        """Mint a fresh set of paper codes & store only their hashes.
+
+        Returns the plaintext codes for a one-time display. Every code
+        from an earlier set stops working the moment this returns.
+        """
+        from remarkbox.lib.totp import (
+            generate_backup_codes,
+            hash_backup_codes,
+        )
+
+        codes = generate_backup_codes()
+        self.totp_backup_codes = hash_backup_codes(codes)
+        return codes
+
     def enable_totp(self, secret, backup_codes_json):
         self.totp_secret = secret
         self.totp_enabled = True

@@ -99,6 +99,59 @@ class TestUser(unittest.TestCase):
             self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
         )
 
+    def test_totp_backup_code_counter_and_regeneration(self):
+        """Backup codes: remaining counter & regeneration retire old set."""
+        import pyotp
+        from remarkbox.lib import totp
+
+        # No storage at all counts as zero, never an exception.
+        self.assertEqual(totp.count_backup_codes(None), 0)
+        self.assertEqual(totp.count_backup_codes(""), 0)
+        self.assertEqual(totp.count_backup_codes("not json"), 0)
+        self.assertEqual(self.user.totp_backup_codes_remaining, 0)
+
+        secret = totp.new_secret()
+        codes = totp.generate_backup_codes()
+        self.user.enable_totp(secret, totp.hash_backup_codes(codes))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 10)
+
+        # Every consumed code drops the counter by exactly one.
+        self.assertTrue(self.user.verify_totp_or_backup(codes[0]))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 9)
+        self.assertTrue(self.user.verify_totp_or_backup(codes[1]))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
+
+        # A rejected code burns nothing.
+        self.assertFalse(self.user.verify_totp_or_backup("0000-0000"))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
+
+        fresh = self.user.regenerate_backup_codes()
+        self.assertEqual(len(fresh), 10)
+        self.assertEqual(len(set(fresh)), 10)
+        self.assertEqual(self.user.totp_backup_codes_remaining, 10)
+        self.assertNotIn(self.user.totp_backup_codes, (None, ""))
+
+        # Codes from the retired set stop working, even unused ones.
+        for old in codes[2:]:
+            self.assertFalse(self.user.verify_totp_or_backup(old))
+        self.user.totp_attempts = 0
+
+        # Codes from the new set work, exactly once each.
+        self.assertTrue(self.user.verify_totp_or_backup(fresh[0]))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 9)
+        self.assertFalse(self.user.verify_totp_or_backup(fresh[0]))
+        self.assertTrue(self.user.verify_totp_or_backup(fresh[-1]))
+        self.assertEqual(self.user.totp_backup_codes_remaining, 8)
+
+        # Regeneration leaves the authenticator app itself untouched.
+        self.assertTrue(
+            self.user.verify_totp_or_backup(pyotp.TOTP(secret).now())
+        )
+
+        # Disable clears the codes & the counter with them.
+        self.user.disable_totp()
+        self.assertEqual(self.user.totp_backup_codes_remaining, 0)
+
     def test_unverified_otp_backoff_ladder(self):
         """Unverified accounts escalate to a 48h gap; verified stay at 90s."""
         from remarkbox.models.user import UNVERIFIED_OTP_BACKOFF_MS

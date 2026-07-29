@@ -17,6 +17,16 @@
   {% elif enabled %}
   <p>Your authenticator app is enabled. Logging in asks for a code from your app instead of sending email.</p>
 
+  <h2>Backup codes</h2>
+  <p>You have <strong>{{ backup_codes_remaining }}</strong> unused backup {{ "code" if backup_codes_remaining == 1 else "codes" }} left. Each one works exactly once.</p>
+  <p>Running low, or think someone else has seen your list? Generate a fresh set. Regenerating invalidates every backup code you hold today, so save the new list before you close the page. Your authenticator app keeps working either way.</p>
+  <form method="POST" action="{{ request.link_prefix }}/u/settings/totp">
+    <label for="regenerate-otp">Code</label>
+    <input type="text" id="regenerate-otp" name="raw-otp" class="common-text-input"
+           inputmode="numeric" autocomplete="one-time-code" required>
+    <p><input type="submit" name="regenerate" value="generate new backup codes" class="rb-submit" /></p>
+  </form>
+
   <h2>Disable</h2>
   <p>Enter a current code from your app, or a backup code, to turn this off and return to email codes.</p>
   <form method="POST" action="{{ request.link_prefix }}/u/settings/totp">
