@@ -254,6 +254,45 @@ Create the <code>#remarks</code> channel before adding Remarkbox to Slack.
 {% endif %}
 
 <br>
+<br>
+
+<label>Discord:</label>
+
+Connect a Discord channel to get notified about new threads and comments.
+Discord will ask you to pick a server and channel.
+
+<br>
+<br>
+
+{% include 'snippets/add-to-discord.j2' %}
+
+<br>
+<br>
+
+{% if request.namespace.discord_oauth_records %}
+<b>Connected Discord channels:</b>
+
+<br>
+<br>
+
+<ul>
+{% for oauth in request.namespace.discord_oauth_records %}
+<li><b>{{ oauth.user.name }}</b> connected this Namespace to a Discord channel via the webhook <b>{{ oauth.data.get("webhook", {}).get("name", "unknown") }}</b> <i>(channel id {{ oauth.data.get("webhook", {}).get("channel_id", "?") }})</i></li>
+  <form class="inline" method="post" action="{{ request.link_prefix }}/oauth/discord/delete" onsubmit="submit.disabled = true; return true;">
+    <input type="hidden" name="oauth-id" value="{{ oauth.id }}">
+    <input type="hidden" name="namespace" value="{{ request.namespace.name }}">
+    {% include 'snippets/csrf.j2' %}
+    {% set submit_button_classes = 'button-small' %}
+    {% set submit_button_value = 'delete' %}
+    {% include 'snippets/submit.j2' %}
+  </form>
+  <br>
+  <br>
+{% endfor %}
+</ul>
+{% endif %}
+
+<br>
 
 <hr id="snippet">
 

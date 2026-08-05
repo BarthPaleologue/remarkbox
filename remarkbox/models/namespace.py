@@ -214,6 +214,10 @@ class Namespace(RBase, Base):
     def slack_oauth_records(self):
         return [oauth for oauth in self.oauth_records if oauth.service == "slack"]
 
+    @property
+    def discord_oauth_records(self):
+        return [oauth for oauth in self.oauth_records if oauth.service == "discord"]
+
     def get_namespace_user_for_user(self, user):
         """Given a User object, return the NamespaceUser object."""
         for nsu in self.namespace_users:

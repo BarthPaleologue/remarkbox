@@ -37,6 +37,10 @@ def includeme(config):
     config.add_route("oauth-slack", "/oauth/slack")
     config.add_route("oauth-slack-delete", "/oauth/slack/delete")
 
+    # discord: incoming webhook notifications and oauth.
+    config.add_route("oauth-discord", "/oauth/discord")
+    config.add_route("oauth-discord-delete", "/oauth/discord/delete")
+
     # todo: if namespace.public == False:
     #       lock this routes down to only load for namespace owners
     config.add_route("home", "/")

@@ -1,0 +1,4 @@
+{% if request.app.get('discord.public') %}
+{# our namespace rides in state (namespace:nonce) because Discord requires exact-match redirect URIs. #}
+<a class="button" href="https://discord.com/oauth2/authorize?response_type=code&client_id={{ request.app['discord.public'] }}&scope={{ request.app.get('discord.oauth_scope', 'webhook.incoming') | urlencode }}&redirect_uri={{ request.route_url('oauth-discord') | urlencode }}&state={{ (request.namespace.name ~ ':' ~ request.csrf_token) | urlencode }}">Add to Discord</a>
+{% endif %}

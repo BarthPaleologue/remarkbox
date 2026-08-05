@@ -19,25 +19,70 @@ SLACK_MESSAGE = """:mailbox_with_mail: *{}* added a {} on *{}*:
 :link: {}/r/{}
 """
 
+# Discord renders unicode emoji and markdown; shortcodes stay literal.
+DISCORD_MESSAGE = """📬 **{}** added a {} on **{}**:
+
+{}
+
+🔗 {}/r/{}
+"""
+
+NODE_EVENT_ACTION_NAMES = {"created": "new thread", "commented": "new comment"}
+
 
 def immediately_notify_namespace_moderators_via_slack(request, node_event):
     node = node_event.node
     namespace = node.root.namespace
-    node_event_to_slack_event = {"created": "new thread", "commented": "new comment"}
     if namespace.slack_oauth_records:
         for oauth in namespace.slack_oauth_records:
-            slack = Slacker(oauth.token)
-            slack.chat.post_message(
-                "#remarks",
-                SLACK_MESSAGE.format(
-                    node.user.name,
-                    node_event_to_slack_event[node_event.action],
-                    namespace.name,
-                    node.data,
-                    request.host_url,
-                    node.id,
-                ),
-            )
+            try:
+                slack = Slacker(oauth.token)
+                slack.chat.post_message(
+                    "#remarks",
+                    SLACK_MESSAGE.format(
+                        node.user.name,
+                        NODE_EVENT_ACTION_NAMES[node_event.action],
+                        namespace.name,
+                        node.data,
+                        request.host_url,
+                        node.id,
+                    ),
+                )
+            except Exception as e:
+                # a revoked token or missing channel must never break
+                # the comment submission that triggered this event.
+                log.warning(
+                    "slack notification failed for namespace={}: {}".format(
+                        namespace.name, e
+                    )
+                )
+
+
+def immediately_notify_namespace_moderators_via_discord(request, node_event):
+    from remarkbox.lib.discord import post_webhook_message
+
+    node = node_event.node
+    namespace = node.root.namespace
+    if not namespace.discord_oauth_records:
+        return
+
+    excerpt = node.data or ""
+    if len(excerpt) > 900:
+        excerpt = excerpt[:900] + "…"
+    # quote each line of our excerpt with discord markdown.
+    excerpt = "\n".join("> " + line for line in excerpt.splitlines()) or "> "
+
+    message = DISCORD_MESSAGE.format(
+        node.user.name,
+        NODE_EVENT_ACTION_NAMES[node_event.action],
+        namespace.name,
+        excerpt,
+        request.host_url,
+        node.id,
+    )
+    for oauth in namespace.discord_oauth_records:
+        # post_webhook_message never raises; failures are logged.
+        post_webhook_message(oauth.token, message)
 
 
 def filter_watchers(watchers, exclude_users=None, include_users=None):
@@ -134,9 +179,10 @@ def get_all_watchers(request, node_event):
 
 def schedule_notifications(request, node_event):
 
-    # Slack notifications currently only supports created and commented.
+    # Slack and Discord notifications currently only support created and commented.
     if node_event.action in {"created", "commented"}:
         immediately_notify_namespace_moderators_via_slack(request, node_event)
+        immediately_notify_namespace_moderators_via_discord(request, node_event)
 
     # fan out and create a notification object for each watcher.
     notifications = []
