@@ -132,9 +132,10 @@ class TestBuildDiscordDeliveries(unittest.TestCase):
         request.host_url = "https://my.remarkbox.com"
         deliveries = build_discord_deliveries(request, node_event)
         self.assertEqual(len(deliveries), 2)
-        kind, target, message = deliveries[0]
+        kind, target, message, channel = deliveries[0]
         self.assertEqual(kind, "discord")
         self.assertEqual(target, "uri-1")
+        self.assertIsNone(channel)
         self.assertIn("**alice**", message)
         self.assertIn("new comment", message)
         self.assertIn("> hello\n> world", message)
@@ -148,7 +149,7 @@ class TestBuildDiscordDeliveries(unittest.TestCase):
         node_event = make_node_event(
             data="x" * 5000, discord_records=[MagicMock(token="uri-1")]
         )
-        _, _, message = build_discord_deliveries(make_request(), node_event)[0]
+        _, _, message, _ = build_discord_deliveries(make_request(), node_event)[0]
         self.assertIn("…", message)
         self.assertLess(len(message), 1200)
 
@@ -161,8 +162,8 @@ class TestBuildSlackDeliveries(unittest.TestCase):
         request.host_url = "https://my.remarkbox.com"
         deliveries = build_slack_deliveries(request, node_event)
         self.assertEqual(len(deliveries), 1)
-        kind, target, message = deliveries[0]
-        self.assertEqual((kind, target), ("slack", "t1"))
+        kind, target, message, channel = deliveries[0]
+        self.assertEqual((kind, target, channel), ("slack", "t1", "#remarks"))
         self.assertIn("*alice*", message)
 
     def test_no_records_no_deliveries(self):
@@ -175,20 +176,29 @@ class TestDeliverWebhookNotifications(unittest.TestCase):
     @patch("remarkbox.lib.discord.post_webhook_message")
     def test_delivers_discord_tuples(self, mock_post):
         deliver_webhook_notifications(
-            [("discord", "uri-1", "msg-1"), ("discord", "uri-2", "msg-2")]
+            [("discord", "uri-1", "msg-1", None), ("discord", "uri-2", "msg-2", None)]
         )
         self.assertEqual(mock_post.call_count, 2)
         self.assertEqual(mock_post.call_args_list[0].args, ("uri-1", "msg-1"))
 
     @patch("remarkbox.lib.notify.Slacker")
+    def test_delivers_slack_to_given_channel(self, mock_slacker):
+        deliver_webhook_notifications([("slack", "token", "msg", "#general")])
+        mock_slacker.return_value.chat.post_message.assert_called_once_with(
+            "#general", "msg"
+        )
+
+    @patch("remarkbox.lib.notify.Slacker")
     def test_revoked_slack_token_never_raises(self, mock_slacker):
         mock_slacker.return_value.chat.post_message.side_effect = Exception("revoked")
         # must not raise: our delivery thread has nobody to catch for it.
-        deliver_webhook_notifications([("slack", "token", "msg")])
+        deliver_webhook_notifications([("slack", "token", "msg", "#remarks")])
 
     @patch("remarkbox.lib.discord.post_webhook_message")
     def test_async_runs_outside_caller(self, mock_post):
-        thread = deliver_webhook_notifications_async([("discord", "uri-1", "msg")])
+        thread = deliver_webhook_notifications_async(
+            [("discord", "uri-1", "msg", None)]
+        )
         thread.join(timeout=5)
         self.assertFalse(thread.is_alive())
         mock_post.assert_called_once_with("uri-1", "msg")

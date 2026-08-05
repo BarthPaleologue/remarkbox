@@ -44,7 +44,10 @@ def build_slack_deliveries(request, node_event):
         request.host_url,
         node.id,
     )
-    return [("slack", oauth.token, message) for oauth in namespace.slack_oauth_records]
+    return [
+        ("slack", oauth.token, message, "#remarks")
+        for oauth in namespace.slack_oauth_records
+    ]
 
 
 def build_discord_deliveries(request, node_event):
@@ -69,24 +72,25 @@ def build_discord_deliveries(request, node_event):
         node.id,
     )
     return [
-        ("discord", oauth.token, message)
+        ("discord", oauth.token, message, None)
         for oauth in namespace.discord_oauth_records
     ]
 
 
 def deliver_webhook_notifications(deliveries):
     """
-    Deliver ("slack"|"discord", target, message) tuples over HTTPS.
+    Deliver ("slack"|"discord", target, message, channel) tuples over
+    HTTPS. Channel only applies to slack; discord webhooks embed theirs.
 
     Runs in a background thread — must never raise, and must only touch
     plain strings (no ORM objects, no request).
     """
     from remarkbox.lib.discord import post_webhook_message
 
-    for kind, target, message in deliveries:
+    for kind, target, message, channel in deliveries:
         if kind == "slack":
             try:
-                Slacker(target).chat.post_message("#remarks", message)
+                Slacker(target).chat.post_message(channel, message)
             except Exception as e:
                 # a revoked token or missing channel is not our caller's problem.
                 log.warning("slack notification failed: {}".format(e))

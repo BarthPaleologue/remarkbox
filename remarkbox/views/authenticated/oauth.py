@@ -112,20 +112,20 @@ def oauth_slack(request):
             )
         )
 
-        # send a test message to #remark channel!
+        # send our test messages async so a slow Slack API never blocks
+        # this redirect back to namespace settings.
+        from remarkbox.lib.notify import deliver_webhook_notifications_async
+
         msg1 = "*Success!* {} integrated this Slack Team with a Remarkbox Namespace (`{}`)".format(
             request.user.name,
             request.namespace.name,
         )
         msg2 = "Please create the `#remarks` channel."
-        slack = Slacker(access_token)
-        slack.chat.post_message(
-            "#general",
-            msg1,
-        )
-        slack.chat.post_message(
-            "#general",
-            msg2,
+        deliver_webhook_notifications_async(
+            [
+                ("slack", access_token, msg1, "#general"),
+                ("slack", access_token, msg2, "#general"),
+            ]
         )
 
     return HTTPFound(get_namespace_settings_route(request, "notifications"))
