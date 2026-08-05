@@ -22,8 +22,10 @@ from remarkbox.lib.discord import (
 )
 
 from remarkbox.lib.notify import (
-    immediately_notify_namespace_moderators_via_discord,
-    immediately_notify_namespace_moderators_via_slack,
+    build_slack_deliveries,
+    build_discord_deliveries,
+    deliver_webhook_notifications,
+    deliver_webhook_notifications_async,
 )
 
 from remarkbox.views.authenticated.oauth import oauth_discord, oauth_discord_delete
@@ -122,51 +124,77 @@ def make_node_event(action="commented", data="hello\nworld", discord_records=Non
     return node_event
 
 
-class TestDiscordNotify(unittest.TestCase):
-    @patch("remarkbox.lib.discord.post_webhook_message")
-    def test_posts_to_each_record(self, mock_post):
+class TestBuildDiscordDeliveries(unittest.TestCase):
+    def test_builds_one_delivery_per_record(self):
         records = [MagicMock(token="uri-1"), MagicMock(token="uri-2")]
         node_event = make_node_event(discord_records=records)
         request = make_request()
         request.host_url = "https://my.remarkbox.com"
-        immediately_notify_namespace_moderators_via_discord(request, node_event)
-        self.assertEqual(mock_post.call_count, 2)
-        self.assertEqual(mock_post.call_args_list[0].args[0], "uri-1")
-        message = mock_post.call_args_list[0].args[1]
+        deliveries = build_discord_deliveries(request, node_event)
+        self.assertEqual(len(deliveries), 2)
+        kind, target, message = deliveries[0]
+        self.assertEqual(kind, "discord")
+        self.assertEqual(target, "uri-1")
         self.assertIn("**alice**", message)
         self.assertIn("new comment", message)
         self.assertIn("> hello\n> world", message)
         self.assertIn("https://my.remarkbox.com/r/", message)
 
-    @patch("remarkbox.lib.discord.post_webhook_message")
-    def test_no_records_no_post(self, mock_post):
+    def test_no_records_no_deliveries(self):
         node_event = make_node_event(discord_records=[])
-        immediately_notify_namespace_moderators_via_discord(
-            make_request(), node_event
-        )
-        mock_post.assert_not_called()
+        self.assertEqual(build_discord_deliveries(make_request(), node_event), [])
 
-    @patch("remarkbox.lib.discord.post_webhook_message")
-    def test_long_excerpt_truncated(self, mock_post):
+    def test_long_excerpt_truncated(self):
         node_event = make_node_event(
             data="x" * 5000, discord_records=[MagicMock(token="uri-1")]
         )
-        immediately_notify_namespace_moderators_via_discord(
-            make_request(), node_event
-        )
-        message = mock_post.call_args.args[1]
+        _, _, message = build_discord_deliveries(make_request(), node_event)[0]
         self.assertIn("…", message)
         self.assertLess(len(message), 1200)
 
 
-class TestSlackNotifyGuard(unittest.TestCase):
-    @patch("remarkbox.lib.notify.Slacker")
-    def test_revoked_token_never_raises(self, mock_slacker):
-        mock_slacker.return_value.chat.post_message.side_effect = Exception("revoked")
+class TestBuildSlackDeliveries(unittest.TestCase):
+    def test_builds_one_delivery_per_record(self):
         node_event = make_node_event()
-        node_event.node.root.namespace.slack_oauth_records = [MagicMock(token="t")]
-        # must not raise: a dead slack token cannot break a comment submission.
-        immediately_notify_namespace_moderators_via_slack(make_request(), node_event)
+        node_event.node.root.namespace.slack_oauth_records = [MagicMock(token="t1")]
+        request = make_request()
+        request.host_url = "https://my.remarkbox.com"
+        deliveries = build_slack_deliveries(request, node_event)
+        self.assertEqual(len(deliveries), 1)
+        kind, target, message = deliveries[0]
+        self.assertEqual((kind, target), ("slack", "t1"))
+        self.assertIn("*alice*", message)
+
+    def test_no_records_no_deliveries(self):
+        node_event = make_node_event()
+        node_event.node.root.namespace.slack_oauth_records = []
+        self.assertEqual(build_slack_deliveries(make_request(), node_event), [])
+
+
+class TestDeliverWebhookNotifications(unittest.TestCase):
+    @patch("remarkbox.lib.discord.post_webhook_message")
+    def test_delivers_discord_tuples(self, mock_post):
+        deliver_webhook_notifications(
+            [("discord", "uri-1", "msg-1"), ("discord", "uri-2", "msg-2")]
+        )
+        self.assertEqual(mock_post.call_count, 2)
+        self.assertEqual(mock_post.call_args_list[0].args, ("uri-1", "msg-1"))
+
+    @patch("remarkbox.lib.notify.Slacker")
+    def test_revoked_slack_token_never_raises(self, mock_slacker):
+        mock_slacker.return_value.chat.post_message.side_effect = Exception("revoked")
+        # must not raise: our delivery thread has nobody to catch for it.
+        deliver_webhook_notifications([("slack", "token", "msg")])
+
+    @patch("remarkbox.lib.discord.post_webhook_message")
+    def test_async_runs_outside_caller(self, mock_post):
+        thread = deliver_webhook_notifications_async([("discord", "uri-1", "msg")])
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        mock_post.assert_called_once_with("uri-1", "msg")
+
+    def test_async_empty_deliveries_spawns_nothing(self):
+        self.assertIsNone(deliver_webhook_notifications_async([]))
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +235,7 @@ class TestOauthDiscordView(unittest.TestCase):
         self.assertEqual(flashed[1], "info")
         namespace.add_oauth_record.assert_not_called()
 
-    @patch("remarkbox.lib.discord.post_webhook_message")
+    @patch("remarkbox.lib.discord.post_webhook_message_async")
     @patch("remarkbox.lib.discord.exchange_oauth_code")
     @patch("remarkbox.views.authenticated.oauth.get_namespace_by_name")
     def test_success_stores_record_and_posts_test_message(

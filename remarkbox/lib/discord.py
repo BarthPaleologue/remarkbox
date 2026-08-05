@@ -69,6 +69,20 @@ def post_webhook_message(webhook_uri, content):
         return False
 
 
+def post_webhook_message_async(webhook_uri, content):
+    """
+    POST a webhook message from a daemon thread so a slow or hung
+    Discord endpoint never blocks the request that triggered it.
+    """
+    import threading
+
+    thread = threading.Thread(
+        target=post_webhook_message, args=(webhook_uri, content), daemon=True
+    )
+    thread.start()
+    return thread
+
+
 def delete_webhook(webhook_uri):
     """
     Delete a Discord incoming webhook (best effort).

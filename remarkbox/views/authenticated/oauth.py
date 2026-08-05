@@ -170,7 +170,7 @@ def oauth_discord(request):
     token, which stops a forged callback from attaching an attacker's
     webhook to a victim's namespace.
     """
-    from remarkbox.lib.discord import exchange_oauth_code, post_webhook_message
+    from remarkbox.lib.discord import exchange_oauth_code, post_webhook_message_async
 
     state = request.params.get("state", "")
     namespace_name, _, nonce = state.rpartition(":")
@@ -218,7 +218,7 @@ def oauth_discord(request):
                 "success",
             )
         )
-        post_webhook_message(
+        post_webhook_message_async(
             webhook["url"],
             "**Success!** {} connected this Discord channel to a Remarkbox "
             "Namespace (`{}`). New threads and comments will appear here.".format(

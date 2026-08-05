@@ -30,41 +30,29 @@ DISCORD_MESSAGE = """📬 **{}** added a {} on **{}**:
 NODE_EVENT_ACTION_NAMES = {"created": "new thread", "commented": "new comment"}
 
 
-def immediately_notify_namespace_moderators_via_slack(request, node_event):
+def build_slack_deliveries(request, node_event):
+    """Return ("slack", token, message) tuples, plain strings only."""
     node = node_event.node
     namespace = node.root.namespace
-    if namespace.slack_oauth_records:
-        for oauth in namespace.slack_oauth_records:
-            try:
-                slack = Slacker(oauth.token)
-                slack.chat.post_message(
-                    "#remarks",
-                    SLACK_MESSAGE.format(
-                        node.user.name,
-                        NODE_EVENT_ACTION_NAMES[node_event.action],
-                        namespace.name,
-                        node.data,
-                        request.host_url,
-                        node.id,
-                    ),
-                )
-            except Exception as e:
-                # a revoked token or missing channel must never break
-                # the comment submission that triggered this event.
-                log.warning(
-                    "slack notification failed for namespace={}: {}".format(
-                        namespace.name, e
-                    )
-                )
+    if not namespace.slack_oauth_records:
+        return []
+    message = SLACK_MESSAGE.format(
+        node.user.name,
+        NODE_EVENT_ACTION_NAMES[node_event.action],
+        namespace.name,
+        node.data,
+        request.host_url,
+        node.id,
+    )
+    return [("slack", oauth.token, message) for oauth in namespace.slack_oauth_records]
 
 
-def immediately_notify_namespace_moderators_via_discord(request, node_event):
-    from remarkbox.lib.discord import post_webhook_message
-
+def build_discord_deliveries(request, node_event):
+    """Return ("discord", webhook_uri, message) tuples, plain strings only."""
     node = node_event.node
     namespace = node.root.namespace
     if not namespace.discord_oauth_records:
-        return
+        return []
 
     excerpt = node.data or ""
     if len(excerpt) > 900:
@@ -80,9 +68,47 @@ def immediately_notify_namespace_moderators_via_discord(request, node_event):
         request.host_url,
         node.id,
     )
-    for oauth in namespace.discord_oauth_records:
-        # post_webhook_message never raises; failures are logged.
-        post_webhook_message(oauth.token, message)
+    return [
+        ("discord", oauth.token, message)
+        for oauth in namespace.discord_oauth_records
+    ]
+
+
+def deliver_webhook_notifications(deliveries):
+    """
+    Deliver ("slack"|"discord", target, message) tuples over HTTPS.
+
+    Runs in a background thread — must never raise, and must only touch
+    plain strings (no ORM objects, no request).
+    """
+    from remarkbox.lib.discord import post_webhook_message
+
+    for kind, target, message in deliveries:
+        if kind == "slack":
+            try:
+                Slacker(target).chat.post_message("#remarks", message)
+            except Exception as e:
+                # a revoked token or missing channel is not our caller's problem.
+                log.warning("slack notification failed: {}".format(e))
+        elif kind == "discord":
+            # post_webhook_message never raises; failures are logged.
+            post_webhook_message(target, message)
+
+
+def deliver_webhook_notifications_async(deliveries):
+    """
+    Deliver webhook notifications in a daemon thread so slow or hung
+    third parties never block the request that triggered the event.
+    """
+    if not deliveries:
+        return
+    import threading
+
+    thread = threading.Thread(
+        target=deliver_webhook_notifications, args=(deliveries,), daemon=True
+    )
+    thread.start()
+    return thread
 
 
 def filter_watchers(watchers, exclude_users=None, include_users=None):
@@ -179,10 +205,14 @@ def get_all_watchers(request, node_event):
 
 def schedule_notifications(request, node_event):
 
-    # Slack and Discord notifications currently only support created and commented.
+    # Slack and Discord notifications currently only support created and
+    # commented. Payloads are built here (inside our request, cheap) and
+    # delivered in a background thread (slow third-party HTTPS) so a hung
+    # webhook never blocks the comment submission.
     if node_event.action in {"created", "commented"}:
-        immediately_notify_namespace_moderators_via_slack(request, node_event)
-        immediately_notify_namespace_moderators_via_discord(request, node_event)
+        deliveries = build_slack_deliveries(request, node_event)
+        deliveries += build_discord_deliveries(request, node_event)
+        deliver_webhook_notifications_async(deliveries)
 
     # fan out and create a notification object for each watcher.
     notifications = []
