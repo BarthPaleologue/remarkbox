@@ -220,7 +220,8 @@ Use any of these feeds with your RSS reader to get notified about new comments.
 
 <label>Slack:</label>
 
-Create the <code>#remarks</code> channel before adding Remarkbox to Slack.
+Connect a Slack channel to get notified about new threads and comments.
+Slack will ask you to pick the channel.
 
 <br>
 <br>
@@ -231,14 +232,19 @@ Create the <code>#remarks</code> channel before adding Remarkbox to Slack.
 <br>
 
 {% if request.namespace.slack_oauth_records %}
-<b>Integrated Slack Teams and Channels:</b>
+<b>Connected Slack channels:</b>
 
 <br>
 <br>
 
 <ul>
 {% for oauth in request.namespace.slack_oauth_records %}
-<li><b>{{ oauth.user.name }}</b> integrated this Namespace with the Slack Team <b>{{ oauth.data["team_name"] }}</b> <i>#remarks</i></li>
+{% set oauth_data = oauth.data or {} %}
+{% if oauth.token.startswith('https://hooks.slack.com/') %}
+<li><b>{{ oauth.user.name }}</b> connected this Namespace to <b>{{ oauth_data.get("incoming_webhook", {}).get("channel", "a channel") }}</b> in <b>{{ (oauth_data.get("team") or {}).get("name", "Slack") }}</b></li>
+{% else %}
+<li><b>{{ oauth.user.name }}</b> integrated this Namespace with the Slack Team <b>{{ oauth_data.get("team_name", "unknown") }}</b> <i>#remarks</i> — <i>legacy connection; re-add to Slack above to pick a channel, then delete this one</i></li>
+{% endif %}
   <form class="inline" method="post" action="{{ request.link_prefix }}/oauth/slack/delete" onsubmit="submit.disabled = true; return true;">
     <input type="hidden" name="oauth-id" value="{{ oauth.id }}">
     <input type="hidden" name="namespace" value="{{ request.namespace.name }}">

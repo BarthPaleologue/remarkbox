@@ -181,18 +181,24 @@ class TestDeliverWebhookNotifications(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 2)
         self.assertEqual(mock_post.call_args_list[0].args, ("uri-1", "msg-1"))
 
-    @patch("remarkbox.lib.notify.Slacker")
-    def test_delivers_slack_to_given_channel(self, mock_slacker):
-        deliver_webhook_notifications([("slack", "token", "msg", "#general")])
-        mock_slacker.return_value.chat.post_message.assert_called_once_with(
-            "#general", "msg"
-        )
+    @patch("remarkbox.lib.slack.post_chat_message")
+    def test_delivers_legacy_slack_to_given_channel(self, mock_chat):
+        # T25: a legacy v1 token routes through chat.postMessage.
+        deliver_webhook_notifications([("slack", "xoxp-token", "msg", "#general")])
+        mock_chat.assert_called_once_with("xoxp-token", "#general", "msg")
 
-    @patch("remarkbox.lib.notify.Slacker")
-    def test_revoked_slack_token_never_raises(self, mock_slacker):
-        mock_slacker.return_value.chat.post_message.side_effect = Exception("revoked")
+    @patch("remarkbox.lib.slack.post_webhook_message")
+    def test_delivers_v2_slack_to_webhook_uri(self, mock_post):
+        # T25: a v2 incoming-webhook row routes through a plain POST.
+        uri = "https://hooks.slack.com/services/T/B/x"
+        deliver_webhook_notifications([("slack", uri, "msg", None)])
+        mock_post.assert_called_once_with(uri, "msg")
+
+    @patch("remarkbox.lib.slack.requests.post")
+    def test_revoked_slack_token_never_raises(self, mock_post):
+        mock_post.side_effect = requests.ConnectionError("revoked")
         # must not raise: our delivery thread has nobody to catch for it.
-        deliver_webhook_notifications([("slack", "token", "msg", "#remarks")])
+        deliver_webhook_notifications([("slack", "xoxp-token", "msg", "#remarks")])
 
     @patch("remarkbox.lib.discord.post_webhook_message")
     def test_async_runs_outside_caller(self, mock_post):

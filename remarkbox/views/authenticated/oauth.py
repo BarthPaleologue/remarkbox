@@ -22,6 +22,8 @@ def get_namespace_settings_route(request, anchor=None, namespace_name=None):
 @view_config(route_name="oauth-slack-delete")
 @user_required()
 def oauth_slack_delete(request):
+    from remarkbox.lib.slack import is_webhook_target, revoke_token
+
     oauth_id = request.params.get("oauth-id", "")
     oauth_record = get_oauth_by_id(request.dbsession, oauth_id)
 
@@ -30,17 +32,19 @@ def oauth_slack_delete(request):
         return HTTPFound(get_join_or_log_in_route_uri(request))
 
     if oauth_record:
+        # best effort: revoke the Slack side too. v2 rows keep their
+        # access token in json_data (revoking it kills the granted
+        # incoming webhook); legacy rows ARE the access token.
+        if is_webhook_target(oauth_record.token):
+            access_token = (oauth_record.data or {}).get("access_token")
+        else:
+            access_token = oauth_record.token
+        revoke_token(access_token)
         request.dbsession.delete(oauth_record)
-        request.session.flash(
-            ("You deleted that Remarkbox side of that Slack integration.", "success")
-        )
-        request.session.flash(
-            (
-                "Please remember to delete the Slack Team side of the integration.",
-                "info",
-            )
-        )
         request.dbsession.flush()
+        request.session.flash(
+            ("You disconnected that Slack channel from this Namespace.", "success")
+        )
     else:
         request.session.flash(("Invalid OAuth Id.", "error"))
 
@@ -50,14 +54,38 @@ def oauth_slack_delete(request):
 @view_config(route_name="oauth-slack")
 @user_required()
 def oauth_slack(request):
+    """
+    Slack OAuth v2 callback (incoming-webhook scope) — T25.
 
-    if not request.user in request.namespace.owners:
+    Mirrors our discord flow: v2 requires exact-match redirect URIs, so
+    our namespace rides in `state` (`namespace-name:nonce`) instead of
+    a query string like our old v1 flow. Our nonce is our session csrf
+    token, which stops a forged callback from attaching an attacker's
+    webhook to a victim's namespace — protection the v1 flow never had.
+    Slack's consent screen picks the channel, so the `#remarks`
+    ceremony is gone for new connections.
+    """
+    from remarkbox.lib.slack import exchange_oauth_code
+    from remarkbox.lib.notify import deliver_webhook_notifications_async
+
+    state = request.params.get("state", "")
+    namespace_name, _, nonce = state.rpartition(":")
+
+    if not namespace_name or nonce != request.session.get_csrf_token():
+        request.session.flash(("Invalid OAuth state.", "error"))
+        return HTTPFound(get_referer_or_home(request))
+
+    namespace = get_namespace_by_name(request.dbsession, namespace_name)
+
+    if namespace is None or request.user not in namespace.owners:
         request.session.flash(("You do not own that Namespace.", "error"))
         return HTTPFound(get_join_or_log_in_route_uri(request))
 
-    oauth_error = request.params.get("error", "")
-    oauth_code = request.params.get("code", "")
+    settings_route = get_namespace_settings_route(
+        request, "notifications", namespace_name=namespace.name
+    )
 
+    oauth_error = request.params.get("error", "")
     if oauth_error:
         if oauth_error == "access_denied":
             request.session.flash(
@@ -65,70 +93,52 @@ def oauth_slack(request):
             )
         else:
             request.session.flash((oauth_error, "error"))
-        return HTTPFound(get_namespace_settings_route(request, "notifications"))
+        return HTTPFound(settings_route)
 
-    from slacker import Slacker
+    oauth_code = request.params.get("code", "")
+    oauth_response = exchange_oauth_code(request, oauth_code)
+    incoming_webhook = (oauth_response or {}).get("incoming_webhook", {})
 
-    # when doing the oauth dance, the first time
-    # we connect we don't need a token.
-    slack = Slacker("")
-
-    # Request the auth tokens from Slack
-    oauth_response = slack.oauth.access(
-        client_id=request.app.get("slack.public"),
-        client_secret=request.app.get("slack.secret"),
-        code=oauth_code,
-        redirect_uri=request.route_url(
-            "oauth-slack", _query={"namespace": request.namespace.name}
-        ),
-    )
-
-    if oauth_response.successful:
-
-        #access_token = oauth_response.body["bot"]["bot_access_token"]
-        access_token = oauth_response.body["access_token"]
-        request.namespace.add_oauth_record(
+    if incoming_webhook.get("url"):
+        namespace.add_oauth_record(
             user=request.user,
             service="slack",
-            token=access_token,
-            data=oauth_response.body
+            token=incoming_webhook["url"],
+            data=oauth_response,
         )
-        request.dbsession.add(request.namespace)
+        request.dbsession.add(namespace)
         request.dbsession.flush()
+        team_name = (oauth_response.get("team") or {}).get("name", "Slack")
+        channel = incoming_webhook.get("channel", "a channel")
         request.session.flash(
             (
-                "Success, you integrated Remarkbox with <b>{}</b> (Slack Team)".format(
-                    oauth_response.body["team_name"]
-                ),
+                "Success, you connected this Namespace to <b>{}</b> in "
+                "<b>{}</b> (Slack).".format(channel, team_name),
                 "success",
             )
         )
-        request.session.flash(
-            (
-                "Please create a channel in <b>{}</b> called <b>#remarks</b>".format(
-                    oauth_response.body["team_name"]
-                ),
-                "info",
-            )
-        )
-
-        # send our test messages async so a slow Slack API never blocks
-        # this redirect back to namespace settings.
-        from remarkbox.lib.notify import deliver_webhook_notifications_async
-
-        msg1 = "*Success!* {} integrated this Slack Team with a Remarkbox Namespace (`{}`)".format(
-            request.user.name,
-            request.namespace.name,
-        )
-        msg2 = "Please create the `#remarks` channel."
+        # test message posts async so a slow Slack never blocks this
+        # redirect back to namespace settings.
         deliver_webhook_notifications_async(
             [
-                ("slack", access_token, msg1, "#general"),
-                ("slack", access_token, msg2, "#general"),
+                (
+                    "slack",
+                    incoming_webhook["url"],
+                    "*Success!* {} connected this Slack channel to a "
+                    "Remarkbox Namespace (`{}`). New threads and comments "
+                    "will appear here.".format(
+                        request.user.name, namespace.name
+                    ),
+                    None,
+                )
             ]
         )
+    else:
+        request.session.flash(
+            ("Slack did not grant a webhook, please try again.", "error")
+        )
 
-    return HTTPFound(get_namespace_settings_route(request, "notifications"))
+    return HTTPFound(settings_route)
 
 
 @view_config(route_name="oauth-discord-delete")

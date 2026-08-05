@@ -67,7 +67,6 @@ requests[security]
 stripe>=5.0.0
 
 # slack: bot notifications.
-slacker
 
 # DKIM Signed Email from Python.
 #dkimpy

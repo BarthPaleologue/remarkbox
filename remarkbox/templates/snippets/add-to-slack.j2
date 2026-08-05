@@ -1,7 +1,6 @@
 {% if 'slack.public' in request.app %}
-
-<a href="https://slack.com/oauth/authorize?scope={{ request.app.get('slack.oauth_scope') | urlencode }}&client_id={{ request.app['slack.public'] }}&redirect_uri={{ request.route_url('oauth-slack') }}?namespace={{ request.namespace.name }}">
+{# T25: OAuth v2 — our namespace rides in state (namespace:nonce) because v2 requires exact-match redirect URIs. #}
+<a href="https://slack.com/oauth/v2/authorize?client_id={{ request.app['slack.public'] }}&scope={{ request.app.get('slack.oauth_scope', 'incoming-webhook') | urlencode }}&redirect_uri={{ request.route_url('oauth-slack') | urlencode }}&state={{ (request.namespace.name ~ ':' ~ request.csrf_token) | urlencode }}">
   <img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcset="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" />
 </a>
-
 {% endif %}

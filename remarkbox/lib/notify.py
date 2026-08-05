@@ -2,8 +2,6 @@ from __future__ import unicode_literals
 
 from collections import defaultdict
 
-from slacker import Slacker
-
 from remarkbox.lib.mail import send_template_email
 
 from remarkbox.models import NodeEventNotification
@@ -86,14 +84,18 @@ def deliver_webhook_notifications(deliveries):
     plain strings (no ORM objects, no request).
     """
     from remarkbox.lib.discord import post_webhook_message
+    from remarkbox.lib import slack
 
     for kind, target, message, channel in deliveries:
         if kind == "slack":
-            try:
-                Slacker(target).chat.post_message(channel, message)
-            except Exception as e:
-                # a revoked token or missing channel is not our caller's problem.
-                log.warning("slack notification failed: {}".format(e))
+            # Dual path (T25): v2 rows store an incoming webhook URI
+            # (channel baked in at consent time); legacy rows store a
+            # v1 access token and still deliver via chat.postMessage.
+            # Neither helper raises; failures are logged.
+            if slack.is_webhook_target(target):
+                slack.post_webhook_message(target, message)
+            else:
+                slack.post_chat_message(target, channel, message)
         elif kind == "discord":
             # post_webhook_message never raises; failures are logged.
             post_webhook_message(target, message)
