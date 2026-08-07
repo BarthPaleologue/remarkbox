@@ -28,5 +28,5 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T21](21.md) | demo.remarkbox.com fails TLS handshake | resolved | medium | noticed 2026-07-27 |
 | [T22](22.md) | Production alembic chain stuck; `create_all` masks it | resolved | high | postmortem 2026-07-27 |
 | [T23](23.md) | `pkg_resources` under setuptools>=81 (vendored shim) | resolved | medium | noticed 2026-07-28 |
-| [T24](24.md) | Discord connections for namespaces (webhook notifications) | in-progress | medium | fox directive 2026-08-05 |
-| [T25](25.md) | Slack upgrade — OAuth v2 incoming webhooks, slacker removed | code-complete | medium | fox directive 2026-08-05 |
+| [T24](24.md) | Discord connections for namespaces (webhook notifications) | resolved | medium | fox directive 2026-08-05 |
+| [T25](25.md) | Slack upgrade — OAuth v2 incoming webhooks, slacker removed | resolved | medium | fox directive 2026-08-05 |
