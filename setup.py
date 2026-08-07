@@ -45,7 +45,7 @@ with open(os.path.join(here, "README.rst"), "r", encoding="utf-8") as f:
 
 setup(
     name="remarkbox",
-    version="1.0.9",
+    version="1.1.0",
     description="remarkbox",
     long_description=long_description,
     author="Russell Ballestrini",
