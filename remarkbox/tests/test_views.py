@@ -2472,6 +2472,125 @@ class ContentLengthFormPathTests(FunctionalTests):
         res = redirect_res.follow()
         self.assertIn(b"too long", res.body)
 
+
+class ModeratorViewAccessFunctionalTests(FunctionalTests):
+    """
+    Owners are implicitly moderators, so the disabled/pending/spam node
+    listings must admit a namespace owner who holds no moderator role.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            FunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            FunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        from remarkbox.models import create_root_node
+
+        self.owner = get_or_create_user_by_email(
+            self.dbsession, "modview-owner@remarkbox.com"
+        )
+        self.owner_otp = self.owner.new_password()
+        self.dbsession.add(self.owner)
+
+        self.stranger = get_or_create_user_by_email(
+            self.dbsession, "modview-stranger@remarkbox.com"
+        )
+        self.stranger_otp = self.stranger.new_password()
+        self.dbsession.add(self.stranger)
+
+        self.dbsession.flush()
+
+        self.ns = get_or_create_namespace(self.dbsession, "modview.example.com")
+        self.ns.set_role_for_user(self.owner, "owner")
+        self.dbsession.add(self.ns)
+        self.dbsession.flush()
+
+        root = create_root_node()
+        root.namespace = self.ns
+        root.user = self.owner
+        root.verified = True
+        root.title = "Mod View Thread"
+        root.set_data("Root of the mod view thread")
+        self.dbsession.add(root)
+        self.dbsession.flush()
+
+        child = root.new_child()
+        child.user = self.owner
+        child.verified = True
+        child.approved = True
+        child.disabled = True
+        child.set_data("This reply was disabled")
+        self.dbsession.add(child)
+        self.dbsession.flush()
+
+        self.ns_id = self.ns.id
+        self.ns_name = str(self.ns.name)
+        self.root_id = root.id
+
+        self.tm.commit()
+
+        self.owner_creds = ("modview-owner@remarkbox.com", self.owner_otp)
+        self.stranger_creds = ("modview-stranger@remarkbox.com", self.stranger_otp)
+
+    def tearDown(self):
+        super(ModeratorViewAccessFunctionalTests, self).tearDown()
+        from remarkbox.models.namespace import Namespace
+
+        ns = (
+            self.dbsession.query(Namespace)
+            .filter(Namespace.id == self.ns_id)
+            .one_or_none()
+        )
+        if ns:
+            self.dbsession.query(Node).filter(
+                Node.namespace_id == self.ns_id
+            ).delete(synchronize_session=False)
+            ns.owners[:] = []
+            ns.moderators[:] = []
+            self.dbsession.delete(ns)
+        for email in [
+            "modview-owner@remarkbox.com",
+            "modview-stranger@remarkbox.com",
+        ]:
+            user = get_user_by_email(self.dbsession, email)
+            if user:
+                self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in(self, creds):
+        return self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(*creds)
+        )
+
+    def test_owner_may_view_disabled_nodes(self):
+        """A namespace owner with no moderator role reaches ?disabled."""
+        self._log_in(self.owner_creds)
+        res = self.testapp.get(
+            "/ns/{}/nodes?disabled".format(self.ns_name), status=200
+        )
+        self.assertNotIn(b"You must be a moderator", res.body)
+        self.assertIn(b"This reply was disabled", res.body)
+
+    def test_owner_may_view_spam_nodes(self):
+        """The same owner reaches ?spam without a moderator role."""
+        self._log_in(self.owner_creds)
+        res = self.testapp.get("/ns/{}/nodes?spam".format(self.ns_name), status=200)
+        self.assertNotIn(b"You must be a moderator", res.body)
+
+    def test_stranger_may_not_view_disabled_nodes(self):
+        """A logged-in non-owner, non-moderator is still turned away."""
+        self._log_in(self.stranger_creds)
+        redirect_res = self.testapp.get(
+            "/ns/{}/nodes?disabled".format(self.ns_name), status=302
+        )
+        res = redirect_res.maybe_follow()
+        self.assertIn(b"You must be a moderator", res.body)
+
+
 # Keep this module's tests together on one xdist worker. Test modules share a
 # per-worker database; when --dist=loadgroup deals unmarked tests out
 # individually, classes from different modules interleave on a worker and one

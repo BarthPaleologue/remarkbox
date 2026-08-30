@@ -151,9 +151,7 @@ def spam_bulk_action(request):
         request.session.flash(("You must log in to access that.", "error"))
         return HTTPFound(get_referer_or_home(request))
 
-    is_mod = (request.user in request.namespace.moderators
-              or getattr(request.user, "is_superuser", False))
-    if not is_mod:
+    if not request.namespace.is_moderator(request.user):
         request.session.flash(("You must be a moderator.", "error"))
         return HTTPFound(get_referer_or_home(request))
 

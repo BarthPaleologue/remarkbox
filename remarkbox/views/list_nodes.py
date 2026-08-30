@@ -105,9 +105,7 @@ def namespace_nodes(request):
             request.session.flash(("You must log in to access that area.", "error"))
             return HTTPFound(get_join_or_log_in_route_uri(request))
 
-        is_mod = (request.user in request.namespace.moderators
-                  or getattr(request.user, "is_superuser", False))
-        if not is_mod:
+        if not request.namespace.is_moderator(request.user):
             request.session.flash(
                 ("You must be a moderator to access that area.", "error")
             )
