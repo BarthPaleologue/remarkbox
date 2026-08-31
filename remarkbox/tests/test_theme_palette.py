@@ -21,7 +21,7 @@ from remarkbox.lib.theme_palette import (
 
 ENABLED = {
     "theme.llm.enabled": "true",
-    "spam.llm.endpoint": "https://hermes.example.com/v1/chat/completions",
+    "spam.llm.endpoint": "https://language-model.example.com/v1/chat/completions",
     "spam.llm.model": "test-model",
     "spam.llm.timeout": "5",
 }
@@ -64,7 +64,7 @@ class ValidationTests(unittest.TestCase):
             "cooking.example.com",
         )
         self.assertEqual(p["hue"], 25)
-        self.assertEqual(p["source"], "hermes")
+        self.assertEqual(p["source"], "language_model")
         self.assertEqual(p["rationale"], "warm and earthy")
 
     def test_rejects_prose_instead_of_numbers(self):
@@ -104,7 +104,7 @@ class ChoosePaletteTests(unittest.TestCase):
             '"saturation": 55, "rationale": "warm"}'
         )
         p = choose_palette("cooking.example.com", "a forum about bread", ENABLED)
-        self.assertEqual(p["source"], "hermes")
+        self.assertEqual(p["source"], "language_model")
         self.assertEqual(p["hue"], 25)
 
     @patch("remarkbox.lib.theme_palette._llm_request")
@@ -116,7 +116,7 @@ class ChoosePaletteTests(unittest.TestCase):
             '```\nHope that helps.'
         )
         p = choose_palette("ocean.example.com", None, ENABLED)
-        self.assertEqual(p["source"], "hermes")
+        self.assertEqual(p["source"], "language_model")
         self.assertEqual(p["hue"], 200)
 
     @patch("remarkbox.lib.theme_palette._llm_request")

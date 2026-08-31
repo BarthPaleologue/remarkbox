@@ -1,6 +1,6 @@
 """Unit and integration tests for LLM-based spam relevance checking.
 
-Unit tests mock the HTTP call. Integration tests hit the real Hermes endpoint.
+Unit tests mock the HTTP call. Integration tests hit the real language model endpoint.
 """
 
 import json
@@ -190,18 +190,23 @@ class TestCheckReplyRelevanceMocked(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Integration tests (real Hermes endpoint)
+# Integration tests (real language model endpoint)
 # ---------------------------------------------------------------------------
 
 
-HERMES_ENDPOINT = "https://hermes.ai.unturf.com/v1/chat/completions"
-HERMES_MODELS_URI = "https://hermes.ai.unturf.com/v1/models"
+LANGUAGE_MODEL_ENDPOINT = "https://hermes.ai.unturf.com/v1/chat/completions"
+LANGUAGE_MODEL_MODELS_URI = "https://hermes.ai.unturf.com/v1/models"
 
-HERMES_SETTINGS = {
+LANGUAGE_MODEL_SETTINGS = {
     "spam.llm.enabled": "true",
-    "spam.llm.endpoint": HERMES_ENDPOINT,
+    "spam.llm.endpoint": LANGUAGE_MODEL_ENDPOINT,
     "spam.llm.model": DEFAULT_MODEL,
-    "spam.llm.timeout": "10",
+    # A timeout produces no verdict, and no verdict reads as "nothing to
+    # flag" -- so a tight timeout here does not fail a test, it passes one
+    # without ever asking our model. Measured 22-34s on our hardest inputs;
+    # this is generous on purpose so a green run means our model actually
+    # answered.
+    "spam.llm.timeout": "120",
 }
 
 
@@ -222,19 +227,19 @@ class LiveEndpointTestCase(unittest.TestCase):
     def setUpClass(cls):
         import urllib.request
         try:
-            req = urllib.request.Request(HERMES_MODELS_URI, method="GET")
+            req = urllib.request.Request(LANGUAGE_MODEL_MODELS_URI, method="GET")
             urllib.request.urlopen(req, timeout=5)
-            cls.hermes_available = True
+            cls.language_model_available = True
         except Exception:
-            cls.hermes_available = False
+            cls.language_model_available = False
 
     def setUp(self):
-        if not self.hermes_available:
-            self.skipTest("Hermes endpoint not reachable")
+        if not self.language_model_available:
+            self.skipTest("language model endpoint not reachable")
 
 
-class TestHermesIntegration(LiveEndpointTestCase):
-    """Integration tests that hit the real Hermes LLM endpoint.
+class TestLanguageModelIntegration(LiveEndpointTestCase):
+    """Integration tests that hit the real language model endpoint.
 
     These are not mocked -- they make real HTTP requests to hermes.ai.unturf.com.
     Skipped if the endpoint is unreachable.
@@ -246,19 +251,38 @@ class TestHermesIntegration(LiveEndpointTestCase):
             namespace_description="Discussion about the Remarkbox commenting platform",
             title="Feature request: dark mode",
             content="It would be great if Remarkbox had a dark mode option for embedded comments.",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant, got: {}".format(explanation))
 
-    def test_thread_irrelevant_to_namespace(self):
+    def test_thread_advertising_is_spam(self):
         relevant, explanation = check_thread_relevance(
-            namespace_name="meta.remarkbox.com",
-            namespace_description="Discussion about the Remarkbox commenting platform",
-            title="Best pizza in New York",
-            content="Looking for recommendations for pizza places in Manhattan. I love thin crust.",
-            settings=HERMES_SETTINGS,
+            namespace_name="cooking.example.com",
+            namespace_description="A forum about home cooking",
+            title="Cheap designer watches",
+            content="Best prices on luxury watches, worldwide shipping, "
+                    "order now at https://watch-deals.example.com",
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
-        self.assertFalse(relevant, "Expected irrelevant, got: {}".format(explanation))
+        self.assertFalse(relevant, "Expected spam, got: {}".format(explanation))
+
+    def test_off_topic_human_question_is_not_spam(self):
+        """Wrong room, real person. That is a moderator's call, not ours.
+
+        This used to assert the opposite, back when we asked our model
+        whether a thread was on topic. Off topic and spam are different
+        questions, and only one of them should silence somebody.
+        """
+        relevant, explanation = check_thread_relevance(
+            namespace_name="cooking.example.com",
+            namespace_description="A forum about home cooking",
+            title="Best pizza in New York",
+            content="Looking for recommendations for pizza places in "
+                    "Manhattan. I love thin crust.",
+            settings=LANGUAGE_MODEL_SETTINGS,
+        )
+        self.assertIsNot(
+            relevant, False, "flagged a real question: {}".format(explanation))
 
     def test_reply_relevant_to_thread(self):
         relevant, explanation = check_reply_relevance(
@@ -266,7 +290,7 @@ class TestHermesIntegration(LiveEndpointTestCase):
             thread_content="I'm trying to install Remarkbox on my server and need help with the configuration.",
             parent_content="Have you tried checking the documentation?",
             reply_content="Yes, I followed the docs but got stuck on the database setup step.",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant, got: {}".format(explanation))
 
@@ -276,7 +300,7 @@ class TestHermesIntegration(LiveEndpointTestCase):
             thread_content="I'm trying to install Remarkbox on my server.",
             parent_content="Have you tried checking the documentation?",
             reply_content="Buy cheap designer watches at www.fake-watches-sale.com! Best prices guaranteed!",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant, got: {}".format(explanation))
 
@@ -289,12 +313,12 @@ class TestHermesIntegration(LiveEndpointTestCase):
             reply_content="This tutorial helped me understand list comprehensions, thanks!",
             page_url="https://python-tutorial.example.com/getting-started",
             namespace_name="python-tutorial.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant, got: {}".format(explanation))
 
     def test_raw_llm_request(self):
-        """Verify we can make a raw request to Hermes and get a response."""
+        """Verify we can make a raw request to our language model and get a response."""
         response = _llm_request(
             endpoint="https://hermes.ai.unturf.com/v1/chat/completions",
             model=DEFAULT_MODEL,
@@ -323,7 +347,7 @@ class TestHermesIntegration(LiveEndpointTestCase):
         self.assertIn("PONG", response.upper())
 
 
-class TestHermesEmbedMode(LiveEndpointTestCase):
+class TestLanguageModelEmbedMode(LiveEndpointTestCase):
     """Integration tests for embed mode with parent page context.
 
     In embed mode, threads represent comment sections on external pages.
@@ -342,7 +366,7 @@ class TestHermesEmbedMode(LiveEndpointTestCase):
                           "tomatoes are thriving now.",
             page_url="https://gardening-blog.example.com/tomatoes-small-spaces",
             namespace_name="gardening-blog.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -356,7 +380,7 @@ class TestHermesEmbedMode(LiveEndpointTestCase):
                           "cheapbags.example.com for 90% off Louis Vuitton!",
             page_url="https://gardening-blog.example.com/tomatoes-small-spaces",
             namespace_name="gardening-blog.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 
@@ -370,7 +394,7 @@ class TestHermesEmbedMode(LiveEndpointTestCase):
                           "Sign up at crypto-scam.example.com and start earning now!",
             page_url="https://webdev-tutorials.example.com/css-grid-guide",
             namespace_name="webdev-tutorials.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 
@@ -384,7 +408,7 @@ class TestHermesEmbedMode(LiveEndpointTestCase):
                           "trio which has a simpler API for structured concurrency.",
             page_url="https://python-guides.example.com/asyncio-tutorial",
             namespace_name="python-guides.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -397,12 +421,12 @@ class TestHermesEmbedMode(LiveEndpointTestCase):
             reply_content="This recipe is delicious! I added extra garlic.",
             page_url="https://recipes.example.com/garlic-bread",
             namespace_name="recipes.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
 
-class TestHermesSiteMode(LiveEndpointTestCase):
+class TestLanguageModelSiteMode(LiveEndpointTestCase):
     """Integration tests for site mode (standalone threads with full context).
 
     In site mode, threads have titles and content. The LLM checks whether
@@ -419,22 +443,37 @@ class TestHermesSiteMode(LiveEndpointTestCase):
                     "about 30 minutes to arrive. Is this expected or is something "
                     "wrong with the mail server? I'm using the hosted version at "
                     "my.remarkbox.com with the default settings.",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
-    def test_site_irrelevant_thread_on_forum(self):
-        """Completely unrelated thread on meta.remarkbox.com."""
+    def test_site_seo_link_placement_is_spam(self):
+        """Text written for a crawler rather than for anyone in the room."""
         relevant, explanation = check_thread_relevance(
-            namespace_name="meta.remarkbox.com",
-            namespace_description="Discussion about Remarkbox, the privacy-first comment system",
-            title="How to train for a marathon",
-            content="I'm starting my marathon training plan and wondering about "
-                    "the best shoes for long distance running. I currently run "
-                    "about 20 miles per week and want to increase to 40.",
-            settings=HERMES_SETTINGS,
+            namespace_name="bikes.example.com",
+            namespace_description="A forum for bicycle maintenance and repair",
+            title="best running shoes review 2026 top 10",
+            content="Read our full guide to the best running shoes 2026 at "
+                    "https://shoe-affiliate.example.com/top10 and compare "
+                    "prices at https://shoe-affiliate.example.com/deals",
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
-        self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
+        self.assertFalse(relevant, "Expected spam: {}".format(explanation))
+
+    def test_site_off_topic_enthusiast_thread_is_not_spam(self):
+        """A member posting about the wrong hobby is misplaced, not spam."""
+        relevant, explanation = check_thread_relevance(
+            namespace_name="bikes.example.com",
+            namespace_description="A forum for bicycle maintenance and repair",
+            title="How to train for a marathon",
+            content="I'm starting my marathon training plan and wondering "
+                    "about the best shoes for long distance running. I "
+                    "currently run about 20 miles per week and want to "
+                    "increase to 40.",
+            settings=LANGUAGE_MODEL_SETTINGS,
+        )
+        self.assertIsNot(
+            relevant, False, "flagged a real post: {}".format(explanation))
 
     def test_site_reply_to_deep_thread(self):
         """Reply deep in a conversation thread, relevant to the discussion."""
@@ -450,7 +489,7 @@ class TestHermesSiteMode(LiveEndpointTestCase):
                           "though - the reply form textarea still uses the default "
                           "white background. Do I need a more specific selector?",
             namespace_name="meta.remarkbox.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -464,7 +503,7 @@ class TestHermesSiteMode(LiveEndpointTestCase):
             reply_content="asdf jkl; qwerty uiop zxcv bnm 12345 "
                           "hgfdsa poiuytrewq mnbvcxz",
             namespace_name="meta.remarkbox.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 
@@ -481,7 +520,7 @@ class TestHermesSiteMode(LiveEndpointTestCase):
             content="I want to get my first cast iron skillet. I've been using "
                     "non-stick pans but want to try cast iron for better searing. "
                     "Budget is around $40. Any recommendations?",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -495,15 +534,158 @@ class TestHermesSiteMode(LiveEndpointTestCase):
                     "team can help you get more traffic and leads. Visit "
                     "seo-services.example.com for a free audit. We guarantee "
                     "first page rankings within 30 days or your money back!",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 
 
-class TestHermesEdgeCases(LiveEndpointTestCase):
+class TestIntentNotTopic(LiveEndpointTestCase):
+    """Our filter must judge why a post was written, not what it is about.
+
+    Asking "is this on topic" turns a spam filter into a topic police: it
+    flags jokes, reactions and tangents, which are ordinary conversation on
+    any site. Asking "was this posted to exploit this audience" separates a
+    participant wandering off topic from someone extracting value from a
+    room that did not ask for them.
+
+    Every case here uses a neutral, invented site. Tuning against one real
+    community teaches our filter that community's habits rather than what
+    spam is.
+    """
+
+    SITE = "bikes.example.com"
+    DESCRIPTION = "A forum for bicycle maintenance and repair"
+    THREAD = "Rear derailleur skipping under load"
+    THREAD_BODY = (
+        "My rear derailleur skips gears when I pedal hard uphill. Cable "
+        "tension looks fine. What should I check next?"
+    )
+
+    def _reply_verdict(self, reply, parent="Check the hanger alignment first."):
+        return check_reply_relevance(
+            thread_title=self.THREAD,
+            thread_content=self.THREAD_BODY,
+            parent_content=parent,
+            reply_content=reply,
+            namespace_name=self.SITE,
+            settings=LANGUAGE_MODEL_SETTINGS,
+        )
+
+    def _thread_verdict(self, title, body):
+        return check_thread_relevance(
+            namespace_name=self.SITE,
+            namespace_description=self.DESCRIPTION,
+            title=title,
+            content=body,
+            settings=LANGUAGE_MODEL_SETTINGS,
+        )
+
+    def _assert_not_spam(self, verdict, explanation, what):
+        self.assertIs(
+            verdict, True,
+            "flagged {} as spam: {}".format(what, explanation),
+        )
+
+    def _assert_spam(self, verdict, explanation, what):
+        self.assertIs(
+            verdict, False,
+            "missed {} as spam: {}".format(what, explanation),
+        )
+
+    # -- participation, in all its untidy forms, is not spam ---------------
+
+    def test_bare_agreement(self):
+        verdict, why = self._reply_verdict("+1")
+        self._assert_not_spam(verdict, why, "a bare agreement")
+
+    def test_emoji_reaction(self):
+        verdict, why = self._reply_verdict("<3")
+        self._assert_not_spam(verdict, why, "an emoji reaction")
+
+    def test_thanks(self):
+        verdict, why = self._reply_verdict("thanks, that fixed it!")
+        self._assert_not_spam(verdict, why, "a thank you")
+
+    def test_joke_at_our_own_expense(self):
+        verdict, why = self._reply_verdict(
+            "Only took me three years to notice that. :)"
+        )
+        self._assert_not_spam(verdict, why, "a self-deprecating joke")
+
+    def test_off_topic_tangent_between_participants(self):
+        """A digression is a moderator's problem, not a spam filter's."""
+        verdict, why = self._reply_verdict(
+            "Ha, reminds me of the winter I gave up and just took the bus "
+            "everywhere. Anyway, good luck with it."
+        )
+        self._assert_not_spam(verdict, why, "an off-topic tangent")
+
+    def test_helpful_link_shared_in_good_faith(self):
+        """Not every link is a lure."""
+        verdict, why = self._reply_verdict(
+            "There is a good walkthrough of hanger alignment here: "
+            "https://example.org/derailleur-hanger-guide"
+        )
+        self._assert_not_spam(verdict, why, "a helpful link")
+
+    def test_blunt_disagreement(self):
+        verdict, why = self._reply_verdict(
+            "That is wrong. Hanger alignment has nothing to do with skipping "
+            "under load, you are sending them down a dead end."
+        )
+        self._assert_not_spam(verdict, why, "blunt disagreement")
+
+    # -- extraction is spam, however polite ------------------------------
+
+    def test_unsolicited_advertising(self):
+        verdict, why = self._reply_verdict(
+            "Buy discount watches at https://watch-deals.example.com -- "
+            "lowest prices, worldwide shipping, order today!"
+        )
+        self._assert_spam(verdict, why, "unsolicited advertising")
+
+    def test_link_farm(self):
+        verdict, why = self._reply_verdict(
+            "https://a.example.com https://b.example.com "
+            "https://c.example.com https://d.example.com"
+        )
+        self._assert_spam(verdict, why, "a link farm")
+
+    def test_on_topic_promotion_is_still_spam(self):
+        """The hard one: subject matter fits, intent is still extraction."""
+        verdict, why = self._thread_verdict(
+            "Get 20% off pro bike tools this week",
+            "Our shop is running a sale on derailleur tools and repair "
+            "stands. Use code FIXIT20 at https://tools.example.com/sale to "
+            "claim your discount before Sunday.",
+        )
+        self._assert_spam(verdict, why, "on-topic promotion")
+
+    def test_community_announcement_from_an_outsider(self):
+        """Traffic-driving dressed as an invitation."""
+        verdict, why = self._thread_verdict(
+            "Come join our new cycling community",
+            "We set up a new forum for cyclists. Come read reviews and share "
+            "your own at https://another-site.example.com -- open to "
+            "everyone, no ads.",
+        )
+        self._assert_spam(verdict, why, "a traffic-driving invitation")
+
+    # -- a genuine question is never spam, however naive ------------------
+
+    def test_naive_beginner_question(self):
+        verdict, why = self._thread_verdict(
+            "which way do i turn the screw",
+            "sorry total beginner here, which screw do i turn to stop the "
+            "chain falling off? no idea what any of this is called",
+        )
+        self._assert_not_spam(verdict, why, "a naive beginner question")
+
+
+class TestLanguageModelEdgeCases(LiveEndpointTestCase):
     """Integration tests for edge cases and tricky content.
 
-    Tests that exercise Hermes with content that might be ambiguous,
+    Tests that exercise our language model with content that might be ambiguous,
     minimal, or challenging to classify.
     """
 
@@ -515,7 +697,7 @@ class TestHermesEdgeCases(LiveEndpointTestCase):
             parent_content="I agree, dark mode would be great.",
             reply_content="+1",
             namespace_name="meta.remarkbox.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -528,7 +710,7 @@ class TestHermesEdgeCases(LiveEndpointTestCase):
             reply_content="Here's another great resource: "
                           "https://docs.python.org/3/tutorial/index.html",
             namespace_name="programming.example.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -542,7 +724,7 @@ class TestHermesEdgeCases(LiveEndpointTestCase):
                     "easy to embed Remarkbox comments. It handles the JavaScript "
                     "snippet injection and lets you configure settings from the "
                     "WP admin panel. Free and open source on GitHub.",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
@@ -555,7 +737,7 @@ class TestHermesEdgeCases(LiveEndpointTestCase):
             reply_content="Compre relogios baratos! Melhor preco garantido! "
                           "Visite nossa loja online: relogios-baratos.example.com",
             namespace_name="meta.remarkbox.com",
-            settings=HERMES_SETTINGS,
+            settings=LANGUAGE_MODEL_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 

@@ -275,7 +275,7 @@ def namespace_settings(request):
             request.namespace.spam_filter_enabled = spam_filter_enabled
             request.session.flash(
                 (
-                    "You turned {} spam_filter (Hermes)".format(
+                    "You turned {} spam_filter (language model)".format(
                         spam_filter_enabled_checkbox
                     ),
                     "success",

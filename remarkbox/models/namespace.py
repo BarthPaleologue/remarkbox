@@ -133,7 +133,7 @@ class Namespace(RBase, Base):
     # T8: nesting depth settings
     max_nesting_depth = Column(Integer, default=None, nullable=True)
     collapse_depth = Column(Integer, default=None, nullable=True)
-    # Spam filter: namespace owners can disable Hermes LLM checks.
+    # Spam filter: namespace owners can disable language model checks.
     spam_filter_enabled = Column(Boolean, default=True)
     # the type of subscription of this Namespace.
     subscription_type = Column(

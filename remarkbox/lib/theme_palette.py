@@ -1,4 +1,4 @@
-"""Ask Hermes to choose a colour palette that suits a community.
+"""Ask our language model to choose a colour palette that suits a community.
 
 Runs on the same inference endpoint our spam filter uses (`spam.llm.*`), so
 there is no new infrastructure to stand up or configure.
@@ -15,7 +15,7 @@ matters:
 
 Everything fails soft: if the endpoint is disabled, unreachable, slow, or
 answers with nonsense, we fall back to `hash_palette` and the community still
-gets a theme. Our Hermes endpoint 404'd for weeks earlier this month when its
+gets a theme. Our language model endpoint 404'd for weeks earlier this month when its
 served model id drifted, so this path assumes failure is normal.
 """
 
@@ -106,7 +106,7 @@ def _validate(raw, namespace_name):
         # Very low saturation reads as broken rather than tasteful, and very
         # high vibrates. Keep the model inside a band that renders well.
         "sat_base": max(20, min(sat, 75)),
-        "source": "hermes",
+        "source": "language_model",
         "rationale": str(raw.get("rationale", ""))[:200],
     }
     return enforce_contrast(palette)
@@ -124,7 +124,7 @@ def _is_enabled(settings):
 
 
 def choose_palette(namespace_name, description=None, settings=None):
-    """Return a palette for a community, from Hermes when we can.
+    """Return a palette for a community, from our language model when we can.
 
     Never raises and never returns None: falls back to `hash_palette` so a
     community always has a theme.

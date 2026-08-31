@@ -145,6 +145,11 @@ def check_spam(request, data, user=None, namespace=None, title=None,
     if namespace and hasattr(namespace, "spam_filter_enabled"):
         ns_filter_enabled = namespace.spam_filter_enabled is not False
 
+    # What our heuristics alone concluded, before any model opinion. Only
+    # this decides rejection: a model verdict may hold a post but must never
+    # be what makes us throw one away.
+    heuristic_score = spam_score
+
     if llm_globally_enabled and ns_filter_enabled:
         llm_ran = True
         relevant, explanation = _llm_relevance_check(
@@ -164,7 +169,7 @@ def check_spam(request, data, user=None, namespace=None, title=None,
     result["signals"] = signals
     result["spam_reason"] = spam_reason
 
-    if spam_score >= hard_threshold:
+    if heuristic_score >= hard_threshold:
         request.response.status_code = 403
         result["action"] = "rejected"
         result["error"] = "Content flagged as spam"
@@ -175,8 +180,12 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         # anything unless the heuristics already suspected the post. The
         # check was arithmetically incapable of acting alone.
         #
-        # Holding is the ceiling for an unaided model verdict: a false
-        # positive waits for a human instead of silently 403ing a real
+        # Holding is the ceiling for any model verdict, aided or not. A post
+        # that is merely link-heavy can reach our hard threshold once a model
+        # opinion is added, and a bare link is what sharing an invite looks
+        # like -- so rejection stays a decision our heuristics make alone.
+        #
+        # A false positive waits for a human instead of silently 403ing a real
         # comment. Rejection still requires the heuristics to agree.
         result["action"] = "held"
 

@@ -182,16 +182,21 @@ def check_thread_relevance(namespace_name, namespace_description, title, content
         {
             "role": "system",
             "content": (
-                "You are a strict content moderation assistant for a specific "
-                "website. Decide if a new discussion thread is on-topic for "
-                "that site. A thread is RELEVANT only when its subject matter "
-                "directly relates to the site's stated purpose or description. "
-                "Apply this test: would a moderator of this site expect this "
-                "thread here, or does it belong on a different site? Community "
-                "value, friendliness, or general appeal do NOT make a thread "
-                "relevant. "
-                "Example: a thread asking for restaurant recommendations, "
-                "posted on a site about a software product, is IRRELEVANT. "
+                "You are a spam filter for a discussion site. Decide whether "
+                "a new thread was posted to exploit that site or to take part "
+                "in it. Judge intent, not topic. "
+                "Answer IRRELEVANT when a thread exists to extract value from "
+                "an audience that did not ask for it: advertising a product or "
+                "service, driving traffic to a site the author benefits from, "
+                "search-engine link placement, deception or impersonation, or "
+                "bulk automated text. A promotional pitch stays spam even when "
+                "its subject matter is close to the site's own. "
+                "Answer RELEVANT when a person is genuinely addressing this "
+                "community, including when they are off topic, mistaken, "
+                "brief, opinionated or new. Wandering off topic is a "
+                "moderator's business, not a spam filter's. "
+                "When in doubt answer RELEVANT: wrongly flagging turns away a "
+                "real person, while a missed one is tidied up later. "
                 "Respond with exactly 'RELEVANT' or 'IRRELEVANT' on the first "
                 "line, followed by a brief one-sentence explanation."
             ),
@@ -202,7 +207,7 @@ def check_thread_relevance(namespace_name, namespace_description, title, content
                 "Site: {ns}\n\n"
                 "New thread title: {title}\n\n"
                 "Thread content (first 500 chars):\n{content}\n\n"
-                "Is this thread relevant to this site?"
+                "Is this thread spam?"
             ).format(
                 ns=ns_context,
                 title=title or "(no title)",
@@ -259,7 +264,7 @@ def check_reply_relevance(thread_title, thread_content, parent_content,
         )
 
     user_msg = "{context}\n\nNew reply (first 500 chars):\n{reply}\n\n" \
-               "Is this reply relevant to the discussion?".format(
+               "Is this reply spam?".format(
                    context="\n\n".join(context_parts),
                    reply=(reply_content or "")[:500],
                )
@@ -268,9 +273,22 @@ def check_reply_relevance(thread_title, thread_content, parent_content,
         {
             "role": "system",
             "content": (
-                "You are a content moderation assistant. Your job is to determine if "
-                "a reply is relevant to the discussion thread it is being posted in. "
-                "Off-topic spam, promotional content, and gibberish should be marked irrelevant. "
+                "You are a spam filter for a discussion site. Decide whether "
+                "a reply is spam. "
+                "Spam means content posted to exploit the thread rather than "
+                "take part in it: unsolicited advertising, link farming, "
+                "promotion of a product or site to an audience that did not "
+                "ask for it, deception, or automated junk. "
+                "Anything a genuine participant might write is not spam, even "
+                "when it wanders off topic. Jokes, sarcasm, emoji, agreement, "
+                "tangents, personal asides and links shared in good faith "
+                "among people already talking are ordinary conversation. "
+                "Digression is not spam. Being brief, informal or "
+                "unsubstantive is not spam. "
+                "Answer IRRELEVANT only for spam, not for a reply that is "
+                "merely off topic. When in doubt answer RELEVANT: a wrongly "
+                "flagged reply silences a real person, while a missed one is "
+                "tidied up later by a moderator. "
                 "Respond with exactly 'RELEVANT' or 'IRRELEVANT' on the first line, "
                 "followed by a brief one-sentence explanation."
             ),

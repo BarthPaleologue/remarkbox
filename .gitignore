@@ -34,3 +34,10 @@ index5.html
 remarkbox-theme-meta/
 env.vanilla/
 test-remarkbox_*.sqlite*
+
+# Our spam/ham corpus stays local. It holds comments harvested from real
+# namespaces, and it is our labelled answer key: publishing it hands an
+# adversary both our users' words and the exact set of posts we judged. The
+# blanket *.json rule above already covers it; this is explicit so the reason
+# survives a change to that rule.
+scripts/spam/corpus.json

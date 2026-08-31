@@ -9,7 +9,7 @@ Two sources exist:
 * `hash_palette(name)` — deterministic from a SHA-256 of the namespace name.
   Unique, reproducible, and meaningless: a cooking forum and a malware forum
   get unrelated hues by coincidence.
-* `remarkbox.lib.theme_palette.choose_palette(...)` — asks our Hermes model to
+* `remarkbox.lib.theme_palette.choose_palette(...)` — asks our language model to
   pick colours that suit what the community is actually about, then clamps and
   contrast-checks the result.
 
