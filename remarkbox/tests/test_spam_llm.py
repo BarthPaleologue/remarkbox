@@ -22,6 +22,7 @@ from remarkbox.models.spam_llm import (
     forget_discovered_model,
     health_check,
     DEFAULT_MODEL,
+    DEFAULT_TIMEOUT,
 )
 
 
@@ -326,7 +327,7 @@ class TestLanguageModelIntegration(LiveEndpointTestCase):
                 {"role": "system", "content": "Reply with exactly the word PONG."},
                 {"role": "user", "content": "PING"},
             ],
-            timeout=10,
+            timeout=DEFAULT_TIMEOUT,
         )
         self.assertIsNotNone(response)
         self.assertIn("PONG", response.upper())
@@ -341,7 +342,7 @@ class TestLanguageModelIntegration(LiveEndpointTestCase):
                 {"role": "system", "content": "Reply with exactly the word PONG."},
                 {"role": "user", "content": "PING"},
             ],
-            timeout=10,
+            timeout=DEFAULT_TIMEOUT,
         )
         self.assertIsNotNone(response)
         self.assertIn("PONG", response.upper())
@@ -811,6 +812,65 @@ class TestModelDiscoveryAndThinking(unittest.TestCase):
         )
         self.assertEqual(body["reasoning_effort"], "none")
         self.assertEqual(body["temperature"], 0.0)
+
+
+class TestTimeoutIsLoud(unittest.TestCase):
+    """A timeout must be distinguishable from a clean "nothing to flag"."""
+
+    ENDPOINT = "https://llm.example.com/v1/chat/completions"
+
+    def setUp(self):
+        forget_discovered_model()
+
+    def tearDown(self):
+        forget_discovered_model()
+
+    def test_default_timeout_covers_a_slow_endpoint(self):
+        """Measured 1.3s-34.5s on our own endpoint, varying with load.
+
+        A 5s default did not fail consistently, it failed when our server was
+        busy, so moderation tracked load rather than content.
+        """
+        self.assertGreaterEqual(DEFAULT_TIMEOUT, 35)
+
+    def test_read_timeout_is_reported_as_a_timeout(self):
+        import socket
+
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._post_chat") as post:
+            discover.return_value = "vendor/served"
+            post.side_effect = socket.timeout("timed out")
+            with self.assertLogs("remarkbox.models.spam_llm", "WARNING") as logs:
+                result = _llm_request(self.ENDPOINT, "vendor/served", [], 60)
+
+        self.assertIsNone(result)
+        self.assertTrue(any("timed out" in m for m in logs.output))
+        self.assertTrue(any("was not checked" in m for m in logs.output))
+
+    def test_connect_timeout_wrapped_in_urlerror_is_unwrapped(self):
+        import socket
+        import urllib.error
+
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._post_chat") as post:
+            discover.return_value = "vendor/served"
+            post.side_effect = urllib.error.URLError(socket.timeout("timed out"))
+            with self.assertLogs("remarkbox.models.spam_llm", "WARNING") as logs:
+                result = _llm_request(self.ENDPOINT, "vendor/served", [], 60)
+
+        self.assertIsNone(result)
+        self.assertTrue(any("timed out" in m for m in logs.output))
+
+    def test_other_failures_are_not_called_timeouts(self):
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._post_chat") as post:
+            discover.return_value = "vendor/served"
+            post.side_effect = ValueError("malformed json")
+            with self.assertLogs("remarkbox.models.spam_llm", "WARNING") as logs:
+                result = _llm_request(self.ENDPOINT, "vendor/served", [], 60)
+
+        self.assertIsNone(result)
+        self.assertFalse(any("timed out" in m for m in logs.output))
 
 
 class TestChooseModel(unittest.TestCase):

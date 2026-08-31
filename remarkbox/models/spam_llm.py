@@ -12,11 +12,12 @@ Configuration (from .ini):
     spam.llm.enabled = true
     spam.llm.endpoint = https://hermes.ai.unturf.com/v1/chat/completions
     spam.llm.model = solidrust/Hermes-3-Llama-3.1-8B-AWQ   # fallback only
-    spam.llm.timeout = 5
+    spam.llm.timeout = 60
 """
 
 import json
 import logging
+import socket
 import urllib.request
 import urllib.error
 
@@ -25,7 +26,17 @@ log = logging.getLogger(__name__)
 # Defaults
 DEFAULT_ENDPOINT = "https://hermes.ai.unturf.com/v1/chat/completions"
 DEFAULT_MODEL = "solidrust/Hermes-3-Llama-3.1-8B-AWQ"
-DEFAULT_TIMEOUT = 5  # seconds
+
+# Sized for our slowest observed classification, not our typical one.
+# Measured against our own endpoint with comparable prompts: 1.3s to 34.5s,
+# varying with how busy our server is rather than with our post.
+#
+# The old 5s default did not fail loudly, it failed *sometimes*: fast when
+# our endpoint was idle, timing out under load. A timeout yields no verdict,
+# and no verdict reads as "nothing to flag", so moderation quietly tracked
+# server load instead of content. Sizing for our tail costs nothing when our
+# endpoint is quick, because we return as soon as it answers.
+DEFAULT_TIMEOUT = 60  # seconds
 
 # Cache for a server-discovered model id (see _discover_model).
 _discovered_model = None
@@ -152,7 +163,22 @@ def _llm_request(endpoint, model, messages, timeout):
         log.warning("LLM relevance check failed: %s", e)
         return None
     except Exception as e:
-        log.warning("LLM relevance check failed: %s", e)
+        # A timeout is called out separately because it is the failure that
+        # hides: it produces no verdict, no verdict adds no spam signal, and
+        # so the check goes quietly inert while still looking enabled. A read
+        # timeout raises socket.timeout; a connect timeout arrives wrapped in
+        # URLError, so unwrap before deciding.
+        reason = getattr(e, "reason", None)
+        if isinstance(e, (TimeoutError, socket.timeout)) or isinstance(
+            reason, (TimeoutError, socket.timeout)
+        ):
+            log.warning(
+                "LLM spam check timed out after %ss; no verdict, so this post "
+                "was not checked. Raise spam.llm.timeout if this repeats: %s",
+                timeout, e,
+            )
+        else:
+            log.warning("LLM relevance check failed: %s", e)
         return None
 
 
