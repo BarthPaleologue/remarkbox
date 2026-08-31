@@ -4,10 +4,14 @@ LLM-based relevance checking for spam detection.
 Uses an OpenAI-compatible inference endpoint (e.g. hermes.ai.unturf.com)
 to check whether a post is relevant to its context (namespace or thread).
 
+The model id is detected from the endpoint's /v1/models rather than taken
+from settings; spam.llm.model is only a fallback for when that lookup fails.
+Reasoning is disabled per request so the verdict lands on the first line.
+
 Configuration (from .ini):
     spam.llm.enabled = true
     spam.llm.endpoint = https://hermes.ai.unturf.com/v1/chat/completions
-    spam.llm.model = solidrust/Hermes-3-Llama-3.1-8B-AWQ
+    spam.llm.model = solidrust/Hermes-3-Llama-3.1-8B-AWQ   # fallback only
     spam.llm.timeout = 5
 """
 
@@ -36,6 +40,12 @@ def _post_chat(endpoint, model, messages, timeout):
         # Greedy decoding: a relevance classifier must be deterministic for
         # identical input, or moderation outcomes (and tests) become dice.
         "temperature": 0.0,
+        # Reasoning models prepend a thinking monologue to their answer, which
+        # buries the verdict our parser reads. Both keys were verified against
+        # vLLM to suppress it; we send both because servers differ on which
+        # they honour, and ignore keys they do not know.
+        "chat_template_kwargs": {"enable_thinking": False},
+        "reasoning_effort": "none",
     }).encode("utf-8")
 
     req = urllib.request.Request(
@@ -54,8 +64,9 @@ def _discover_model(endpoint, timeout):
     """Ask an OpenAI-compatible server which model it actually serves.
 
     Inference servers swap model builds (quantization, publisher) without
-    warning; a stale configured model id makes every request 404. Discovery
-    lets us heal at runtime instead of failing until a config change ships.
+    warning, so upstream is the authority on its own model id and the
+    configured id is only a fallback for when discovery cannot answer. The
+    result is cached for the process; `forget_discovered_model` clears it.
     """
     global _discovered_model
     if _discovered_model:
@@ -71,19 +82,32 @@ def _discover_model(endpoint, timeout):
         return None
 
 
+def forget_discovered_model():
+    """Drop the cached model id so the next call rediscovers it."""
+    global _discovered_model
+    _discovered_model = None
+
+
 def _llm_request(endpoint, model, messages, timeout):
-    """Make a chat completion request to an OpenAI-compatible endpoint."""
+    """Make a chat completion request to an OpenAI-compatible endpoint.
+
+    The model served upstream is detected from /v1/models rather than trusted
+    from settings, so a model swap heals itself without a config change.
+    """
+    served = _discover_model(endpoint, timeout) or model
     try:
-        return _post_chat(endpoint, model, messages, timeout)
+        return _post_chat(endpoint, served, messages, timeout)
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            fallback = _discover_model(endpoint, timeout)
-            if fallback and fallback != model:
+            # Our cached id went stale mid-process: rediscover once and retry.
+            forget_discovered_model()
+            fresh = _discover_model(endpoint, timeout)
+            if fresh and fresh != served:
                 log.warning(
-                    "LLM model %s not served; retrying with %s", model, fallback
+                    "LLM model %s not served; retrying with %s", served, fresh
                 )
                 try:
-                    return _post_chat(endpoint, fallback, messages, timeout)
+                    return _post_chat(endpoint, fresh, messages, timeout)
                 except Exception as retry_error:
                     log.warning("LLM relevance check failed: %s", retry_error)
                     return None

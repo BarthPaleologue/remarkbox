@@ -13,6 +13,9 @@ from remarkbox.models.spam_llm import (
     _parse_verdict,
     _is_enabled,
     _llm_request,
+    _discover_model,
+    _post_chat,
+    forget_discovered_model,
     DEFAULT_MODEL,
 )
 
@@ -585,6 +588,78 @@ class TestHermesEdgeCases(unittest.TestCase):
             settings=HERMES_SETTINGS,
         )
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for model discovery and reasoning suppression (mocked, no network)
+# ---------------------------------------------------------------------------
+
+
+class TestModelDiscoveryAndThinking(unittest.TestCase):
+    """Upstream owns the model id, and reasoning is off on every request."""
+
+    ENDPOINT = "https://llm.example.com/v1/chat/completions"
+
+    def setUp(self):
+        forget_discovered_model()
+
+    def tearDown(self):
+        forget_discovered_model()
+
+    def test_served_model_overrides_configured_model(self):
+        """The id from /v1/models wins over the configured fallback."""
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._post_chat") as post:
+            discover.return_value = "vendor/actually-served"
+            post.return_value = "RELEVANT\nfine"
+            _llm_request(self.ENDPOINT, "stale/configured", [], 5)
+
+        self.assertEqual(post.call_args[0][1], "vendor/actually-served")
+
+    def test_configured_model_used_when_discovery_fails(self):
+        """A dead /v1/models falls back to settings instead of giving up."""
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._post_chat") as post:
+            discover.return_value = None
+            post.return_value = "RELEVANT\nfine"
+            _llm_request(self.ENDPOINT, "stale/configured", [], 5)
+
+        self.assertEqual(post.call_args[0][1], "stale/configured")
+
+    def test_discovery_result_is_cached(self):
+        """We do not re-ask /v1/models on every classification."""
+        payload = json.dumps({"data": [{"id": "vendor/served"}]}).encode("utf-8")
+        with patch("remarkbox.models.spam_llm.urllib.request.urlopen") as urlopen:
+            urlopen.return_value = MagicMock(
+                read=MagicMock(return_value=payload)
+            )
+            first = _discover_model(self.ENDPOINT, 5)
+            second = _discover_model(self.ENDPOINT, 5)
+
+        self.assertEqual(first, "vendor/served")
+        self.assertEqual(second, "vendor/served")
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_request_body_disables_thinking(self):
+        """Every chat completion asks the server to skip its monologue."""
+        captured = {}
+
+        def fake_urlopen(req, timeout=None):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            return MagicMock(read=MagicMock(return_value=json.dumps({
+                "choices": [{"message": {"content": "RELEVANT\nfine"}}]
+            }).encode("utf-8")))
+
+        with patch("remarkbox.models.spam_llm.urllib.request.urlopen", fake_urlopen):
+            _post_chat(self.ENDPOINT, "vendor/served", [], 5)
+
+        body = captured["body"]
+        self.assertEqual(
+            body["chat_template_kwargs"], {"enable_thinking": False}
+        )
+        self.assertEqual(body["reasoning_effort"], "none")
+        self.assertEqual(body["temperature"], 0.0)
+
 
 # Keep this module's tests together on one xdist worker. Test modules share a
 # per-worker database; when --dist=loadgroup deals unmarked tests out
