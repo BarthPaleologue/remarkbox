@@ -1539,6 +1539,100 @@ class TestAPISearchThreads(APIFunctionalTests):
         self.assertGreater(len(res.json["threads"]), 0)
 
 # Keep this module's tests together on one xdist worker. Test modules share a
+class TestSpamEventsEndpoint(APIFunctionalTests):
+    """Access control on the spam telemetry endpoint.
+
+    Scoped to moderators and owners so a site operator can see whether their
+    filter works without holding network-wide superuser.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            APIFunctionalTests.setUpClass.im_func(cls)
+        except AttributeError:
+            APIFunctionalTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        self.owner = get_or_create_user_by_email(
+            self.dbsession, "spamev-owner@remarkbox.com"
+        )
+        self.owner_otp = self.owner.new_password()
+        self.dbsession.add(self.owner)
+
+        self.stranger = get_or_create_user_by_email(
+            self.dbsession, "spamev-stranger@remarkbox.com"
+        )
+        self.stranger_otp = self.stranger.new_password()
+        self.dbsession.add(self.stranger)
+        self.dbsession.flush()
+
+        ns = get_or_create_namespace(self.dbsession, "spamev.example.com")
+        ns.set_role_for_user(self.owner, "owner")
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+
+        self.namespace_id = ns.id
+        self.namespace_name = str(ns.name)
+        self.tm.commit()
+
+    def tearDown(self):
+        super(TestSpamEventsEndpoint, self).tearDown()
+        from remarkbox.models.namespace import Namespace
+
+        ns = (
+            self.dbsession.query(Namespace)
+            .filter(Namespace.id == self.namespace_id)
+            .one_or_none()
+        )
+        if ns:
+            ns.owners[:] = []
+            ns.moderators[:] = []
+            self.dbsession.delete(ns)
+        for email in (
+            "spamev-owner@remarkbox.com",
+            "spamev-stranger@remarkbox.com",
+        ):
+            user = get_user_by_email(self.dbsession, email)
+            if user:
+                self.dbsession.delete(user)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _log_in(self, email, otp):
+        return self.testapp.post(
+            "/verification-challenge?email={}&raw-otp={}&submit".format(email, otp)
+        )
+
+    def _uri(self):
+        return "/api/v1/namespaces/{}/spam-events".format(self.namespace_name)
+
+    def test_anonymous_is_rejected(self):
+        res = self.testapp.get(self._uri(), status=401)
+        self.assertIn("Authentication required", res.json.get("error", ""))
+
+    def test_stranger_is_rejected(self):
+        self._log_in("spamev-stranger@remarkbox.com", self.stranger_otp)
+        res = self.testapp.get(self._uri(), status=403)
+        self.assertIn("Moderator access required", res.json.get("error", ""))
+
+    def test_owner_may_read(self):
+        """Owners are implicit moderators, so no promotion is needed."""
+        self._log_in("spamev-owner@remarkbox.com", self.owner_otp)
+        res = self.testapp.get(self._uri(), status=200)
+        self.assertEqual(res.json["namespace"], self.namespace_name)
+        self.assertIn("summary", res.json)
+        self.assertIn("events", res.json)
+        for key in ("allowed", "held", "rejected", "llm_ran", "llm_inconclusive"):
+            self.assertIn(key, res.json["summary"])
+
+    def test_unknown_namespace_is_404(self):
+        self._log_in("spamev-owner@remarkbox.com", self.owner_otp)
+        self.testapp.get(
+            "/api/v1/namespaces/nope.example.com/spam-events", status=404
+        )
+
+
 # per-worker database; when --dist=loadgroup deals unmarked tests out
 # individually, classes from different modules interleave on a worker and one
 # class's tearDownClass drop_all yanks tables from another class mid-run.

@@ -31,7 +31,18 @@ from remarkbox.views import verify_pending_nodes_in_session
 
 from remarkbox.models.meta import now_timestamp
 from remarkbox.models.spam import score_content
-from remarkbox.models.spam_llm import check_thread_relevance, check_reply_relevance
+from remarkbox.models.spam_llm import (
+    check_thread_relevance,
+    check_reply_relevance,
+    current_model,
+)
+from remarkbox.models.spam_event import (
+    SpamEvent,
+    record_spam_event,
+    spam_event_summary,
+    ACTION_ALLOWED,
+    SOURCE_API,
+)
 
 from .serializers import serialize_node, serialize_namespace_brief
 
@@ -102,6 +113,9 @@ def check_spam(request, data, user=None, namespace=None, title=None,
     if user and getattr(user, "is_superuser", False):
         return result
 
+    llm_ran = False
+    llm_verdict = None
+
     hard_threshold = float(settings.get("spam.hard_threshold", 0.8))
     soft_threshold = float(settings.get("spam.soft_threshold", 0.5))
 
@@ -124,10 +138,12 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         ns_filter_enabled = namespace.spam_filter_enabled is not False
 
     if llm_globally_enabled and ns_filter_enabled:
+        llm_ran = True
         relevant, explanation = _llm_relevance_check(
             settings, data, title=title, namespace=namespace,
             parent_node=parent_node,
         )
+        llm_verdict = relevant
         if explanation:
             spam_reason = explanation
         if relevant is False:
@@ -146,6 +162,22 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         result["error"] = "Content flagged as spam"
     elif spam_score >= soft_threshold:
         result["action"] = "held"
+
+    # Record the decision. A rejected post is never written as a node, so
+    # without this our blocked spam left no trace at all and the filter could
+    # not be shown to be working.
+    record_spam_event(
+        request.dbsession,
+        action=result["action"] or ACTION_ALLOWED,
+        namespace=namespace,
+        user=user,
+        source=SOURCE_API,
+        spam_score=spam_score,
+        signals=signals,
+        llm_ran=llm_ran,
+        llm_verdict=llm_verdict,
+        llm_model=current_model() if llm_ran else None,
+    )
 
     return result
 
@@ -1169,6 +1201,79 @@ def _require_superuser(request):
         request.response.status_code = 403
         return {"error": "Superuser access required"}
     return None
+
+
+@view_config(
+    route_name="api-namespace-spam-events",
+    request_method="GET",
+    renderer="json",
+    require_csrf=False,
+)
+def api_namespace_spam_events(request):
+    """Spam decisions for one namespace (moderators and owners).
+
+    Scoped to a namespace on purpose. Whether our filter is working is a
+    question the people running a site should be able to answer themselves,
+    without holding network-wide superuser.
+
+    Query parameters:
+        days: window to summarise (default 7, max 90).
+        limit: how many recent events to return (default 50, max 200).
+    """
+    if not request.user or not request.user.authenticated:
+        request.response.status_code = 401
+        return {"error": "Authentication required"}
+
+    namespace_name = request.matchdict.get("namespace_name")
+    namespace = get_namespace_by_name(request.dbsession, namespace_name)
+    if namespace is None:
+        request.response.status_code = 404
+        return {"error": "Namespace not found"}
+
+    if not namespace.is_moderator(request.user):
+        request.response.status_code = 403
+        return {"error": "Moderator access required"}
+
+    try:
+        days = max(1, min(int(get_param(request, "days", 7)), 90))
+    except (TypeError, ValueError):
+        days = 7
+    try:
+        limit = max(1, min(int(get_param(request, "limit", 50)), 200))
+    except (TypeError, ValueError):
+        limit = 50
+
+    summary = spam_event_summary(request.dbsession, namespace=namespace, days=days)
+
+    since = now_timestamp() - (days * 86400)
+    events = (
+        request.dbsession.query(SpamEvent)
+        .filter(
+            SpamEvent.namespace_id == namespace.id,
+            SpamEvent.created_timestamp >= since,
+        )
+        .order_by(SpamEvent.created_timestamp.desc())
+        .limit(limit)
+    )
+
+    return {
+        "namespace": namespace.name,
+        "summary": summary,
+        "events": [
+            {
+                "id": str(e.id),
+                "created": e.created_timestamp,
+                "action": e.action,
+                "source": e.source,
+                "spam_score": e.spam_score,
+                "signals": e.signals.split(",") if e.signals else [],
+                "llm_ran": e.llm_ran,
+                "llm_verdict": e.llm_verdict,
+                "llm_model": e.llm_model,
+            }
+            for e in events
+        ],
+    }
 
 
 @view_config(

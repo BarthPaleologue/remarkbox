@@ -31,3 +31,5 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T24](24.md) | Discord connections for namespaces (webhook notifications) | resolved | medium | fox directive 2026-08-05 |
 | [T25](25.md) | Slack upgrade — OAuth v2 incoming webhooks, slacker removed | code-complete | medium | fox directive 2026-08-05 |
 | [T26](26.md) | LLM relevance: silent drift, blind model pick, hostage CI | resolved | high | deploy block 2026-08-30 |
+| [T27](27.md) | Spam decision telemetry; rejections left no trace | resolved | high | fox directive 2026-08-31 |
+| [T28](28.md) | Browser and embed posts bypass spam scoring entirely | open | high | found during T27 2026-08-31 |

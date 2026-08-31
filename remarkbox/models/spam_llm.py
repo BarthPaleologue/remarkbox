@@ -117,6 +117,15 @@ def forget_discovered_model():
     _discovered_model = None
 
 
+def current_model():
+    """Which model id we last resolved, or None if we never got one.
+
+    Recorded alongside each spam decision so a model swapped in under us is
+    visible in our telemetry rather than inferred weeks later.
+    """
+    return _discovered_model
+
+
 def _llm_request(endpoint, model, messages, timeout):
     """Make a chat completion request to an OpenAI-compatible endpoint.
 

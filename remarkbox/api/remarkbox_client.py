@@ -642,6 +642,30 @@ class RemarkboxClient:
             "GET", "/api/v1/themes/{}/preview".format(namespace)
         )
 
+    # ----- Moderation telemetry -----
+
+    def spam_events(self, namespace, days=7, limit=50):
+        """Spam decisions for a namespace (requires moderator or owner).
+
+        Rejected posts are never stored as nodes, so this is the only record
+        that our filter blocked anything.
+
+        Args:
+            namespace: Namespace name, e.g. "meta.remarkbox.com"
+            days: Window to summarise (default 7, max 90)
+            limit: Recent events to return (default 50, max 200)
+
+        Returns:
+            dict with keys: namespace, summary, events
+        """
+        params = urllib.parse.urlencode({"days": days, "limit": limit})
+        return self._request(
+            "GET",
+            "/api/v1/namespaces/{}/spam-events?{}".format(
+                urllib.parse.quote(namespace), params
+            ),
+        )
+
     # ----- Admin (superuser only) -----
 
     def admin_list_namespaces(self):

@@ -27,6 +27,7 @@ from .sudo_otp import *
 from .revision import *
 from .api_token import *
 from .mfa_method import *
+from .spam_event import *
 
 # run configure_mappers after defining all of the models to ensure
 # all relationships can be setup

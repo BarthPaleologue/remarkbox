@@ -18,6 +18,10 @@ def includeme(config):
     config.add_route("api-client-python", "/api/v1/clients/python")
     config.add_route("api-client-c", "/api/v1/clients/c")
     config.add_route("api-webmention", "/api/v1/webmention")
+    config.add_route(
+        "api-namespace-spam-events",
+        "/api/v1/namespaces/{namespace_name}/spam-events",
+    )
     config.add_route("api-admin-namespaces", "/api/v1/admin/namespaces")
     config.add_route("api-admin-recent-nodes", "/api/v1/admin/recent-nodes")
     # Export routes — {subpath} captures "name.format" or "node_id.format"
