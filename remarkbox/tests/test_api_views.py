@@ -1539,6 +1539,90 @@ class TestAPISearchThreads(APIFunctionalTests):
         self.assertGreater(len(res.json["threads"]), 0)
 
 # Keep this module's tests together on one xdist worker. Test modules share a
+class TestLlmIrrelevantHolds(unittest.TestCase):
+    """An irrelevant verdict must be able to act on its own.
+
+    Regression fixture is real: a self-promotional thread posted to
+    meta.remarkbox.com on 2026-08-30. Our heuristics scored it 0.0 and our
+    model correctly called it irrelevant, but the 0.4 weight sat under our
+    0.5 soft threshold, so nothing happened. A correct verdict produced no
+    outcome.
+    """
+
+    PROMO = (
+        "We set up the **Peps Review Community** comment forum with Remarkbox.\n\n"
+        "Come join the discussion -- read reviews and share your own at "
+        "https://pepsreview.com\n\n"
+        "- Hosted comments without ads or tracking\n"
+        "- Open community for review discussion\n"
+    )
+
+    class _Response:
+        status_code = 200
+
+    class _Request:
+        def __init__(self, settings, ip):
+            self.registry = type("R", (), {"settings": settings})()
+            self.response = TestLlmIrrelevantHolds._Response()
+            # No session: score_content treats it as "no IP reputation data",
+            # and record_spam_event swallows its own failure, which also
+            # proves telemetry cannot break a post.
+            self.dbsession = None
+            self.client_addr = ip
+
+    def setUp(self):
+        # score_content keeps a process-global hash of recent posts per IP, so
+        # scoring the same fixture twice in one process reads as duplicate
+        # content and adds 0.4. Clear it, and give each test its own IP.
+        from remarkbox.models import spam
+
+        spam._recent_hashes.clear()
+        self._ip = "203.0.113.{}".format(abs(hash(self.id())) % 250 + 1)
+
+    def _settings(self, **over):
+        base = {
+            "spam.enabled": "true",
+            "spam.llm.enabled": "true",
+            "spam.hard_threshold": "0.8",
+            "spam.soft_threshold": "0.5",
+        }
+        base.update(over)
+        return base
+
+    def _check(self, verdict, explanation="because", **over):
+        from remarkbox.api import views
+
+        request = self._Request(self._settings(**over), self._ip)
+        with patch.object(views, "_llm_relevance_check") as relevance:
+            relevance.return_value = (verdict, explanation)
+            return views.check_spam(request, self.PROMO, namespace=None)
+
+    def test_irrelevant_verdict_holds_despite_zero_heuristics(self):
+        """The exact case that slipped through."""
+        result = self._check(False)
+        self.assertEqual(result["action"], "held")
+        self.assertIn("llm_irrelevant", result["signals"])
+
+    def test_irrelevant_verdict_never_rejects_alone(self):
+        """A model false positive must wait for a human, not 403."""
+        result = self._check(False)
+        self.assertNotEqual(result["action"], "rejected")
+        self.assertEqual(self._Response.status_code, 200)
+
+    def test_relevant_verdict_allows(self):
+        result = self._check(True)
+        self.assertIsNone(result["action"])
+
+    def test_inconclusive_verdict_does_not_hold(self):
+        """An unreadable answer must not quietly hold every post."""
+        result = self._check(None, explanation=None)
+        self.assertIsNone(result["action"])
+
+    def test_weight_is_configurable(self):
+        result = self._check(False, **{"spam.llm.irrelevant_weight": "0.7"})
+        self.assertAlmostEqual(result["spam_score"], 0.7, places=6)
+
+
 class TestSpamEventsEndpoint(APIFunctionalTests):
     """Access control on the spam telemetry endpoint.
 

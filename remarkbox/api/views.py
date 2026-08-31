@@ -101,6 +101,9 @@ def check_spam(request, data, user=None, namespace=None, title=None,
 
     - Hard threshold: action="rejected", sets 403 on response.
     - Soft threshold: action="held", caller should set approved=False.
+    - An irrelevant LLM verdict holds the post on its own, whatever the
+      score. It never rejects alone: an unaided model false positive should
+      wait for a human, not silently 403 a real comment.
     - Below thresholds: action=None, spam data still returned for storage.
     - Superusers bypass all checks (returns score 0.0).
     """
@@ -118,6 +121,11 @@ def check_spam(request, data, user=None, namespace=None, title=None,
 
     hard_threshold = float(settings.get("spam.hard_threshold", 0.8))
     soft_threshold = float(settings.get("spam.soft_threshold", 0.5))
+    # How much an irrelevant verdict contributes to our score. It no longer
+    # has to clear soft_threshold by itself -- an irrelevant verdict holds the
+    # post regardless -- but the weight still decides how close to rejection
+    # the heuristics need to be before the two together reject.
+    irrelevant_weight = float(settings.get("spam.llm.irrelevant_weight", 0.4))
 
     spam_score, signals = score_content(
         data,
@@ -147,7 +155,7 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         if explanation:
             spam_reason = explanation
         if relevant is False:
-            spam_score = min(spam_score + 0.4, 1.0)
+            spam_score = min(spam_score + irrelevant_weight, 1.0)
             signals.append("llm_irrelevant")
             if explanation:
                 signals.append("llm_reason:{}".format(explanation[:80]))
@@ -160,7 +168,16 @@ def check_spam(request, data, user=None, namespace=None, title=None,
         request.response.status_code = 403
         result["action"] = "rejected"
         result["error"] = "Content flagged as spam"
-    elif spam_score >= soft_threshold:
+    elif spam_score >= soft_threshold or llm_verdict is False:
+        # An irrelevant verdict holds the post on its own. Previously it only
+        # nudged the score, and since the weight sits below the soft
+        # threshold, a correct "this is off-topic" call could not hold
+        # anything unless the heuristics already suspected the post. The
+        # check was arithmetically incapable of acting alone.
+        #
+        # Holding is the ceiling for an unaided model verdict: a false
+        # positive waits for a human instead of silently 403ing a real
+        # comment. Rejection still requires the heuristics to agree.
         result["action"] = "held"
 
     # Record the decision. A rejected post is never written as a node, so
