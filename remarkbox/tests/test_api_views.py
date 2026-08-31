@@ -1623,6 +1623,123 @@ class TestLlmIrrelevantHolds(unittest.TestCase):
         self.assertAlmostEqual(result["spam_score"], 0.7, places=6)
 
 
+class TestObserveOnlyMode(unittest.TestCase):
+    """A soft launch must be unable to act and unable to write.
+
+    Observe mode exists so we can measure our filter against real traffic
+    instead of the few posts we can harvest from our own forums. It is only
+    worth anything if it truly cannot touch a comment or a table, so both
+    guarantees are asserted rather than assumed.
+    """
+
+    SPAMMY = (
+        "Buy discount watches at https://a.example.com https://b.example.com "
+        "https://c.example.com https://d.example.com -- order today!"
+    )
+
+    class _Response:
+        def __init__(self):
+            self.status_code = 200
+
+    class _Request:
+        def __init__(self, settings, ip, session):
+            self.registry = type("R", (), {"settings": settings})()
+            self.response = TestObserveOnlyMode._Response()
+            self.dbsession = session
+            self.client_addr = ip
+
+    class _RecordingSession:
+        """Reads are fine, writes are what observe mode must never do.
+
+        Scoring reads our database for IP reputation, so forbidding queries
+        would test our stub rather than our code.
+        """
+
+        class _Query:
+            def filter(self, *a, **kw):
+                return self
+
+            def count(self):
+                return 0
+
+            def first(self):
+                return None
+
+            def all(self):
+                return []
+
+        def __init__(self):
+            self.added = []
+
+        def add(self, obj):
+            self.added.append(obj)
+
+        def query(self, *a, **kw):
+            return self._Query()
+
+    def setUp(self):
+        from remarkbox.models import spam
+
+        spam._recent_hashes.clear()
+        self.session = self._RecordingSession()
+
+    def _check(self, verdict, observe=True, data=None):
+        from remarkbox.api import views
+
+        settings = {
+            "spam.enabled": "true",
+            "spam.llm.enabled": "true",
+            "spam.hard_threshold": "0.8",
+            "spam.soft_threshold": "0.5",
+            "spam.observe_only": "true" if observe else "false",
+        }
+        request = self._Request(settings, "203.0.113.77", self.session)
+        with patch.object(views, "_llm_relevance_check") as relevance:
+            relevance.return_value = (verdict, "because")
+            result = views.check_spam(
+                request, data or self.SPAMMY, namespace=None)
+        return result, request
+
+    def test_never_acts_on_a_post(self):
+        result, request = self._check(False)
+        self.assertIsNone(result["action"])
+        self.assertNotIn("error", result)
+        self.assertEqual(request.response.status_code, 200)
+
+    def test_never_writes_telemetry(self):
+        self._check(False)
+        self.assertEqual(
+            self.session.added, [], "observe mode wrote to the database")
+
+    def test_reports_what_it_would_have_done(self):
+        result, _ = self._check(False)
+        self.assertEqual(result["observed_action"], "held")
+
+    def test_reports_allowed_for_clean_content(self):
+        result, _ = self._check(True, data="Thanks, that fixed my problem.")
+        self.assertEqual(result["observed_action"], "allowed")
+
+    def test_still_scores_and_explains(self):
+        """Observing is pointless if we do not record what we saw."""
+        result, _ = self._check(False)
+        self.assertIn("llm_irrelevant", result["signals"])
+        self.assertGreater(result["spam_score"], 0)
+
+    def test_logs_a_line_without_content(self):
+        with self.assertLogs("remarkbox.api.views", "INFO") as logs:
+            self._check(False)
+        line = "\n".join(logs.output)
+        self.assertIn("spam observe:", line)
+        self.assertIn("would=held", line)
+        self.assertNotIn("discount watches", line)
+
+    def test_enforcing_mode_still_acts(self):
+        """The flag must be what changes behaviour, not our test setup."""
+        result, request = self._check(False, observe=False)
+        self.assertEqual(result["action"], "held")
+        self.assertNotEqual(self.session.added, [])
+
+
 class TestSpamEventsEndpoint(APIFunctionalTests):
     """Access control on the spam telemetry endpoint.
 

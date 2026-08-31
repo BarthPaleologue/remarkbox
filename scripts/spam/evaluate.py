@@ -35,6 +35,26 @@ DEFAULT_CORPUS = os.path.join(
 )
 
 
+def _wilson(hits, total, z=1.96):
+    """95% interval for a rate, so a small sample cannot masquerade as fact.
+
+    Three false positives in twenty-five is "12%", but its interval runs from
+    4% to 30%. Reporting the point estimate alone invites us to tune against
+    noise; carrying the interval keeps us honest about what we can claim.
+    """
+    if not total:
+        return None
+    import math
+
+    p = hits / total
+    denominator = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denominator
+    spread = z * math.sqrt(
+        p * (1 - p) / total + z * z / (4 * total * total)
+    ) / denominator
+    return [round(max(0.0, centre - spread), 4), round(min(1.0, centre + spread), 4)]
+
+
 def evaluate_entry(entry, args, index):
     """Score one corpus entry through our real pipeline."""
     from remarkbox.api import views
@@ -126,6 +146,26 @@ def main():
     false_positives = [r for r in ham_results if acted(r)]
     correct_ham = [r for r in ham_results if not acted(r)]
 
+    # Namespaces are different populations, and averaging them hides which
+    # one we are failing. A homepage where visitors try the widget is mostly
+    # one-word posts that any filter passes; pooling those with substantive
+    # comments pads our denominator with easy wins and flatters our rate.
+    by_namespace = {}
+    for entry, result in zip(entries, results):
+        if result["label"] != "ham":
+            continue
+        bucket = by_namespace.setdefault(
+            entry.get("namespace") or "(none)", {"total": 0, "false_positives": 0}
+        )
+        bucket["total"] += 1
+        if acted(result):
+            bucket["false_positives"] += 1
+    for bucket in by_namespace.values():
+        bucket["rate"] = (
+            round(bucket["false_positives"] / bucket["total"], 4)
+            if bucket["total"] else None
+        )
+
     summary = {
         "corpus": args.corpus,
         "llm_enabled": args.llm,
@@ -138,6 +178,8 @@ def main():
         "ham_total": len(ham_results),
         "ham_false_positives": len(false_positives),
         "ham_correct": len(correct_ham),
+        "ham_by_namespace": by_namespace,
+        "false_positive_ci95": _wilson(len(false_positives), len(ham_results)),
     }
 
     if args.json:
@@ -170,6 +212,17 @@ def main():
 
         print("spam caught: {}/{}".format(len(caught), len(spam_results)))
         print("ham kept:    {}/{}".format(len(correct_ham), len(ham_results)))
+        ci = summary["false_positive_ci95"]
+        if ci and len(ham_results):
+            print("false positive rate: {:.1f}%  (95% CI {:.1f}% .. {:.1f}%)".format(
+                100 * len(false_positives) / len(ham_results),
+                100 * ci[0], 100 * ci[1]))
+        if len(by_namespace) > 1:
+            print("\nby namespace -- these are different populations:")
+            for name, bucket in sorted(by_namespace.items()):
+                print("  {:<26} {:>3}/{:<4} {:.1f}%".format(
+                    name, bucket["false_positives"], bucket["total"],
+                    100 * bucket["rate"]))
         if not ham_results:
             print("\nNo ham in our corpus, so this says nothing about false")
             print("positives. Harvest some: corpus.py harvest --namespace X")

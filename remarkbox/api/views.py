@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import subprocess
@@ -45,6 +46,8 @@ from remarkbox.models.spam_event import (
 )
 
 from .serializers import serialize_node, serialize_namespace_brief
+
+log = logging.getLogger(__name__)
 
 MAX_CONTENT_LENGTH = 500000
 
@@ -168,6 +171,40 @@ def check_spam(request, data, user=None, namespace=None, title=None,
     result["spam_score"] = spam_score
     result["signals"] = signals
     result["spam_reason"] = spam_reason
+
+    # Observe-only: work out what we would do, say so in our log, then do
+    # nothing. A soft launch that cannot hold a comment and cannot write a
+    # row has no blast radius, and it measures real traffic rather than the
+    # handful of posts we can harvest from our own forums.
+    observe_only = settings.get(
+        "spam.observe_only", "false"
+    ).strip().lower() in ("true", "1", "yes")
+
+    if observe_only:
+        if heuristic_score >= hard_threshold:
+            would_be = "rejected"
+        elif spam_score >= soft_threshold or llm_verdict is False:
+            would_be = "held"
+        else:
+            would_be = "allowed"
+
+        # Metrics only, never content: this line lands in a log we read over
+        # someone's shoulder, and a moderation log must not become a record
+        # of what people wrote.
+        log.info(
+            "spam observe: namespace=%s would=%s score=%.2f heuristic=%.2f "
+            "signals=%s llm_ran=%s llm_verdict=%s model=%s",
+            getattr(namespace, "name", None),
+            would_be,
+            spam_score,
+            heuristic_score,
+            "|".join(s.split(":")[0] for s in signals) or "none",
+            llm_ran,
+            llm_verdict,
+            current_model() if llm_ran else None,
+        )
+        result["observed_action"] = would_be
+        return result
 
     if heuristic_score >= hard_threshold:
         request.response.status_code = 403
