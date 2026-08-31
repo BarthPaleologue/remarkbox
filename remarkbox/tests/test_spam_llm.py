@@ -7,6 +7,9 @@ import json
 import unittest
 from unittest.mock import patch, MagicMock
 
+import pytest as _pytest
+
+from remarkbox.models import spam_llm
 from remarkbox.models.spam_llm import (
     check_thread_relevance,
     check_reply_relevance,
@@ -14,8 +17,10 @@ from remarkbox.models.spam_llm import (
     _is_enabled,
     _llm_request,
     _discover_model,
+    _choose_model,
     _post_chat,
     forget_discovered_model,
+    health_check,
     DEFAULT_MODEL,
 )
 
@@ -189,30 +194,35 @@ class TestCheckReplyRelevanceMocked(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+HERMES_ENDPOINT = "https://hermes.ai.unturf.com/v1/chat/completions"
+HERMES_MODELS_URI = "https://hermes.ai.unturf.com/v1/models"
+
 HERMES_SETTINGS = {
     "spam.llm.enabled": "true",
-    "spam.llm.endpoint": "https://hermes.ai.unturf.com/v1/chat/completions",
+    "spam.llm.endpoint": HERMES_ENDPOINT,
     "spam.llm.model": DEFAULT_MODEL,
     "spam.llm.timeout": "10",
 }
 
 
-class TestHermesIntegration(unittest.TestCase):
-    """Integration tests that hit the real Hermes LLM endpoint.
+@_pytest.mark.integration
+class LiveEndpointTestCase(unittest.TestCase):
+    """Base for tests that need a real inference endpoint.
 
-    These are not mocked -- they make real HTTP requests to hermes.ai.unturf.com.
-    Skipped if the endpoint is unreachable.
+    These are excluded from `make test` by the `integration` marker, because a
+    deploy must not hinge on a third party being up: our whole pipeline once
+    sat blocked behind a red suite that our own code had not broken. Run them
+    deliberately with `make test-integration`.
+
+    They also skip rather than fail when the endpoint is unreachable, so a
+    local run without network still reports honestly.
     """
 
     @classmethod
     def setUpClass(cls):
         import urllib.request
-        import urllib.error
         try:
-            req = urllib.request.Request(
-                "https://hermes.ai.unturf.com/v1/models",
-                method="GET",
-            )
+            req = urllib.request.Request(HERMES_MODELS_URI, method="GET")
             urllib.request.urlopen(req, timeout=5)
             cls.hermes_available = True
         except Exception:
@@ -221,6 +231,14 @@ class TestHermesIntegration(unittest.TestCase):
     def setUp(self):
         if not self.hermes_available:
             self.skipTest("Hermes endpoint not reachable")
+
+
+class TestHermesIntegration(LiveEndpointTestCase):
+    """Integration tests that hit the real Hermes LLM endpoint.
+
+    These are not mocked -- they make real HTTP requests to hermes.ai.unturf.com.
+    Skipped if the endpoint is unreachable.
+    """
 
     def test_thread_relevant_to_namespace(self):
         relevant, explanation = check_thread_relevance(
@@ -305,29 +323,13 @@ class TestHermesIntegration(unittest.TestCase):
         self.assertIn("PONG", response.upper())
 
 
-class TestHermesEmbedMode(unittest.TestCase):
+class TestHermesEmbedMode(LiveEndpointTestCase):
     """Integration tests for embed mode with parent page context.
 
     In embed mode, threads represent comment sections on external pages.
     The LLM receives the parent page URL and namespace to understand what
     the page is about, even when the thread has minimal content.
     """
-
-    @classmethod
-    def setUpClass(cls):
-        import urllib.request
-        try:
-            req = urllib.request.Request(
-                "https://hermes.ai.unturf.com/v1/models", method="GET",
-            )
-            urllib.request.urlopen(req, timeout=5)
-            cls.hermes_available = True
-        except Exception:
-            cls.hermes_available = False
-
-    def setUp(self):
-        if not self.hermes_available:
-            self.skipTest("Hermes endpoint not reachable")
 
     def test_embed_relevant_comment_on_blog(self):
         """Comment that's relevant to a blog post page."""
@@ -400,28 +402,12 @@ class TestHermesEmbedMode(unittest.TestCase):
         self.assertTrue(relevant, "Expected relevant: {}".format(explanation))
 
 
-class TestHermesSiteMode(unittest.TestCase):
+class TestHermesSiteMode(LiveEndpointTestCase):
     """Integration tests for site mode (standalone threads with full context).
 
     In site mode, threads have titles and content. The LLM checks whether
     new threads are relevant to the namespace and replies to the discussion.
     """
-
-    @classmethod
-    def setUpClass(cls):
-        import urllib.request
-        try:
-            req = urllib.request.Request(
-                "https://hermes.ai.unturf.com/v1/models", method="GET",
-            )
-            urllib.request.urlopen(req, timeout=5)
-            cls.hermes_available = True
-        except Exception:
-            cls.hermes_available = False
-
-    def setUp(self):
-        if not self.hermes_available:
-            self.skipTest("Hermes endpoint not reachable")
 
     def test_site_relevant_thread_on_forum(self):
         """Thread about Remarkbox features on meta.remarkbox.com."""
@@ -514,28 +500,12 @@ class TestHermesSiteMode(unittest.TestCase):
         self.assertFalse(relevant, "Expected irrelevant: {}".format(explanation))
 
 
-class TestHermesEdgeCases(unittest.TestCase):
+class TestHermesEdgeCases(LiveEndpointTestCase):
     """Integration tests for edge cases and tricky content.
 
     Tests that exercise Hermes with content that might be ambiguous,
     minimal, or challenging to classify.
     """
-
-    @classmethod
-    def setUpClass(cls):
-        import urllib.request
-        try:
-            req = urllib.request.Request(
-                "https://hermes.ai.unturf.com/v1/models", method="GET",
-            )
-            urllib.request.urlopen(req, timeout=5)
-            cls.hermes_available = True
-        except Exception:
-            cls.hermes_available = False
-
-    def setUp(self):
-        if not self.hermes_available:
-            self.skipTest("Hermes endpoint not reachable")
 
     def test_short_agreement_reply(self):
         """Very short reply that just agrees -- should be relevant."""
@@ -661,10 +631,107 @@ class TestModelDiscoveryAndThinking(unittest.TestCase):
         self.assertEqual(body["temperature"], 0.0)
 
 
+class TestChooseModel(unittest.TestCase):
+    """Which served id we classify with, when a server offers several."""
+
+    def test_none_served(self):
+        self.assertIsNone(_choose_model([], "vendor/configured"))
+
+    def test_single_served_wins(self):
+        self.assertEqual(_choose_model(["vendor/only"], "vendor/stale"), "vendor/only")
+
+    def test_configured_preferred_when_served(self):
+        """Operator intent wins whenever upstream actually offers it."""
+        served = ["vendor/reasoning", "vendor/configured", "vendor/other"]
+        self.assertEqual(
+            _choose_model(served, "vendor/configured"), "vendor/configured"
+        )
+
+    def test_ambiguous_choice_is_deterministic(self):
+        """Several served, none configured: same answer regardless of order."""
+        served = ["vendor/zeta", "vendor/alpha", "vendor/mid"]
+        first = _choose_model(served, "vendor/absent")
+        second = _choose_model(list(reversed(served)), "vendor/absent")
+        self.assertEqual(first, second)
+        self.assertEqual(first, "vendor/alpha")
+
+    def test_ambiguous_choice_warns(self):
+        """An arbitrary pick must not happen quietly."""
+        with self.assertLogs("remarkbox.models.spam_llm", level="WARNING") as logs:
+            _choose_model(["vendor/b", "vendor/a"], "vendor/absent")
+        self.assertTrue(any("none match configured" in m for m in logs.output))
+
+
+class TestSilentDegradationIsLogged(unittest.TestCase):
+    """An inert relevance check must leave a trace."""
+
+    def test_unparseable_verdict_warns(self):
+        with self.assertLogs("remarkbox.models.spam_llm", level="WARNING") as logs:
+            relevant, _ = _parse_verdict("Here's a thinking process:\nStep 1...")
+        self.assertIsNone(relevant)
+        self.assertTrue(any("unparseable" in m for m in logs.output))
+
+    def test_clean_verdict_does_not_warn(self):
+        with patch.object(spam_llm.log, "warning") as warn:
+            relevant, _ = _parse_verdict("RELEVANT\nOn topic.")
+        self.assertTrue(relevant)
+        warn.assert_not_called()
+
+
+class TestHealthCheck(unittest.TestCase):
+    """The health check has to be able to go red, or it is decoration."""
+
+    SETTINGS = {
+        "spam.llm.enabled": "true",
+        "spam.llm.endpoint": "https://llm.example.com/v1/chat/completions",
+        "spam.llm.model": "vendor/configured",
+        "spam.llm.timeout": "5",
+    }
+
+    def tearDown(self):
+        forget_discovered_model()
+
+    def test_healthy(self):
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._llm_request") as req:
+            discover.return_value = "vendor/served"
+            req.return_value = "RELEVANT\nOn topic."
+            result = health_check(self.SETTINGS)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["model"], "vendor/served")
+
+    def test_discovery_failure_is_not_ok(self):
+        with patch("remarkbox.models.spam_llm._discover_model") as discover:
+            discover.return_value = None
+            result = health_check(self.SETTINGS)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("discovery failed", result["detail"])
+
+    def test_no_response_is_not_ok(self):
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._llm_request") as req:
+            discover.return_value = "vendor/served"
+            req.return_value = None
+            result = health_check(self.SETTINGS)
+
+        self.assertFalse(result["ok"])
+
+    def test_thinking_preamble_is_caught(self):
+        """The exact regression that went unnoticed must now report red."""
+        with patch("remarkbox.models.spam_llm._discover_model") as discover, \
+                patch("remarkbox.models.spam_llm._llm_request") as req:
+            discover.return_value = "vendor/reasoning"
+            req.return_value = "Here's a thinking process:\n1. Consider..."
+            result = health_check(self.SETTINGS)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("unparseable", result["detail"])
+
+
 # Keep this module's tests together on one xdist worker. Test modules share a
 # per-worker database; when --dist=loadgroup deals unmarked tests out
 # individually, classes from different modules interleave on a worker and one
 # class's tearDownClass drop_all yanks tables from another class mid-run.
-import pytest as _pytest
-
 pytestmark = _pytest.mark.xdist_group("test_spam_llm")

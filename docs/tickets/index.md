@@ -30,3 +30,4 @@ Tracked issues from the meta.remarkbox.com and faq.remarkbox.com audit (2026-02-
 | [T23](23.md) | `pkg_resources` under setuptools>=81 (vendored shim) | resolved | medium | noticed 2026-07-28 |
 | [T24](24.md) | Discord connections for namespaces (webhook notifications) | resolved | medium | fox directive 2026-08-05 |
 | [T25](25.md) | Slack upgrade — OAuth v2 incoming webhooks, slacker removed | code-complete | medium | fox directive 2026-08-05 |
+| [T26](26.md) | LLM relevance: silent drift, blind model pick, hostage CI | resolved | high | deploy block 2026-08-30 |

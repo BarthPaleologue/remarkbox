@@ -28,6 +28,15 @@ def pytest_configure(config):
     if worker_id == "master":
         _remove_test_databases()
 
+    # Tests needing a live third-party endpoint. `make test` deselects these
+    # so a deploy never hinges on someone else's uptime; `make test-integration`
+    # runs them on purpose.
+    config.addinivalue_line(
+        "markers",
+        "integration: requires a reachable external service (deselected by "
+        "`make test`, run via `make test-integration`)",
+    )
+
 
 def pytest_runtest_setup(item):
     """

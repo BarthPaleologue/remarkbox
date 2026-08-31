@@ -60,13 +60,38 @@ def _post_chat(endpoint, model, messages, timeout):
     return data["choices"][0]["message"]["content"].strip()
 
 
-def _discover_model(endpoint, timeout):
+def _choose_model(served, configured):
+    """Pick which of the served model ids to classify with.
+
+    Taking served[0] blindly is what handed this classifier to a reasoning
+    model: whatever the server happened to list first silently became our
+    moderator. So prefer the operator's configured id whenever upstream
+    actually serves it, fall back to the only id on offer, and when a server
+    lists several without our configured one among them, sort so the choice
+    is at least reproducible and say so out loud.
+    """
+    if not served:
+        return None
+    if configured and configured in served:
+        return configured
+    if len(served) == 1:
+        return served[0]
+    choice = sorted(served)[0]
+    log.warning(
+        "LLM endpoint serves %d models %s and none match configured %r; "
+        "classifying with %r",
+        len(served), served, configured, choice,
+    )
+    return choice
+
+
+def _discover_model(endpoint, timeout, configured=None):
     """Ask an OpenAI-compatible server which model it actually serves.
 
     Inference servers swap model builds (quantization, publisher) without
-    warning, so upstream is the authority on its own model id and the
-    configured id is only a fallback for when discovery cannot answer. The
-    result is cached for the process; `forget_discovered_model` clears it.
+    warning, so upstream is the authority on which ids exist and the
+    configured id is only a preference among them. The result is cached for
+    the process; `forget_discovered_model` clears it.
     """
     global _discovered_model
     if _discovered_model:
@@ -75,11 +100,15 @@ def _discover_model(endpoint, timeout):
     try:
         resp = urllib.request.urlopen(models_uri, timeout=timeout)
         data = json.loads(resp.read().decode("utf-8"))
-        _discovered_model = data["data"][0]["id"]
-        return _discovered_model
+        served = [m["id"] for m in data.get("data", []) if m.get("id")]
     except Exception as e:
         log.warning("LLM model discovery failed: %s", e)
         return None
+
+    _discovered_model = _choose_model(served, configured)
+    if _discovered_model is None:
+        log.warning("LLM endpoint %s serves no models", models_uri)
+    return _discovered_model
 
 
 def forget_discovered_model():
@@ -94,14 +123,14 @@ def _llm_request(endpoint, model, messages, timeout):
     The model served upstream is detected from /v1/models rather than trusted
     from settings, so a model swap heals itself without a config change.
     """
-    served = _discover_model(endpoint, timeout) or model
+    served = _discover_model(endpoint, timeout, configured=model) or model
     try:
         return _post_chat(endpoint, served, messages, timeout)
     except urllib.error.HTTPError as e:
         if e.code == 404:
             # Our cached id went stale mid-process: rediscover once and retry.
             forget_discovered_model()
-            fresh = _discover_model(endpoint, timeout)
+            fresh = _discover_model(endpoint, timeout, configured=model)
             if fresh and fresh != served:
                 log.warning(
                     "LLM model %s not served; retrying with %s", served, fresh
@@ -247,6 +276,82 @@ def check_reply_relevance(thread_title, thread_content, parent_content,
     return _parse_verdict(response)
 
 
+def health_check(settings):
+    """Classify a known-relevant canary and report what the pipeline did.
+
+    Both failures this module has had degraded to a safe default instead of
+    raising, so nothing alerted for weeks. This asks the whole path -- reach
+    the endpoint, pick a model, get a readable verdict -- to prove itself,
+    and turns "quietly inert" into something a monitor can see.
+
+    Returns a dict with `ok`, `model`, `verdict` and `detail`.
+    """
+    endpoint, model, timeout = _get_config(settings)
+    forget_discovered_model()
+
+    served = _discover_model(endpoint, timeout, configured=model)
+    if served is None:
+        return {
+            "ok": False,
+            "model": None,
+            "verdict": None,
+            "detail": "model discovery failed against {}".format(endpoint),
+        }
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a content moderation assistant. Respond with exactly "
+                "'RELEVANT' or 'IRRELEVANT' on the first line, followed by a "
+                "brief one-sentence explanation."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Site: example.com, a blog about beekeeping.\n"
+                "Thread: How do I overwinter a hive?\n"
+                "New reply: Wrap the hive and leave them enough honey stores.\n"
+                "Is this reply relevant to the discussion?"
+            ),
+        },
+    ]
+
+    raw = _llm_request(endpoint, served, messages, timeout)
+    if raw is None:
+        return {
+            "ok": False,
+            "model": served,
+            "verdict": None,
+            "detail": "no response from endpoint",
+        }
+
+    verdict, _ = _parse_verdict(raw)
+    if verdict is None:
+        return {
+            "ok": False,
+            "model": served,
+            "verdict": None,
+            "detail": "verdict unparseable; first line was {!r}".format(
+                raw.strip().split("\n")[0][:120]
+            ),
+        }
+    if verdict is not True:
+        return {
+            "ok": False,
+            "model": served,
+            "verdict": verdict,
+            "detail": "canary is plainly on topic but was judged irrelevant",
+        }
+    return {
+        "ok": True,
+        "model": served,
+        "verdict": True,
+        "detail": "endpoint reachable, model resolved, verdict readable",
+    }
+
+
 def _is_enabled(settings):
     """Check if LLM relevance checking is enabled."""
     if not settings:
@@ -275,5 +380,13 @@ def _parse_verdict(response):
     elif "RELEVANT" in first_line:
         return True, explanation
 
-    # Ambiguous response -- treat as inconclusive
+    # Ambiguous response -- treat as inconclusive. Say so loudly: callers act
+    # only on a False verdict, so an unreadable answer disables this check
+    # rather than breaking it. That is exactly how a reasoning model sat here
+    # unnoticed, answering every question with a monologue.
+    log.warning(
+        "LLM verdict unparseable; relevance check inert for this post. "
+        "First line was %r",
+        first_line[:120],
+    )
     return None, response

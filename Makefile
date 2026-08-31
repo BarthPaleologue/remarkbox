@@ -222,9 +222,27 @@ activate:
 # worker — used by test_pandoc.py to serialize ~14 pandoc subprocesses
 # that would otherwise race cold-start CPU contention on CI and exceed
 # the 5s/30s subprocess timeouts.
+#
+# Tests marked `integration` need a live third-party endpoint and are
+# deselected here on purpose: a deploy must not hinge on someone else's
+# uptime. Run them deliberately with `make test-integration`.
 test: install-source-dev-and-test
 	@echo "Running tests in parallel..."
+	$(VENV_DIR)/bin/py.test -n auto --dist=loadgroup -m "not integration"
+
+# Run the tests that talk to real external services. Not part of CI.
+test-integration: install-source-dev-and-test
+	@echo "Running integration tests against live endpoints..."
+	$(VENV_DIR)/bin/py.test -n auto --dist=loadgroup -m integration
+
+# Run everything, live endpoints included.
+test-all: install-source-dev-and-test
+	@echo "Running all tests including integration..."
 	$(VENV_DIR)/bin/py.test -n auto --dist=loadgroup
+
+# Check the LLM relevance pipeline end to end; non-zero exit when degraded.
+check-llm: venv
+	$(VENV_DIR)/bin/python scripts/check_llm_health.py --ini development.ini
 
 # Start a simple HTTP server (for serving static files like index.html)
 http: venv
