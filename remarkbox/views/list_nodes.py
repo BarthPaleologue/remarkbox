@@ -72,7 +72,7 @@ def rss_pending_xml(request):
     # hide_unless_approved, which served every held post on an ordinary
     # namespace to anyone who asked for XML. Namespace has no feed_key
     # column, so under hide_unless_approved this raised instead; until a
-    # key exists this feed fails closed for everyone (T29).
+    # key exists this feed fails closed for everyone.
     feed_key = request.matchdict.get("feed_key", None)
     if not feed_key or feed_key != getattr(request.namespace, "feed_key", None):
         return HTTPForbidden("The feed password was invalid!")
