@@ -61,12 +61,7 @@ def _visibility_filters(namespace):
     Like the JSON thread endpoint, this does not widen for moderators or node
     owners; they see held content in our web UI, not in exports.
     """
-    filters = {"disabled": False}
-    if namespace.hide_unless_approved:
-        filters["approved"] = True
-    if namespace.hide_unverified:
-        filters["verified"] = True
-    return filters
+    return namespace.visibility_filters()
 
 
 def _json_error(request, status, message):

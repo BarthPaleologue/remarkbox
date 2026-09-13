@@ -283,8 +283,11 @@ class Namespace(RBase, Base):
 
     @property
     def visible_roots(self):
+        # Browser-made roots are never unapproved, so a False here is a held
+        # or denied thread and stays off our list on every namespace.
         return self.roots.filter(
-            Node.verified == True, Node.disabled == False
+            Node.verified == True, Node.disabled == False,
+            Node.approved.isnot(False),
         ).order_by(Node.changed.desc())
 
     @property
@@ -315,6 +318,8 @@ class Namespace(RBase, Base):
 
         if self.hide_unless_approved:
             query = query.filter(Node.approved == True)
+        else:
+            query = query.filter(Node.approved.isnot(False))
 
         if self.hide_unverified:
             query = query.filter(Node.verified == True)
@@ -338,6 +343,11 @@ class Namespace(RBase, Base):
         return self.nodes.filter(
             or_(Node.approved == False, Node.approved.is_(None)), Node.disabled == False
         )
+
+    @property
+    def denied_nodes(self):
+        """Nodes hidden by an explicit decision: a hold or a moderator's deny."""
+        return self.nodes.filter(Node.approved == False, Node.disabled == False)
 
     @property
     def spam_nodes(self):
@@ -434,11 +444,35 @@ class Namespace(RBase, Base):
             return True
         return False
 
+    def visibility_filters(self):
+        """SQL-side mirror of `can_see_node` for a reader with no privileges.
+
+        One home for our rule so our API, our exports and our page listing
+        cannot drift from what our web UI shows. Moderators and node owners
+        would see more; callers that serve them widen this themselves.
+        """
+        filters = {"disabled": False}
+        if self.hide_unless_approved:
+            filters["approved"] = True
+        else:
+            filters["not_denied"] = True
+        if self.hide_unverified:
+            filters["verified"] = True
+        return filters
+
     def can_see_node(self, node, user):
         visible = True
         if node.disabled:
             visible = False
         if self.hide_unless_approved and not node.approved:
+            visible = False
+        # A denied node is hidden on every namespace. `approved` defaults to
+        # True and only a hold or a moderator sets it False, so a False here
+        # is a decision, not a default. For years this gate was keyed on
+        # hide_unless_approved alone, which made "held for moderation" a
+        # published post on any namespace that had not opted into
+        # moderation: our ledger counted a hold, and every reader saw it.
+        if node.approved is False:
             visible = False
         if self.hide_unverified and not node.verified:
             visible = False

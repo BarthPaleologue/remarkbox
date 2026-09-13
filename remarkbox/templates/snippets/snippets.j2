@@ -81,7 +81,7 @@
 <span>(waiting for deletion)</span>
 {% elif node.spam_score is not none and node.spam_score >= 0.5 %}
 <span title="{{ node.spam_reason or 'Flagged by automated spam filter' }}">(spam)</span>
-{% elif request.namespace.hide_unless_approved and not node.approved %}
+{% elif node.approved is sameas false or (request.namespace.hide_unless_approved and not node.approved) %}
 <span title="Only you can see a hidden node.">(hidden: waiting for approval)</span>
 {% endif %}
 </span>
@@ -228,7 +228,7 @@
     {{ verify_node(node=node) }} &nbsp;
   {% endif %}
 
-  {% if node.enabled and request.namespace.hide_unless_approved and request.namespace.is_moderator(request.user) %}
+  {% if node.enabled and request.namespace.is_moderator(request.user) and (request.namespace.hide_unless_approved or node.approved is sameas false) %}
 
     {% if node.approved is none %}
       {{ approve_node(node=node) }} &nbsp;
@@ -290,6 +290,9 @@
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?approved">approved nodes ({{ namespace_approved_node_count }})</a> |
     {% else %}
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes">nodes ({{ namespace_all_node_count }})</a> |
+    {% if namespace_unapproved_node_count > 0 %}
+    <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?pending">pending nodes ({{ namespace_unapproved_node_count }})</a> |
+    {% endif %}
     {% endif %}
     {% if namespace_spam_node_count > 0 %}
     <a href="{{ request.link_prefix }}/ns/{{ namespace.name }}/nodes?spam">spam ({{ namespace_spam_node_count }})</a> |

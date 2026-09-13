@@ -68,11 +68,14 @@ def rss_nodes_xml(request):
 def rss_pending_xml(request):
     request.response.content_type = "text/xml"
     nodes = request.namespace.unapproved_nodes
-    if request.namespace.hide_unless_approved:
-        feed_key = request.matchdict.get("feed_key", None)
-        # should we bcrypt this password?
-        if feed_key != request.namespace.feed_key:
-            return HTTPForbidden("The feed password was invalid!")
+    # This feed is our moderation queue. It used to need a key only under
+    # hide_unless_approved, which served every held post on an ordinary
+    # namespace to anyone who asked for XML. Namespace has no feed_key
+    # column, so under hide_unless_approved this raised instead; until a
+    # key exists this feed fails closed for everyone (T29).
+    feed_key = request.matchdict.get("feed_key", None)
+    if not feed_key or feed_key != getattr(request.namespace, "feed_key", None):
+        return HTTPForbidden("The feed password was invalid!")
     return {"nodes": nodes}
 
 
@@ -117,7 +120,9 @@ def namespace_nodes(request):
     elif "disabled" in request.params:
         state = "disabled"
         nodes = request.namespace.disabled_nodes
-    elif "pending" in request.params and request.namespace.hide_unless_approved:
+    elif "pending" in request.params:
+        # Reachable on every namespace: a held post is hidden everywhere now,
+        # so its moderator needs somewhere to find it.
         state = "pending"
         nodes = request.namespace.unapproved_nodes
     elif "approved" in request.params and request.namespace.hide_unless_approved:

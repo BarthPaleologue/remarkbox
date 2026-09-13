@@ -545,15 +545,10 @@ def api_get_thread(request):
         offset = 0
     offset = max(0, offset)
 
-    # Build SQL-side visibility filters (mirrors namespace.can_see_node logic
-    # for anonymous / non-moderator users; moderators and node owners would
-    # see hidden nodes but that edge case is small and acceptable to omit
-    # from the API for performance).
-    visibility_filters = {"disabled": False}
-    if namespace.hide_unless_approved:
-        visibility_filters["approved"] = True
-    if namespace.hide_unverified:
-        visibility_filters["verified"] = True
+    # SQL-side mirror of namespace.can_see_node for anonymous / non-moderator
+    # readers; moderators and node owners would see hidden nodes but that
+    # edge case is small and acceptable to omit from the API for performance.
+    visibility_filters = namespace.visibility_filters()
 
     # Get total visible reply count (excluding root) for pagination metadata
     count_query = get_nodes_who_share_root(
@@ -1366,6 +1361,11 @@ def api_admin_namespaces(request):
                 "subscription_type": ns.subscription_type,
                 "owner_count": len(ns.owners),
                 "root_count": ns.roots.count(),
+                "hide_unless_approved": bool(ns.hide_unless_approved),
+                # Nodes a reader no longer sees now that a denial hides
+                # everywhere. Non-zero on a namespace without
+                # hide_unless_approved is content that just left public view.
+                "denied_count": ns.denied_nodes.count(),
             }
             for ns in namespaces
         ],

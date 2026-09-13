@@ -172,6 +172,116 @@ class TestExportRespectsModerationVisibility(SecurityFunctionalTests):
         self.assertNotIn("QUARANTINED-SECRET-BODY", res.body.decode("utf-8"))
 
 
+class TestHeldIsHiddenOnDefaultNamespace(SecurityFunctionalTests):
+    """A denied node is hidden on a namespace that never opted into moderation.
+
+    `can_see_node` hid `approved=False` only under `hide_unless_approved`,
+    which defaults off. So our spam gate's "held" outcome -- approved=False,
+    ledger row, HTTP 201 -- published the post on every ordinary namespace,
+    while every docstring said it was waiting for a human. Each read path is
+    checked separately because each carried its own copy of the gate.
+    """
+
+    def setUp(self):
+        ns = get_or_create_namespace(self.dbsession, "held-default.example.com")
+        # Explicitly the defaults; the point is that nothing was opted into.
+        ns.hide_unless_approved = False
+        ns.hide_unverified = False
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.namespace = ns
+        self.namespace_name = str(ns.name)
+
+        self.root = self.make_thread(ns, "ordinary thread", "public body")
+        self.shown = self.make_reply(self.root, "VISIBLE-REPLY-BODY")
+        self.held = self.make_reply(
+            self.root, "HELD-SECRET-BODY", approved=False
+        )
+        # A held root thread, as our API produces when a new thread is held.
+        self.held_root = self.make_thread(
+            ns, "HELD-SECRET-THREAD", "held thread body", approved=False
+        )
+        self.root_id = str(self.root.id)
+        self.held_id = self.held.id
+        self.namespace_id = ns.id
+        self.tm.commit()
+
+    def tearDown(self):
+        super(TestHeldIsHiddenOnDefaultNamespace, self).tearDown()
+        ns = self._ns()
+        for node in list(ns.nodes) + list(ns.roots):
+            self.dbsession.delete(node)
+        self.dbsession.delete(ns)
+        self.dbsession.flush()
+        self.tm.commit()
+
+    def _ns(self):
+        from remarkbox.models.namespace import Namespace
+
+        return self.dbsession.get(Namespace, self.namespace_id)
+
+    def _held(self):
+        from remarkbox.models.node import Node
+
+        return self.dbsession.get(Node, self.held_id)
+
+    def test_can_see_node_hides_a_denied_reply_from_anyone(self):
+        self.assertFalse(self._ns().can_see_node(self._held(), None))
+
+    def test_can_see_node_still_shows_it_to_a_moderator(self):
+        ns = self._ns()
+        held = self._held()
+        moderator = get_or_create_user_by_email(
+            self.dbsession, "held-default-mod@example.com")
+        moderator.authenticated = True
+        ns.set_role_for_user(moderator, "moderator")
+        self.dbsession.flush()
+        self.assertTrue(ns.can_see_node(held, moderator))
+        ns.moderators[:] = []
+        self.dbsession.delete(moderator)
+        self.dbsession.flush()
+
+    def test_thread_json_hides_a_denied_reply(self):
+        res = self.testapp.get("/api/v1/threads/{}".format(self.root_id), status=200)
+        body = res.body.decode("utf-8")
+        self.assertIn("VISIBLE-REPLY-BODY", body)
+        self.assertNotIn("HELD-SECRET-BODY", body)
+
+    def test_export_thread_hides_a_denied_reply(self):
+        res = self.testapp.get(
+            "/api/v1/export/threads/{}.markdown".format(self.root_id), status=200
+        )
+        self.assertNotIn("HELD-SECRET-BODY", res.body.decode("utf-8"))
+
+    def test_namespace_export_hides_a_denied_thread(self):
+        res = self.testapp.get(
+            "/api/v1/export/namespace/{}.markdown".format(self.namespace_name),
+            status=200,
+        )
+        body = res.body.decode("utf-8")
+        self.assertNotIn("HELD-SECRET-BODY", body)
+        self.assertNotIn("HELD-SECRET-THREAD", body)
+
+    def test_thread_list_hides_a_denied_root(self):
+        titles = [r.title for r in self._ns().visible_roots]
+        self.assertIn("ordinary thread", titles)
+        self.assertNotIn("HELD-SECRET-THREAD", titles)
+
+    def test_page_nodes_hides_a_denied_reply(self):
+        bodies = [n.data for n in self._ns().page_nodes()]
+        self.assertTrue(any("VISIBLE-REPLY-BODY" in b for b in bodies))
+        self.assertFalse(any("HELD-SECRET-BODY" in b for b in bodies))
+
+    def test_pending_feed_needs_our_key_on_a_default_namespace(self):
+        """Our moderation queue feed was open to anyone unless moderation was on."""
+        res = self.testapp.get(
+            "/ns/{}.pending.wrong-key.xml".format(self.namespace_name),
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 403)
+        self.assertNotIn("HELD-SECRET-BODY", res.body.decode("utf-8"))
+
+
 class TestExportRefusesDisabledThreads(SecurityFunctionalTests):
     """`api_export_thread` used to fetch the root by id and render it without
     ever checking `root.disabled`. A thread a moderator has removed is still

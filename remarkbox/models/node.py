@@ -568,7 +568,9 @@ def get_nodes_who_share_root(dbsession, root_node, order="oldest-first",
         offset: Number of rows to skip (None = 0).
         exclude_root: If True, exclude the root node itself from results.
         visibility_filters: Optional dict of SQL visibility filters to apply.
-            Supported keys: disabled (bool), approved (bool), verified (bool).
+            Supported keys: disabled (bool), approved (bool), verified (bool),
+            not_denied (True excludes nodes whose approved is False while
+            keeping those never reviewed).
 
     Returns:
         SQLAlchemy query object (call .all() to materialise).
@@ -584,6 +586,8 @@ def get_nodes_who_share_root(dbsession, root_node, order="oldest-first",
             nodes = nodes.filter(Node.disabled == visibility_filters["disabled"])
         if "approved" in visibility_filters:
             nodes = nodes.filter(Node.approved == visibility_filters["approved"])
+        if visibility_filters.get("not_denied"):
+            nodes = nodes.filter(Node.approved.isnot(False))
         if "verified" in visibility_filters:
             nodes = nodes.filter(Node.verified == visibility_filters["verified"])
 
