@@ -154,11 +154,17 @@ def check_spam(request, data, user=None, namespace=None, title=None,
     heuristic_score = spam_score
 
     if llm_globally_enabled and ns_filter_enabled:
-        llm_ran = True
         relevant, explanation = _llm_relevance_check(
             settings, data, title=title, namespace=namespace,
             parent_node=parent_node,
         )
+        # "Ran" means our model answered, not that we asked. A timeout, a
+        # dead endpoint and a nothing-to-check both come back as
+        # (None, None); an unreadable verdict comes back as (None, raw).
+        # Recording every attempt as ran turned a week of endpoint failure
+        # into a week of "inconclusive", which is the one distinction this
+        # column exists to draw.
+        llm_ran = relevant is not None or explanation is not None
         llm_verdict = relevant
         if explanation:
             spam_reason = explanation

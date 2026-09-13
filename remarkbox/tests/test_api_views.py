@@ -1740,6 +1740,69 @@ class TestObserveOnlyMode(unittest.TestCase):
         self.assertNotEqual(self.session.added, [])
 
 
+class TestLlmRanMeansAnswered(unittest.TestCase):
+    """`llm_ran` must be set by an answer, not by a question.
+
+    Our ledger column promises that `llm_ran` false with the feature enabled
+    means our endpoint failed us. It used to be set true before our model was
+    asked, so a dead endpoint, a timeout and a genuine "could not tell" all
+    landed as ran=true, verdict=null, and our summary counted a week of
+    outage as a week of inconclusive answers. Nothing in it could say which.
+    """
+
+    CLEAN = "Thanks, that fixed my problem."
+
+    def setUp(self):
+        from remarkbox.models import spam
+
+        spam._recent_hashes.clear()
+        self.session = TestObserveOnlyMode._RecordingSession()
+
+    def _event_after(self, verdict, explanation):
+        from remarkbox.api import views
+        from remarkbox.models.spam_event import SpamEvent
+
+        settings = {
+            "spam.enabled": "true",
+            "spam.llm.enabled": "true",
+            "spam.hard_threshold": "0.8",
+            "spam.soft_threshold": "0.5",
+        }
+        request = TestObserveOnlyMode._Request(
+            settings, "203.0.113.78", self.session)
+        with patch.object(views, "_llm_relevance_check") as relevance, \
+                patch.object(views, "current_model") as model:
+            relevance.return_value = (verdict, explanation)
+            model.return_value = "cached-from-an-earlier-request"
+            views.check_spam(request, self.CLEAN, namespace=None)
+        events = [e for e in self.session.added if isinstance(e, SpamEvent)]
+        self.assertEqual(len(events), 1)
+        return events[0]
+
+    def test_no_answer_is_not_ran(self):
+        """Endpoint down, timed out, or nothing to check: we never got a say."""
+        event = self._event_after(None, None)
+        self.assertFalse(event.llm_ran)
+        self.assertIsNone(event.llm_verdict)
+        self.assertIsNone(
+            event.llm_model,
+            "a model id cached from an earlier request was recorded as "
+            "having answered this one",
+        )
+
+    def test_unreadable_answer_is_ran_and_inconclusive(self):
+        """A monologue instead of a verdict is still an answer we received."""
+        event = self._event_after(None, "Let me think about this at length.")
+        self.assertTrue(event.llm_ran)
+        self.assertIsNone(event.llm_verdict)
+        self.assertEqual(event.llm_model, "cached-from-an-earlier-request")
+
+    def test_readable_answer_is_ran(self):
+        event = self._event_after(True, "on topic")
+        self.assertTrue(event.llm_ran)
+        self.assertIs(event.llm_verdict, True)
+
+
 class TestSpamEventsEndpoint(APIFunctionalTests):
     """Access control on the spam telemetry endpoint.
 
@@ -1826,6 +1889,72 @@ class TestSpamEventsEndpoint(APIFunctionalTests):
         self.assertIn("events", res.json)
         for key in ("allowed", "held", "rejected", "llm_ran", "llm_inconclusive"):
             self.assertIn(key, res.json["summary"])
+
+    # Three known patterns (0.5) plus a body that is mostly URL (0.4) clears
+    # our 0.8 hard threshold on heuristics alone, which is the only way a
+    # post is ever rejected rather than held.
+    REJECTABLE = (
+        "buy now free trial act now "
+        "https://watches.example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    )
+
+    def _with_spam_enabled(self):
+        """Turn our gate on for one test; test.ini keeps it off for all others.
+
+        check_spam reads settings on every request, so flipping our live
+        registry is enough, and tearDown puts it back.
+        """
+        settings = self.app.registry.settings
+        self._saved_spam = settings.get("spam.enabled")
+        settings["spam.enabled"] = "true"
+        self.addCleanup(self._restore_spam_setting)
+        from remarkbox.models import spam
+
+        spam._recent_hashes.clear()
+
+    def _restore_spam_setting(self):
+        settings = self.app.registry.settings
+        if self._saved_spam is None:
+            settings.pop("spam.enabled", None)
+        else:
+            settings["spam.enabled"] = self._saved_spam
+
+    def test_rejected_post_leaves_a_row(self):
+        """A 403 must still commit our ledger row, or our filter is invisible.
+
+        This is the one row our ledger exists for, and it rides on a 4xx
+        response. pyramid_tm commits those only because no commit veto is
+        configured; wiring `tm.commit_veto = pyramid_tm.default_commit_veto`
+        (a common recommendation) would abort every rejection's transaction
+        and this table would quietly record only the spam we let through.
+        """
+        from remarkbox.models.namespace import Namespace
+
+        self._with_spam_enabled()
+        ns = self.dbsession.get(Namespace, self.namespace_id)
+        ns.allow_anonymous = True
+        self.dbsession.add(ns)
+        self.dbsession.flush()
+        self.tm.commit()
+
+        res = self.testapp.post_json(
+            "/api/v1/threads",
+            {
+                "namespace": self.namespace_name,
+                "title": "Cheap watches",
+                "data": self.REJECTABLE,
+                "anonymous_name": "Bot",
+            },
+            expect_errors=True,
+        )
+        self.assertEqual(res.status_int, 403)
+        self.assertIn("spam", res.json.get("error", "").lower())
+
+        self._log_in("spamev-owner@remarkbox.com", self.owner_otp)
+        res = self.testapp.get(self._uri(), status=200)
+        self.assertEqual(res.json["summary"]["rejected"], 1)
+        actions = [e["action"] for e in res.json["events"]]
+        self.assertEqual(actions, ["rejected"])
 
     def test_unknown_namespace_is_404(self):
         self._log_in("spamev-owner@remarkbox.com", self.owner_otp)
