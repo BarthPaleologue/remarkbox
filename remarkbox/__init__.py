@@ -714,4 +714,6 @@ def main(global_config, **settings):
     # Scan for views.
     config.scan()
 
-    return config.make_wsgi_app()
+    from .lib.real_ip import RealIPMiddleware
+
+    return RealIPMiddleware(config.make_wsgi_app())
