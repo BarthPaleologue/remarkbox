@@ -76,6 +76,7 @@ setup(
             "remarkbox_invalidate_node_cache = remarkbox.scripts.invalidate_node_cache:main",
             "remarkbox_recompute_node_depths = remarkbox.scripts.recompute_node_depths:main",
             "remarkbox_safe_approve_all_nodes = remarkbox.scripts.safe_approve_all_nodes:main",
+            "remarkbox_drain_send_queue = remarkbox.scripts.drain_send_queue:main",
             "remarkbox_send_node_digest_notifications = remarkbox.scripts.send_node_digest_notifications:main",
             "remarkbox_delete_disabled_nodes = remarkbox.scripts.delete_disabled_nodes:main",
             "remarkbox_backup_db = remarkbox.scripts.backup_db:main",

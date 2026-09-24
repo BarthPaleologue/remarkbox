@@ -25,6 +25,7 @@ from remarkbox.models.namespace import (
 )
 from remarkbox.models.uri import get_or_create_uri
 from remarkbox.models.node import Node, get_or_create_node_by_uri
+from remarkbox.lib import send_budget
 from remarkbox.lib.mail import send_verification_digits_to_email, send_sudo_otp_email
 from remarkbox.models.sudo_otp import create_sudo_otp, verify_sudo_otp
 from remarkbox.lib.notify import schedule_notifications
@@ -1083,6 +1084,13 @@ def api_auth_login(request):
             ),
         }
 
+    if not user.verified and not send_budget.gate(request, email, "login"):
+        # First-contact budget spent (or an SMS gateway): same answer.
+        return {
+            "status": "sent",
+            "message": "Verification code sent to {}.".format(email),
+        }
+
     raw_otp = user.new_password()
     request.dbsession.add(user)
     request.dbsession.flush()
@@ -1114,6 +1122,8 @@ def api_auth_verify(request):
     user = get_or_create_user_by_email(request.dbsession, email)
 
     if user.check_password(raw_otp):
+        if not user.verified:
+            send_budget.record_conversion(request.dbsession, "login")
         user.verified = True
         request.session["authenticated_user_id"] = str(user.id)
 

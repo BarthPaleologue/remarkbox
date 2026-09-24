@@ -8,6 +8,7 @@ from remarkbox.models import get_node_by_uri, get_node_by_id
 
 from remarkbox.models.user import get_or_create_user_by_email
 
+from remarkbox.lib import send_budget
 from remarkbox.lib.mail import send_verification_digits_to_email
 
 from remarkbox.lib.totp import derive_secret_key
@@ -76,6 +77,14 @@ def join_or_log_in(request):
         if user.throttle_password():
             msg = (
                 "We already sent a link to {}. Check email to log in.".format(user.email),
+                "info",
+            )
+
+        elif not user.verified and not send_budget.gate(request, email, "login"):
+            # First-contact budget spent (or an SMS gateway): the same
+            # answer as a send; a queued request goes out as budget frees.
+            msg = (
+                "We just sent a link to {}. Check email to log in.".format(user.email),
                 "info",
             )
 
@@ -157,6 +166,8 @@ def verification_challenge(request):
         if otp_ok:
             # success: the user was verified.
             request.session.pop("email_otp_requested", None)
+            if not user.verified:
+                send_budget.record_conversion(request.dbsession, "login")
             user.verified = True
             msg = ("Welcome {}".format(user.name), "success")
             request.session["authenticated_user_id"] = str(user.id)

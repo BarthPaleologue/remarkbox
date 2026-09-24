@@ -143,31 +143,31 @@ HTML Content:
         return None
 
 
-def send_pyramid_email(request, to_email, subject, message_text, message_html):
-    """Thin wrapper around `send_email` to customise settings using request object."""
-    default_sender = "no-reply@{}".format(request.domain)
-    sender_email = request.app.get("email.sender", default_sender)
-    subject = "{} | {}".format(
-        subject, request.app.get("email.subject_postfix", request.domain)
-    )
-    relay = request.app.get("email.relay", "localhost")
-    dkim_private_key_path = request.app.get("email.dkim_private_key_path", "")
-    dkim_selector = request.app.get("email.dkim_selector", "")
-    dkim_signature_algorithm = request.app.get(
-        "email.dkim_signature_algorithm", "ed25519-sha256"
-    )
-
+def send_app_email(app, domain, debug_mode, to_email, subject, message_text,
+                   message_html):
+    """`send_email` configured from `app.*` settings (as ``request.app``
+    holds them) & a site domain: usable outside a request (cron scripts)."""
+    sender_email = app.get("email.sender", "no-reply@{}".format(domain))
+    subject = "{} | {}".format(subject, app.get("email.subject_postfix", domain))
     send_email(
         to_email,
         sender_email,
         subject,
         message_text,
         message_html,
-        relay,
-        dkim_private_key_path,
-        dkim_selector,
-        dkim_signature_algorithm,
-        request.debug_mode,
+        app.get("email.relay", "localhost"),
+        app.get("email.dkim_private_key_path", ""),
+        app.get("email.dkim_selector", ""),
+        app.get("email.dkim_signature_algorithm", "ed25519-sha256"),
+        debug_mode,
+    )
+
+
+def send_pyramid_email(request, to_email, subject, message_text, message_html):
+    """Thin wrapper around `send_email` to customise settings using request object."""
+    send_app_email(
+        request.app, request.domain, request.debug_mode,
+        to_email, subject, message_text, message_html,
     )
 
 
@@ -228,4 +228,15 @@ def send_template_email(
         subject,
         text_template.render(**context),
         html_template.render(**context),
+    )
+
+
+def send_verification_digits(app, domain, debug_mode, to_email, raw_digits):
+    """The first-contact verification-code email without a request (queued
+    sends go only to never-verified addresses: the WELCOME_1 copy)."""
+    subject = "Verification Code - {}".format(raw_digits)
+    send_app_email(
+        app, domain, debug_mode, to_email, subject,
+        WELCOME_1_TEXT.format(raw_digits),
+        WELCOME_1_HTML.format(subject, raw_digits),
     )

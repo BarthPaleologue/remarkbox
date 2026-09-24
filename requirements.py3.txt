@@ -17,7 +17,8 @@ pyramid_retry
 pyramid_tm
 
 # Model.
-SQLAlchemy
+# SQLAlchemy 2.1.0 renamed ScalarAttributeImpl; sqlalchemy_utils still imports it.
+SQLAlchemy<2.1
 SQLAlchemy-Utils
 transaction
 zope.sqlalchemy
