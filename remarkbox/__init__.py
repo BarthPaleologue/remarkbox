@@ -712,7 +712,8 @@ def main(global_config, **settings):
     config.add_tween("remarkbox.api.csrf.api_csrf_tween_factory")
 
     # Scan for views.
-    config.scan()
+    # tests ship inside the package; scanning them would import pytest at app start
+    config.scan(ignore=["remarkbox.tests"])
 
     from .lib.real_ip import RealIPMiddleware
 
