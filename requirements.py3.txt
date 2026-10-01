@@ -26,7 +26,6 @@ alembic
 
 # PostgreSQL database connections.
 # requires postgresql-devel on Fedora for `pg_config` binary.
-psycopg2-binary
 
 # Template renderer.
 #jinja2
