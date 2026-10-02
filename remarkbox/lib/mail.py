@@ -17,7 +17,6 @@ from remarkbox.lib.mail_messages import (
     SUDO_OTP_HTML,
 )
 
-import dkim
 
 import smtplib
 
@@ -55,6 +54,7 @@ def send_email(
     # the `email` library assumes it is working with string objects.
     # the `dkim` library assumes it is working with byte objects.
     # this function performs the acrobatics to make them both happy.
+    import dkim  # deferred: slow to import; only DKIM signing needs it
     if isinstance(message_text, bytes):
         # needed for Python 3.
         message_text = message_text.decode()
