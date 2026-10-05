@@ -24,6 +24,66 @@ mock_always_true = mock.Mock(return_value=True)
 mock_false_then_true = mock.Mock(side_effect=[False, False, True])
 
 
+class TestUserSurrogateLookup(unittest.TestCase):
+    def setUp(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from remarkbox.models.meta import Base
+        from remarkbox.models.user import UserSurrogate
+
+        self.engine = create_engine("sqlite://")
+        Base.metadata.create_all(self.engine)
+        self.session = sessionmaker(bind=self.engine)()
+        self.namespace = Namespace("lookup.example.com")
+        self.other_namespace = Namespace("other-lookup.example.com")
+        self.session.add_all([self.namespace, self.other_namespace])
+        self.session.flush()
+        self.surrogate = UserSurrogate("Guest-backup", self.namespace)
+        self.other_surrogate = UserSurrogate("Guest-backup", self.other_namespace)
+        self.session.add_all([
+            self.surrogate, self.other_surrogate,
+            UserSurrogate("Unrelated-backup", self.namespace),
+        ])
+        self.session.flush()
+
+    def tearDown(self):
+        self.session.close()
+        self.engine.dispose()
+
+    def test_lookup_is_case_insensitive_and_namespace_scoped(self):
+        from remarkbox.models.user import get_user_surrogate_by_name
+
+        self.assertIs(
+            get_user_surrogate_by_name(self.session, "GUEST-backup", self.namespace),
+            self.surrogate,
+        )
+        self.assertIs(
+            get_user_surrogate_by_name(self.session, "guest-BACKUP", self.other_namespace),
+            self.other_surrogate,
+        )
+
+    def test_real_user_with_same_name_does_not_match_unrelated_surrogates(self):
+        from remarkbox.models.user import get_user_surrogate_by_name
+
+        user = User("registered-lookup@example.com")
+        user.name = "Registered-backup"
+        self.session.add(user)
+        self.session.flush()
+        self.assertIsNone(
+            get_user_surrogate_by_name(self.session, user.name, self.namespace)
+        )
+
+    def test_get_or_create_reuses_existing_surrogate(self):
+        from remarkbox.models.user import get_or_create_user_surrogate_by_name
+
+        self.assertIs(
+            get_or_create_user_surrogate_by_name(
+                self.session, "guest-backup", self.namespace
+            ),
+            self.surrogate,
+        )
+
+
 class TestUser(unittest.TestCase):
 
     @mock.patch("remarkbox.models.user.is_user_name_available", mock_always_true)

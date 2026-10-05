@@ -124,11 +124,6 @@ def import_comments(request):
                     "postfix_locked": postfix_locked,
                 }
 
-            # Lock the group postfix in the namespace on first use
-            request.namespace.import_group_postfix = group
-            request.dbsession.add(request.namespace)
-            request.dbsession.flush()
-
         # Get the uploaded file
         upload_file = request.params.get("json-file", None)
 
@@ -261,12 +256,21 @@ def import_comments(request):
                         request.dbsession.add(nodes[comment_id])
                         request.dbsession.flush()
 
+            # Lock the postfix only after a successful import.
+            if not postfix_locked:
+                request.namespace.import_group_postfix = group
+                request.dbsession.add(request.namespace)
+                request.dbsession.flush()
+
             request.session.flash((
                 f"Successfully imported {imported_threads} threads and {imported_comments} comments.",
                 "success"
             ))
 
         except Exception as e:
+            # The error is rendered as a normal response, so pyramid_tm would
+            # otherwise commit the comments already flushed before it occurred.
+            request.tm.doom()
             request.session.flash((f"Error during import: {str(e)}", "error"))
 
     return {

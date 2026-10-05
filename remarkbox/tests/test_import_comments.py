@@ -86,6 +86,127 @@ class ImportCommentsFunctionalTests(unittest.TestCase):
         from remarkbox.models import get_namespace_by_name
         return get_namespace_by_name(self.dbsession, "test.example.com")
 
+    def test_import_registered_and_guest_authors_with_same_name(self):
+        """A registered author and a guest may share a display name."""
+        from remarkbox.models import UserSurrogate
+
+        namespace = get_or_create_namespace(self.dbsession, "shared-name.example.com")
+        namespace.set_role_for_user(self.test_user, role="owner")
+        self.dbsession.add(namespace)
+        self.tm.commit()
+        data = {
+            "shared-name": {
+                "link": "https://shared-name.example.com/post",
+                "comments": [
+                    {"id": "guest-1", "author": "FirstGuest", "email": "",
+                     "content": "First unrelated guest", "timestamp": 1700000000},
+                    {"id": "guest-2", "author": "SecondGuest", "email": "",
+                     "content": "Second unrelated guest", "timestamp": 1700000001},
+                    {"id": "registered", "author": "SharedAuthor",
+                     "email": "shared-import@example.com", "content": "Registered comment",
+                     "timestamp": 1700000002},
+                    {"id": "guest", "author": "SharedAuthor", "email": "",
+                     "content": "Guest reply", "timestamp": 1700000003,
+                     "parent_id": "registered"},
+                ],
+            },
+        }
+        res = self.testapp.post(
+            "/ns/shared-name.example.com/import-comments",
+            {"csrf_token": self.csrf, "group-prefix": "backup"},
+            upload_files=[("json-file", "shared-name.json", json.dumps(data).encode())],
+            status=200,
+        )
+        self.assertIn(b"Successfully imported 1 threads and 4 comments", res.body)
+        registered = self.dbsession.query(Node).filter_by(data="Registered comment").one()
+        guest = self.dbsession.query(Node).filter_by(data="Guest reply").one()
+        self.assertEqual(guest.parent_id, registered.id)
+        self.assertEqual(registered.user.name, "SharedAuthor-backup")
+        self.assertIsNone(guest.user_id)
+        self.assertEqual(guest.user_surrogate.name, "SharedAuthor-backup")
+        self.assertEqual(guest.created, 1700000003000)
+        namespace = guest.root.namespace
+        self.assertEqual(
+            self.dbsession.query(UserSurrogate).filter_by(namespace_id=namespace.id).count(), 3
+        )
+
+    def test_failed_import_rolls_back_all_changes(self):
+        """An error on a later page must not commit an incomplete import."""
+        from remarkbox.models import (
+            User, UserSurrogate, Namespace, get_namespace_by_name,
+            get_or_create_node_by_uri,
+        )
+        from remarkbox.models.uri import Uri
+
+        namespace = get_or_create_namespace(self.dbsession, "atomic-import.example.com")
+        namespace.set_role_for_user(self.test_user, role="owner")
+        self.dbsession.add(namespace)
+        root = get_or_create_node_by_uri(self.dbsession, "https://atomic-import.example.com/existing")
+        existing = root.new_child()
+        existing.set_data("Existing comment survives failed import")
+        existing.user = self.test_user
+        self.dbsession.add_all([root, existing])
+        self.dbsession.flush()
+        existing_id = existing.id
+        models = (Node, User, UserSurrogate, Namespace, Uri)
+        counts = {model: self.dbsession.query(model).count() for model in models}
+        self.tm.commit()
+        data = {
+            "existing": {
+                "link": "https://atomic-import.example.com/existing",
+                "comments": [
+                    {"id": "valid", "author": "AtomicRegistered",
+                     "email": "atomic-import@example.com", "content": "Must be rolled back",
+                     "timestamp": 1700000000},
+                ],
+            },
+            "new": {
+                "link": "https://atomic-import.example.com/new",
+                "comments": [
+                    {"id": "invalid", "author": "AtomicGuest", "email": "",
+                     "content": "Invalid timestamp", "timestamp": "not-a-number"},
+                ],
+            },
+        }
+        res = self.testapp.post(
+            "/ns/atomic-import.example.com/import-comments",
+            {"csrf_token": self.csrf, "group-prefix": "backup"},
+            upload_files=[("json-file", "invalid.json", json.dumps(data).encode())],
+            status=200,
+        )
+        self.assertIn(b"Error during import:", res.body)
+        self.assertNotIn(b"Successfully imported", res.body)
+        for model, count in counts.items():
+            self.assertEqual(self.dbsession.query(model).count(), count, model.__name__)
+        self.assertIsNone(
+            get_namespace_by_name(self.dbsession, "atomic-import.example.com").import_group_postfix
+        )
+        self.assertEqual(
+            self.dbsession.get(Node, existing_id).data, "Existing comment survives failed import"
+        )
+
+    def test_rejected_upload_does_not_lock_group_postfix(self):
+        namespace = get_or_create_namespace(self.dbsession, "rejected-upload.example.com")
+        namespace.set_role_for_user(self.test_user, role="owner")
+        self.dbsession.add(namespace)
+        self.tm.commit()
+
+        for uploads, error in (
+            ([], b"Please select a JSON file"),
+            ([("json-file", "invalid.json", b"{invalid")], b"Invalid JSON file"),
+        ):
+            res = self.testapp.post(
+                "/ns/rejected-upload.example.com/import-comments",
+                {"csrf_token": self.csrf, "group-prefix": "backup"},
+                upload_files=uploads,
+                status=200,
+            )
+            self.assertIn(error, res.body)
+            from remarkbox.models import get_namespace_by_name
+            self.assertIsNone(
+                get_namespace_by_name(self.dbsession, "rejected-upload.example.com").import_group_postfix
+            )
+
     def test_import_page_requires_authentication(self):
         """Test that the import page requires user authentication"""
         self.testapp.get("/log-out")

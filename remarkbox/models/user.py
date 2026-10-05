@@ -723,7 +723,7 @@ def get_user_surrogate_by_name(dbsession, name, namespace):
     if name:
         return (
             dbsession.query(UserSurrogate)
-            .filter(func.lower(User.name) == unicode(name.lower()))
+            .filter(func.lower(UserSurrogate.name) == unicode(name.lower()))
             .filter(UserSurrogate.namespace_id == namespace.id)
             .one_or_none()
         )
